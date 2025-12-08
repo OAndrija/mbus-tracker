@@ -1,5 +1,7 @@
 package com.mbus.app.utils;
 
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.Vector2;
@@ -7,7 +9,11 @@ import com.badlogic.gdx.utils.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -23,32 +29,77 @@ public class MapRasterTiles {
 
     public static final int TILE_SIZE = 512;
 
+    // Cache folder in LibGDX local storage
+    private static final String CACHE_FOLDER = "tile_cache/";
+
+    static {
+        FileHandle cacheDir = Gdx.files.local(CACHE_FOLDER);
+        if (!cacheDir.exists()) {
+            cacheDir.mkdirs();
+            log.info("Created tile cache at: " + cacheDir.path());
+        } else {
+            log.info("Using existing tile cache: " + cacheDir.path());
+        }
+    }
+
     // ===========================
-    // TILE FETCHING
+    // TILE FETCHING WITH CACHING
     // ===========================
 
     public static Texture getRasterTile(int zoom, int x, int y) throws IOException {
-        String urlStr = mapServiceUrl + tilesetId + "/" + zoom + "/" + x + "/" + y + format + token;
+        String fileName = zoom + "_" + x + "_" + y + ".png";
+        FileHandle file = Gdx.files.local(CACHE_FOLDER + fileName);
 
-        log.info("Requesting tile: zoom=" + zoom + " x=" + x + " y=" + y);
-        log.debug("Tile URL: " + urlStr);
+        // 1) LOAD FROM CACHE
+        if (file.exists()) {
+            byte[] cached = readFileBytes(fileName);
+            if (cached != null) {
+                log.info("Cache hit → " + fileName);
+                return getTexture(cached);
+            } else {
+                log.error("Cache read failed for " + fileName + ", redownloading.");
+            }
+        }
+
+        // 2) DOWNLOAD
+        String urlStr = mapServiceUrl + tilesetId + "/" + zoom + "/" + x + "/" + y + format + token;
+        log.info("Downloading tile: zoom=" + zoom + " x=" + x + " y=" + y);
+        log.debug("URL: " + urlStr);
 
         URL url = new URL(urlStr);
         ByteArrayOutputStream bis = fetchTile(url);
 
         log.info("Tile downloaded (" + bis.size() + " bytes)");
+
+        // 3) SAVE TO CACHE
+        saveFileBytes(fileName, bis.toByteArray());
 
         return getTexture(bis.toByteArray());
     }
 
     public static Texture getRasterTile(String zoomXY) throws IOException {
+        String safeName = zoomXY.replace("/", "_") + ".png";
+        FileHandle file = Gdx.files.local(CACHE_FOLDER + safeName);
+
+        if (file.exists()) {
+            byte[] cached = readFileBytes(safeName);
+            if (cached != null) {
+                log.info("Cache hit → " + safeName);
+                return getTexture(cached);
+            } else {
+                log.error("Cache read failed for " + safeName + ", redownloading.");
+            }
+        }
+
         String urlStr = mapServiceUrl + tilesetId + "/" + zoomXY + format + token;
+        log.info("Downloading tile: " + zoomXY);
 
-        log.info("Requesting tile: " + zoomXY);
         URL url = new URL(urlStr);
-
         ByteArrayOutputStream bis = fetchTile(url);
+
         log.info("Tile downloaded (" + bis.size() + " bytes)");
+
+        saveFileBytes(safeName, bis.toByteArray());
 
         return getTexture(bis.toByteArray());
     }
@@ -58,7 +109,7 @@ public class MapRasterTiles {
     }
 
     public static Texture[] getRasterTileZone(ZoomXY zoomXY, int size) throws IOException {
-        log.info("Fetching tile zone: center=" + zoomXY.toString() + " size=" + size);
+        log.info("Fetching tile zone: center=" + zoomXY + " size=" + size);
 
         Texture[] array = new Texture[size * size];
         int[] factorY = new int[size * size];
@@ -86,11 +137,38 @@ public class MapRasterTiles {
     }
 
     // ===========================
+    // FILE I/O HELPERS (LibGDX)
+    // ===========================
+
+    private static void saveFileBytes(String fileName, byte[] data) {
+        try {
+            FileHandle file = Gdx.files.local(CACHE_FOLDER + fileName);
+            file.writeBytes(data, false);
+            log.info("Saved cached tile: " + fileName);
+        } catch (Exception e) {
+            log.error("Failed to save cached tile: " + fileName, e);
+        }
+    }
+
+    private static byte[] readFileBytes(String fileName) {
+        try {
+            FileHandle file = Gdx.files.local(CACHE_FOLDER + fileName);
+            if (!file.exists()) {
+                return null;
+            }
+            return file.readBytes();
+        } catch (Exception e) {
+            log.error("Failed to read cached tile: " + fileName, e);
+            return null;
+        }
+    }
+
+    // ===========================
     // TILE DOWNLOAD CORE
     // ===========================
 
     public static ByteArrayOutputStream fetchTile(URL url) throws IOException {
-        log.debug("Connecting to tile server…");
+        log.debug("Connecting…");
 
         long start = System.currentTimeMillis();
 
@@ -120,8 +198,6 @@ public class MapRasterTiles {
     // ===========================
 
     public static ZoomXY getTileNumber(final double lat, final double lon, final int zoom) {
-        log.debug("Converting geolocation to tile number: lat=" + lat + " lon=" + lon);
-
         int xtile = (int) Math.floor((lon + 180) / 360 * (1 << zoom));
         int ytile = (int) Math.floor((1 - Math.log(Math.tan(Math.toRadians(lat)) +
             1 / Math.cos(Math.toRadians(lat))) / Math.PI) / 2 * (1 << zoom));
@@ -130,8 +206,8 @@ public class MapRasterTiles {
         ytile = Math.max(0, Math.min(ytile, (1 << zoom) - 1));
 
         ZoomXY tile = new ZoomXY(zoom, xtile, ytile);
+        log.info("Tile number result: " + tile);
 
-        log.info("Tile number result: " + tile.toString());
         return tile;
     }
 
@@ -140,15 +216,14 @@ public class MapRasterTiles {
     // ===========================
 
     public static Vector2 getPixelPosition(double lat, double lng, int beginTileX, int beginTileY) {
-        log.debug("Converting geolocation to pixel: lat=" + lat + " lng=" + lng);
-
-        double[] worldCoordinate = project(lat, lng, MapRasterTiles.TILE_SIZE);
+        double[] worldCoordinate = project(lat, lng, TILE_SIZE);
         double scale = Math.pow(2, Constants.ZOOM);
 
         Vector2 result = new Vector2(
-            (int) (Math.floor(worldCoordinate[0] * scale) - (beginTileX * MapRasterTiles.TILE_SIZE)),
-            Constants.MAP_HEIGHT - (int) (Math.floor(worldCoordinate[1] * scale) -
-                (beginTileY * MapRasterTiles.TILE_SIZE) - 1)
+            (float) (Math.floor(worldCoordinate[0] * scale) - (beginTileX * TILE_SIZE)),
+            (float) (Constants.MAP_HEIGHT -
+                (Math.floor(worldCoordinate[1] * scale) -
+                    (beginTileY * TILE_SIZE) - 1))
         );
 
         log.debug("Pixel position: " + result);
@@ -183,7 +258,6 @@ public class MapRasterTiles {
         } catch (Exception e) {
             log.error("Routing failed", e);
         }
-
         return null;
     }
 
@@ -219,8 +293,6 @@ public class MapRasterTiles {
 
         in.close();
 
-        log.info("Route received. Parsing JSON…");
-
         JSONObject jsonResponse = new JSONObject(response.toString());
         JSONArray features = jsonResponse.getJSONArray("features");
 
@@ -240,10 +312,8 @@ public class MapRasterTiles {
 
             for (int j = 0; j < coord.length(); j++) {
                 JSONArray c = coord.getJSONArray(j);
-                double lon = c.getDouble(0);
-                double lat = c.getDouble(1);
-
-                segment[j] = new Geolocation(lat, lon);
+                // GeoJSON: [lon, lat]
+                segment[j] = new Geolocation(c.getDouble(1), c.getDouble(0));
             }
 
             geolocations[i] = segment;
