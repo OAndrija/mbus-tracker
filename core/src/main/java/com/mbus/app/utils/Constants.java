@@ -3,7 +3,7 @@ package com.mbus.app.utils;
 import com.badlogic.gdx.Gdx;
 
 public class Constants {
-    public static final int NUM_TILES = 5;
+    public static final int NUM_TILES = 15;
     public static final int ZOOM = 15;
     public static final int MAP_WIDTH = MapRasterTiles.TILE_SIZE * NUM_TILES;
     public static final int MAP_HEIGHT = MapRasterTiles.TILE_SIZE * NUM_TILES;
