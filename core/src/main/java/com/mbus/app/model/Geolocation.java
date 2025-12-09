@@ -1,4 +1,4 @@
-package com.mbus.app.utils;
+package com.mbus.app.model;
 
 public class Geolocation {
     public double lat;

@@ -1,6 +1,7 @@
 package com.mbus.app.utils;
 
 import com.badlogic.gdx.Gdx;
+import com.mbus.app.systems.map.MapRasterTiles;
 
 public class Constants {
     public static final int NUM_TILES = 15;

@@ -1,4 +1,4 @@
-package com.mbus.app.utils;
+package com.mbus.app.systems.data;
 
 /**
  * Converts Slovenian EPSG:3794 (D96/TM) coordinates to WGS84 latitude/longitude.

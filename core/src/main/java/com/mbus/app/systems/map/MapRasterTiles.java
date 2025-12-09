@@ -1,4 +1,4 @@
-package com.mbus.app.utils;
+package com.mbus.app.systems.map;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
@@ -6,6 +6,10 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Logger;
+import com.mbus.app.utils.Constants;
+import com.mbus.app.model.Geolocation;
+import com.mbus.app.utils.Keys;
+import com.mbus.app.model.ZoomXY;
 import org.json.JSONArray;
 import org.json.JSONObject;
 

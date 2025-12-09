@@ -1,9 +1,10 @@
-package com.mbus.app.utils;
+package com.mbus.app.systems.data;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Logger;
 import com.mbus.app.model.BusStop;
+import com.mbus.app.model.Geolocation;
 import org.json.JSONArray;
 import org.json.JSONObject;
 

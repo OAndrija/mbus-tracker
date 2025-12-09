@@ -1,8 +1,5 @@
 package com.mbus.app.model;
 
-import com.mbus.app.utils.GeoJSONLoader;
-import com.mbus.app.utils.Geolocation;
-
 public class BusStop {
 
     public final int idAvpost;

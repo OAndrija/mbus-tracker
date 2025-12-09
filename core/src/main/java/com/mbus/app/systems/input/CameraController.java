@@ -1,0 +1,105 @@
+package com.mbus.app.systems.input;
+
+import com.badlogic.gdx.InputProcessor;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.Gdx;
+import com.mbus.app.utils.Constants;
+
+public class CameraController implements InputProcessor {
+
+    private final OrthographicCamera camera;
+
+    private boolean dragging = false;
+    private int lastX, lastY;
+
+    public float minZoom = 0.05f;
+    public float maxZoom = 2.5f;
+    public float keyboardSpeed = 20f;
+    public float zoomSpeed = 0.02f;
+    public float dragSpeed = 1.6f;
+
+    public CameraController(OrthographicCamera camera) {
+        this.camera = camera;
+    }
+
+    public void update() {
+        handleMouseDrag();
+        handleKeyboardMovement();
+        clampCamera();
+    }
+
+    private void handleMouseDrag() {
+        if (Gdx.input.isButtonPressed(Input.Buttons.LEFT)) {
+
+            int x = Gdx.input.getX();
+            int y = Gdx.input.getY();
+
+            if (!dragging) {
+                dragging = true;
+                lastX = x;
+                lastY = y;
+                return;
+            }
+
+            int deltaX = x - lastX;
+            int deltaY = y - lastY;
+
+            float speed = dragSpeed * (float)Math.sqrt(camera.zoom);
+            camera.translate(-deltaX * dragSpeed, deltaY * dragSpeed);
+
+            lastX = x;
+            lastY = y;
+
+        } else {
+            dragging = false;
+        }
+    }
+
+    private void handleKeyboardMovement() {
+
+        float speed = keyboardSpeed * camera.zoom;
+
+        if (Gdx.input.isKeyPressed(Input.Keys.LEFT)) camera.translate(-speed, 0);
+        if (Gdx.input.isKeyPressed(Input.Keys.RIGHT)) camera.translate(speed, 0);
+        if (Gdx.input.isKeyPressed(Input.Keys.UP)) camera.translate(0, speed);
+        if (Gdx.input.isKeyPressed(Input.Keys.DOWN)) camera.translate(0, -speed);
+
+        if (Gdx.input.isKeyPressed(Input.Keys.Q)) camera.zoom -= zoomSpeed;
+        if (Gdx.input.isKeyPressed(Input.Keys.A)) camera.zoom += zoomSpeed;
+    }
+
+    private void clampCamera() {
+
+        // Prevent zooming too far in or out
+        camera.zoom = Math.max(minZoom, camera.zoom);
+
+        // Compute max zoom so entire map stays visible
+        float maxZoomX = Constants.MAP_WIDTH  / camera.viewportWidth;
+        float maxZoomY = Constants.MAP_HEIGHT / camera.viewportHeight;
+
+        float maxAllowedZoom = Math.min(maxZoomX, maxZoomY);
+
+        camera.zoom = Math.min(camera.zoom, maxAllowedZoom);
+    }
+
+
+    // ===================
+    // INPUT PROCESSOR PART
+    // ===================
+
+    @Override
+    public boolean scrolled(float amountX, float amountY) {
+        camera.zoom += amountY * zoomSpeed;  // mouse wheel
+        return true;
+    }
+
+    @Override public boolean keyDown(int keycode) { return false; }
+    @Override public boolean keyUp(int keycode) { return false; }
+    @Override public boolean keyTyped(char character) { return false; }
+    @Override public boolean touchDown(int screenX, int screenY, int pointer, int button) { return false; }
+    @Override public boolean touchUp(int screenX, int screenY, int pointer, int button) { return false; }
+    @Override public boolean touchDragged(int screenX, int screenY, int pointer) { return false; }
+    @Override public boolean mouseMoved(int screenX, int screenY) { return false; }
+    @Override public boolean touchCancelled(int screenX, int screenY, int pointer, int button) { return false; }
+}
