@@ -17,6 +17,7 @@ public class BusStopDetailPanel {
     private boolean visible;
 
     private BusStop currentStop;
+    private VisibilityChangeCallback visibilityCallback;
 
     public BusStopDetailPanel(Skin skin) {
         this.skin = skin;
@@ -116,6 +117,11 @@ public class BusStopDetailPanel {
         mainPanel.add(actionButtonsTable).width(panelWidth - 20).padLeft(10).padRight(10).padTop(15).padBottom(15).row();
 
         mainPanel.setVisible(true);
+
+        // Notify visibility change
+        if (visibilityCallback != null) {
+            visibilityCallback.onVisibilityChanged(true);
+        }
     }
 
     private void addInfoRow(Table table, String label, String value, float panelWidth) {
@@ -174,10 +180,26 @@ public class BusStopDetailPanel {
     public void hide() {
         this.visible = false;
         mainPanel.setVisible(false);
+
+        // Notify visibility change
+        if (visibilityCallback != null) {
+            visibilityCallback.onVisibilityChanged(false);
+        }
     }
 
     public boolean isVisible() {
         return visible;
+    }
+
+    public float getEffectiveWidth() {
+        return visible ? mainPanel.getWidth() : 0f;
+    }
+
+    /**
+     * Set callback for when panel visibility changes
+     */
+    public void setVisibilityChangeCallback(VisibilityChangeCallback callback) {
+        this.visibilityCallback = callback;
     }
 
     public void resize(int width, int height) {
@@ -207,5 +229,12 @@ public class BusStopDetailPanel {
 
     public Stage getStage() {
         return stage;
+    }
+
+    /**
+     * Callback interface for panel visibility changes
+     */
+    public interface VisibilityChangeCallback {
+        void onVisibilityChanged(boolean visible);
     }
 }

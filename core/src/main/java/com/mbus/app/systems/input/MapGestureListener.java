@@ -1,5 +1,6 @@
 package com.mbus.app.systems.input;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.input.GestureDetector;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -13,9 +14,26 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     private MarkerClickHandler markerClickHandler;
     private BusStopClickCallback clickCallback;
 
+    // HUD boundary
+    private float hudWidth = 0f;
+
     public MapGestureListener(OrthographicCamera camera) {
         this.camera = camera;
         this.markerClickHandler = new MarkerClickHandler(camera);
+    }
+
+    /**
+     * Set the HUD width to exclude from gesture handling
+     */
+    public void setHudWidth(float width) {
+        this.hudWidth = width;
+    }
+
+    /**
+     * Check if position is over the HUD area
+     */
+    private boolean isOverHud(float x) {
+        return x < hudWidth;
     }
 
     /**
@@ -34,6 +52,10 @@ public class MapGestureListener implements GestureDetector.GestureListener {
 
     @Override
     public boolean pan(float x, float y, float deltaX, float deltaY) {
+        // Don't pan if gesture started over HUD
+        if (isOverHud(x)) {
+            return false;
+        }
         camera.translate(-deltaX * camera.zoom, deltaY * camera.zoom);
         return true;
     }
@@ -63,11 +85,20 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     @Override
     public boolean touchDown(float x, float y, int pointer, int button) {
         initialZoom = camera.zoom;
+        // Don't handle if over HUD
+        if (isOverHud(x)) {
+            return false;
+        }
         return false;
     }
 
     @Override
     public boolean tap(float x, float y, int count, int button) {
+        // Don't handle taps over HUD
+        if (isOverHud(x)) {
+            return false;
+        }
+
         // Check if a marker was tapped
         if (markerClickHandler != null && clickCallback != null) {
             BusStop clickedStop = markerClickHandler.checkMarkerClick((int)x, (int)y);

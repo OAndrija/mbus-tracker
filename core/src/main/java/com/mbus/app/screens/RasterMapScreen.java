@@ -65,6 +65,14 @@ public class RasterMapScreen implements Screen {
         hudPanel = new HudPanel(skin);
         detailPanel = new BusStopDetailPanel(skin);
 
+        // Set callback for when detail panel visibility changes
+        detailPanel.setVisibilityChangeCallback(new BusStopDetailPanel.VisibilityChangeCallback() {
+            @Override
+            public void onVisibilityChanged(boolean visible) {
+                updateHudBoundaries();
+            }
+        });
+
         // Set the bus stops data in the HUD panel
         hudPanel.setBusStops(stops);
 
@@ -154,6 +162,7 @@ public class RasterMapScreen implements Screen {
             public void onBusStopClicked(BusStop busStop) {
                 Gdx.app.log("RasterMapScreen", "Clicked bus stop: " + busStop.name);
                 detailPanel.showBusStop(busStop);
+                updateHudBoundaries(); // Update boundaries when detail panel opens
             }
         });
 
@@ -172,6 +181,21 @@ public class RasterMapScreen implements Screen {
                 app.cameraController
             ));
         }
+
+        // Set initial HUD boundaries
+        updateHudBoundaries();
+    }
+
+    /**
+     * Update HUD width boundaries for map input handlers
+     */
+    private void updateHudBoundaries() {
+        float hudPanelWidth = Gdx.graphics.getWidth() / 6f;
+        float detailPanelWidth = detailPanel.getEffectiveWidth();
+        float totalHudWidth = hudPanelWidth + detailPanelWidth;
+
+        app.cameraController.setHudWidth(totalHudWidth);
+        mapGestureListener.setHudWidth(totalHudWidth);
     }
 
     @Override
