@@ -10,7 +10,7 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 
 public class HudPanel {
-    private static final float WIDTH_RATIO = 5f;
+    private static final float WIDTH_RATIO = 6f;
 
     private Stage stage;
     private Skin skin;

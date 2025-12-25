@@ -67,6 +67,15 @@ public class MapRenderer {
         }
     }
 
+    // Getters for click detection
+    public ZoomXY getBeginTile() {
+        return beginTile;
+    }
+
+    public List<BusStop> getStops() {
+        return stops;
+    }
+
     // ----------------------------
     // PRIVATE INTERNAL LOGIC
     // ----------------------------
