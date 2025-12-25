@@ -30,6 +30,8 @@ public class MapRenderer {
     private TiledMap tiledMap;
     private TiledMapRenderer tiledMapRenderer;
 
+    private boolean showMarkers = true;
+
     public MapRenderer(OrthographicCamera camera) {
         this.camera = camera;
         this.shapeRenderer = new ShapeRenderer();
@@ -49,10 +51,22 @@ public class MapRenderer {
         this.stops = stops;
     }
 
+    public void setShowMarkers(boolean show) {
+        this.showMarkers = show;
+    }
+
+    public boolean isShowingMarkers() {
+        return showMarkers;
+    }
+
     public void render() {
         tiledMapRenderer.setView(camera);
         tiledMapRenderer.render();
-        renderMarkers();
+
+        // Only render markers if showMarkers is true
+        if (showMarkers) {
+            renderMarkers();
+        }
     }
 
     public void dispose() {

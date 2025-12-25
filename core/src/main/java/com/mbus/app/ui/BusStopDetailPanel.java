@@ -8,6 +8,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.mbus.app.model.BusStop;
+import com.mbus.app.utils.Constants;
 
 public class BusStopDetailPanel {
 
@@ -33,7 +34,7 @@ public class BusStopDetailPanel {
         mainPanel.setFillParent(false);
 
         // Calculate panel width (1/6th of screen) and position
-        float panelWidth = Gdx.graphics.getWidth() / 6f;
+        float panelWidth = Gdx.graphics.getWidth() / Constants.HUD_WIDTH;
         mainPanel.setSize(panelWidth, Gdx.graphics.getHeight());
         mainPanel.setPosition(panelWidth, 0); // Position next to left panel
 
@@ -206,7 +207,7 @@ public class BusStopDetailPanel {
         stage.getViewport().update(width, height, true);
 
         // Update panel width and position
-        float panelWidth = width / 6f;
+        float panelWidth = width / Constants.HUD_WIDTH;
         mainPanel.setSize(panelWidth, height);
         mainPanel.setPosition(panelWidth, 0);
 

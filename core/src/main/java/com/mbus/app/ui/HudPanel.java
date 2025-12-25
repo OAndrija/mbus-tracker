@@ -9,13 +9,12 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.mbus.app.model.BusStop;
+import com.mbus.app.utils.Constants;
 
 import java.util.List;
 import java.util.ArrayList;
 
 public class HudPanel {
-    private static final float WIDTH_RATIO = 6f;
-
     private Stage stage;
     private Skin skin;
     private Table mainPanel;
@@ -23,9 +22,23 @@ public class HudPanel {
     // UI Components
     private TextField searchField;
     private ScrollPane busStopsScrollPane;
+    private TextButton allStopsBtn;
 
     // Data
     private List<BusStop> busStops;
+    private boolean showingAllStops = true;
+
+    // Callback interfaces
+    public interface ShowAllStopsCallback {
+        void onShowAllStopsChanged(boolean showAll);
+    }
+
+    public interface BusStopClickCallback {
+        void onBusStopClicked(BusStop busStop);
+    }
+
+    private ShowAllStopsCallback showAllStopsCallback;
+    private BusStopClickCallback busStopClickCallback;
 
     public HudPanel(Skin skin) {
         this.skin = skin;
@@ -41,7 +54,7 @@ public class HudPanel {
         mainPanel.setFillParent(false);
 
         // Calculate panel width (1/6th of screen)
-        float panelWidth = Gdx.graphics.getWidth() / WIDTH_RATIO;
+        float panelWidth = Gdx.graphics.getWidth() / Constants.HUD_WIDTH;
         mainPanel.setSize(panelWidth, Gdx.graphics.getHeight());
         mainPanel.setPosition(0, 0);
 
@@ -71,7 +84,15 @@ public class HudPanel {
         // "Vse linije" and "Vse postaje" buttons
         Table allButtonsTable = new Table();
         TextButton allLinesBtn = new TextButton("Vse linije", skin, "orange-small");
-        TextButton allStopsBtn = new TextButton("Vse postaje", skin, "orange-small");
+        allStopsBtn = new TextButton("Vse postaje", skin, "orange-small");
+
+        // Add click listener to "Vse postaje" button
+        allStopsBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                toggleShowAllStops();
+            }
+        });
 
         allButtonsTable.add(allLinesBtn).width((panelWidth - 30) / 2f).padRight(5);
         allButtonsTable.add(allStopsBtn).width((panelWidth - 30) / 2f).padLeft(5);
@@ -90,6 +111,16 @@ public class HudPanel {
         mainPanel.add(busStopsScrollPane).width(panelWidth - 20).expand().fill().padLeft(10).padRight(10).padBottom(10).row();
 
         stage.addActor(mainPanel);
+    }
+
+    private void toggleShowAllStops() {
+        showingAllStops = !showingAllStops;
+
+        refreshBusStopsTable();
+
+        if (showAllStopsCallback != null) {
+            showAllStopsCallback.onShowAllStopsChanged(showingAllStops);
+        }
     }
 
     private Table createBusLinesTable() {
@@ -121,10 +152,10 @@ public class HudPanel {
         Table table = new Table();
         table.align(Align.top | Align.left);
 
-        // Use real bus stops data
-        if (busStops != null && !busStops.isEmpty()) {
+        // Only show bus stops if showingAllStops is true
+        if (showingAllStops && busStops != null && !busStops.isEmpty()) {
             for (int i = 0; i < busStops.size(); i++) {
-                BusStop stop = busStops.get(i);
+                final BusStop stop = busStops.get(i);
 
                 // Bus stop ID button (using idAvpost)
                 TextButton idBtn = new TextButton(String.valueOf(stop.idAvpost), skin, "maroon-small");
@@ -135,9 +166,19 @@ public class HudPanel {
                 stopLabel.setFontScale(0.8f);
                 stopLabel.setEllipsis(true);
 
-                // Arrow button - always visible
+                // Arrow button - clickable to open detail panel
                 TextButton arrowBtn = new TextButton(">", skin, "orange-small");
                 arrowBtn.getLabel().setFontScale(0.9f);
+
+                // Add click listener to arrow button
+                arrowBtn.addListener(new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        if (busStopClickCallback != null) {
+                            busStopClickCallback.onBusStopClicked(stop);
+                        }
+                    }
+                });
 
                 // Add cells with proper sizing - arrow always visible
                 table.add(idBtn).width(30).height(35).padRight(5).left();
@@ -153,6 +194,12 @@ public class HudPanel {
                     table.row();
                 }
             }
+        } else if (!showingAllStops) {
+            // Show message when stops are hidden
+            Label emptyLabel = new Label("Postajališča so skrita", skin, "default");
+            emptyLabel.setFontScale(0.8f);
+            emptyLabel.setColor(Color.GRAY);
+            table.add(emptyLabel).pad(10);
         } else {
             // Fallback message if no data
             Label emptyLabel = new Label("Ni podatkov o postajališčih", skin, "default");
@@ -175,11 +222,23 @@ public class HudPanel {
         busStopsScrollPane.setActor(newBusStopsTable);
     }
 
+    public void setShowAllStopsCallback(ShowAllStopsCallback callback) {
+        this.showAllStopsCallback = callback;
+    }
+
+    public void setBusStopClickCallback(BusStopClickCallback callback) {
+        this.busStopClickCallback = callback;
+    }
+
+    public boolean isShowingAllStops() {
+        return showingAllStops;
+    }
+
     public void resize(int width, int height) {
         stage.getViewport().update(width, height, true);
 
         // Update panel width
-        float panelWidth = width / WIDTH_RATIO;
+        float panelWidth = width / Constants.HUD_WIDTH;
         mainPanel.setSize(panelWidth, height);
 
         // Rebuild UI with new dimensions
