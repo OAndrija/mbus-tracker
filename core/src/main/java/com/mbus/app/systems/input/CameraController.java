@@ -1,9 +1,9 @@
 package com.mbus.app.systems.input;
 
-import com.badlogic.gdx.InputProcessor;
-import com.badlogic.gdx.Input;
-import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputProcessor;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.mbus.app.utils.Constants;
 
 public class CameraController implements InputProcessor {
@@ -13,11 +13,11 @@ public class CameraController implements InputProcessor {
     private boolean dragging = false;
     private int lastX, lastY;
 
-    public float minZoom = 0.05f;
-    public float maxZoom = 2.5f;
+    public float minZoom      = 0.05f;
+    public float maxZoom      = 2.5f;
     public float keyboardSpeed = 20f;
-    public float zoomSpeed = 0.02f;
-    public float dragSpeed = 1.6f;
+    public float zoomSpeed     = 0.02f;
+    public float dragSpeed     = 1.6f;
 
     public CameraController(OrthographicCamera camera) {
         this.camera = camera;
@@ -45,8 +45,8 @@ public class CameraController implements InputProcessor {
             int deltaX = x - lastX;
             int deltaY = y - lastY;
 
-            float speed = dragSpeed * (float)Math.sqrt(camera.zoom);
-            camera.translate(-deltaX * dragSpeed, deltaY * dragSpeed);
+            float speed = dragSpeed * (float) Math.sqrt(camera.zoom);
+            camera.translate(-deltaX * speed, deltaY * speed);
 
             lastX = x;
             lastY = y;
@@ -60,17 +60,16 @@ public class CameraController implements InputProcessor {
 
         float speed = keyboardSpeed * camera.zoom;
 
-        if (Gdx.input.isKeyPressed(Input.Keys.LEFT)) camera.translate(-speed, 0);
+        if (Gdx.input.isKeyPressed(Input.Keys.LEFT))  camera.translate(-speed, 0);
         if (Gdx.input.isKeyPressed(Input.Keys.RIGHT)) camera.translate(speed, 0);
-        if (Gdx.input.isKeyPressed(Input.Keys.UP)) camera.translate(0, speed);
-        if (Gdx.input.isKeyPressed(Input.Keys.DOWN)) camera.translate(0, -speed);
+        if (Gdx.input.isKeyPressed(Input.Keys.UP))    camera.translate(0, speed);
+        if (Gdx.input.isKeyPressed(Input.Keys.DOWN))  camera.translate(0, -speed);
 
         if (Gdx.input.isKeyPressed(Input.Keys.Q)) camera.zoom -= zoomSpeed;
         if (Gdx.input.isKeyPressed(Input.Keys.A)) camera.zoom += zoomSpeed;
     }
 
     private void clampCamera() {
-
         // Prevent zooming too far in or out
         camera.zoom = Math.max(minZoom, camera.zoom);
 
@@ -83,14 +82,13 @@ public class CameraController implements InputProcessor {
         camera.zoom = Math.min(camera.zoom, maxAllowedZoom);
     }
 
-
     // ===================
     // INPUT PROCESSOR PART
     // ===================
 
     @Override
     public boolean scrolled(float amountX, float amountY) {
-        camera.zoom += amountY * zoomSpeed;  // mouse wheel
+        camera.zoom += amountY * zoomSpeed;
         return true;
     }
 

@@ -85,16 +85,8 @@ public class MapRenderer {
         int index = 0;
         for (int j = Constants.NUM_TILES - 1; j >= 0; j--) {
             for (int i = 0; i < Constants.NUM_TILES; i++) {
-
-                TextureRegion region = new TextureRegion(
-                    mapTiles[index],
-                    MapRasterTiles.TILE_SIZE,
-                    MapRasterTiles.TILE_SIZE
-                );
-
-                StaticTiledMapTile tile = new StaticTiledMapTile(region);
-                TiledMapTileLayer.Cell cell = new TiledMapTileLayer.Cell().setTile(tile);
-
+                TiledMapTileLayer.Cell cell = new TiledMapTileLayer.Cell();
+                cell.setTile(new StaticTiledMapTile(new TextureRegion(mapTiles[index], MapRasterTiles.TILE_SIZE, MapRasterTiles.TILE_SIZE)));
                 layer.setCell(i, j, cell);
                 index++;
             }
