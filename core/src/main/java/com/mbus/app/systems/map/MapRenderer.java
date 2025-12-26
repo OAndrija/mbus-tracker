@@ -16,11 +16,14 @@ import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
 import com.badlogic.gdx.maps.tiled.tiles.StaticTiledMapTile;
 import com.badlogic.gdx.math.Vector2;
 
+import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
 import com.mbus.app.model.ZoomXY;
+import com.mbus.app.utils.BusLineColors;
 import com.mbus.app.utils.Constants;
 
 import java.util.List;
+import java.util.Set;
 
 public class MapRenderer {
 
@@ -33,6 +36,7 @@ public class MapRenderer {
     private Texture markerTexture;
     private ZoomXY beginTile;
     private List<BusStop> stops;
+    private List <BusLine> busLines;
 
     private TiledMap tiledMap;
     private TiledMapRenderer tiledMapRenderer;
@@ -52,10 +56,16 @@ public class MapRenderer {
     private static final float SELECT_SCALE = 1.4f;
     private static final float PULSE_SPEED = 2.5f;
 
-    // Zoom-based scaling (subtle effect)
+    // Zoom-based scaling (subtle effect)z
     private static final float MIN_ZOOM_SCALE = 0.7f;
     private static final float MAX_ZOOM_SCALE = 4f;
     private static final float ZOOM_SCALE_FACTOR = 6f;
+
+    // BUS LINES
+    private static final float BUS_LINE_WIDTH = 10f;
+    private static final Color BUS_LINE_COLOR = new Color(0.2f, 0.5f, 1.0f, 0.7f);
+
+    private Set<Integer> visibleLineIds;
 
     public MapRenderer(OrthographicCamera camera) {
         this.camera = camera;
@@ -83,6 +93,10 @@ public class MapRenderer {
         this.stops = stops;
     }
 
+    public void setBusLines(List<BusLine> busLines) {
+        this.busLines = busLines;
+    }
+
     public void setShowMarkers(boolean show) {
         this.showMarkers = show;
     }
@@ -107,12 +121,95 @@ public class MapRenderer {
         tiledMapRenderer.setView(camera);
         tiledMapRenderer.render();
 
+        // Render bus lines first (underneath markers)
+        if (busLines != null && !busLines.isEmpty()) {
+            renderBusLines();
+        }
+
         // Only render markers if showMarkers is true
         if (showMarkers) {
             pulseTime += delta;
             renderMarkers();
         }
     }
+
+    private void renderBusLines() {
+        if (visibleLineIds == null || visibleLineIds.isEmpty()) {
+            return; // Don't render if no lines are visible
+        }
+
+        shapeRenderer.setProjectionMatrix(camera.combined);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+
+        float zoomScale = getZoomScale();
+        float lineWidth = BUS_LINE_WIDTH * Math.min(zoomScale * 0.5f, 2.0f);
+
+        for (BusLine line : busLines) {
+            // Only render if this line is visible
+            if (!visibleLineIds.contains(line.lineId)) {
+                continue;
+            }
+
+            // Get the color for this specific line
+            Color lineColor = BusLineColors.getColor(line.lineId);
+            shapeRenderer.setColor(lineColor);
+
+            List<com.mbus.app.model.Geolocation> path = line.getPath();
+
+            if (path.size() < 2) continue;
+
+            for (int i = 0; i < path.size() - 1; i++) {
+                com.mbus.app.model.Geolocation point1 = path.get(i);
+                com.mbus.app.model.Geolocation point2 = path.get(i + 1);
+
+                Vector2 pos1 = MapRasterTiles.getPixelPosition(
+                    point1.lat,
+                    point1.lng,
+                    beginTile.x,
+                    beginTile.y
+                );
+
+                Vector2 pos2 = MapRasterTiles.getPixelPosition(
+                    point2.lat,
+                    point2.lng,
+                    beginTile.x,
+                    beginTile.y
+                );
+
+                if (!isLineVisible(pos1, pos2)) {
+                    continue;
+                }
+
+                shapeRenderer.rectLine(pos1.x, pos1.y, pos2.x, pos2.y, lineWidth);
+            }
+        }
+
+        shapeRenderer.end();
+    }
+
+    public void setVisibleLineIds(Set<Integer> lineIds) {
+        this.visibleLineIds = lineIds;
+    }
+
+    // Helper method to check if a line segment is potentially visible
+    private boolean isLineVisible(Vector2 pos1, Vector2 pos2) {
+        // Add some padding for lines that might partially intersect the viewport
+        float padding = 500f;
+
+        float minX = -padding;
+        float maxX = Constants.MAP_WIDTH + padding;
+        float minY = -padding;
+        float maxY = Constants.MAP_HEIGHT + padding;
+
+        // Check if both points are completely outside the same boundary
+        if (pos1.x < minX && pos2.x < minX) return false;
+        if (pos1.x > maxX && pos2.x > maxX) return false;
+        if (pos1.y < minY && pos2.y < minY) return false;
+        if (pos1.y > maxY && pos2.y > maxY) return false;
+
+        return true;
+    }
+
 
     public void dispose() {
         shapeRenderer.dispose();

@@ -14,7 +14,7 @@ public class MarkerClusterer {
 
     // Define discrete zoom levels - clusters only change at these thresholds
     // Added 0.25f for fully zoomed in (no clustering)
-    private static final float[] ZOOM_LEVELS = {0.0f, 0.2f, 0.35f, 0.55f, 0.7f};
+    private static final float[] ZOOM_LEVELS = {0.0f, 0.15f, 0.3f, 0.5f, 0.8f};
     private static final float[] CLUSTER_MULTIPLIERS = {0f, 1.5f, 3.0f, 8.0f, 20.0f};
     //                                                   ^ No clustering when zoomed in!
 

@@ -9,10 +9,12 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.mbus.app.model.BusStop;
+import com.mbus.app.model.BusLine;
 import com.mbus.app.utils.Constants;
+import com.mbus.app.utils.BusLineColors;
 
+import java.util.*;
 import java.util.List;
-import java.util.ArrayList;
 
 public class HudPanel {
     private Stage stage;
@@ -26,6 +28,8 @@ public class HudPanel {
 
     // Data
     private List<BusStop> busStops;
+    private List<BusLine> busLines;
+    private Set<Integer> visibleLineIds; // Track which lines are currently visible
     private boolean showingAllStops = true;
 
     // Callback interfaces
@@ -37,13 +41,20 @@ public class HudPanel {
         void onBusStopClicked(BusStop busStop);
     }
 
+    public interface BusLineVisibilityCallback {
+        void onBusLineVisibilityChanged(Set<Integer> visibleLineIds);
+    }
+
     private ShowAllStopsCallback showAllStopsCallback;
     private BusStopClickCallback busStopClickCallback;
+    private BusLineVisibilityCallback busLineVisibilityCallback;
 
     public HudPanel(Skin skin) {
         this.skin = skin;
         this.stage = new Stage(new ScreenViewport());
         this.busStops = new ArrayList<BusStop>();
+        this.busLines = new ArrayList<BusLine>();
+        this.visibleLineIds = new HashSet<Integer>();
 
         createUI();
     }
@@ -62,30 +73,41 @@ public class HudPanel {
         mainPanel.setBackground(skin.getDrawable("panel-maroon"));
 
         // Create header
-        Label headerLabel = new Label("Mestni avtobusni promet", skin, "title-black");
+        Label headerLabel = new Label("MBus", skin, "title-black");
         headerLabel.setWrap(true);
         headerLabel.setAlignment(Align.center);
 
         mainPanel.add(headerLabel).width(panelWidth - 20).pad(10).row();
 
         // Create search field
-//        searchField = new TextField("", skin, "search");
-//        searchField.setMessageText("Išči postajališče...");
-//        mainPanel.add(searchField).width(panelWidth - 20).padLeft(10).padRight(10).padTop(5).row();
+        searchField = new TextField("", skin, "search");
+        searchField.setMessageText("Išči postajališče...");
+        mainPanel.add(searchField).width(panelWidth - 20).padLeft(10).padRight(10).padTop(5).row();
 
         // Create bus lines section
         Label linesLabel = new Label("Linije", skin, "title-black");
         linesLabel.setFontScale(0.8f);
         mainPanel.add(linesLabel).left().padLeft(10).padTop(15).padBottom(15).row();
 
-        // Create bus line buttons container (NO ScrollPane)
+        // Create bus line buttons container
         Table busLinesTable = createBusLinesTable();
         mainPanel.add(busLinesTable).width(panelWidth - 20).padLeft(10).padBottom(20).padRight(10).row();
 
         // "Vse linije" and "Vse postaje" buttons
         Table allButtonsTable = new Table();
-        TextButton allLinesBtn = new TextButton("Vse linije", skin, "menu-item");
-        allStopsBtn = new TextButton("Vse postaje", skin, "menu-item");
+        TextButton allLinesBtn = new TextButton("Vse linije", skin, "orange-small-toggle");
+        allLinesBtn.setColor(0.663f, 0.620f, 0.58f, 1f);
+
+        // Add click listener to "Vse linije" button
+        allLinesBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                toggleAllLines();
+            }
+        });
+
+        allStopsBtn = new TextButton("Vse postaje", skin, "orange-small");
+        allStopsBtn.setColor(0.663f, 0.620f, 0.58f, 1f);
 
         // Add click listener to "Vse postaje" button
         allStopsBtn.addListener(new ChangeListener() {
@@ -109,15 +131,32 @@ public class HudPanel {
         Table busStopsTable = createBusStopsTable();
         busStopsScrollPane = new ScrollPane(busStopsTable, skin, "no-bg");
         busStopsScrollPane.setFadeScrollBars(false);
-        busStopsScrollPane.setScrollingDisabled(true, false); // Disable horizontal scrolling
+        busStopsScrollPane.setScrollingDisabled(true, false);
         mainPanel.add(busStopsScrollPane).width(panelWidth - 20).expand().fill().padLeft(10).padRight(10).padBottom(10).row();
 
         stage.addActor(mainPanel);
     }
 
+    private void toggleAllLines() {
+        if (visibleLineIds.isEmpty()) {
+            // Show all lines
+            for (BusLine line : busLines) {
+                visibleLineIds.add(line.lineId);
+            }
+        } else {
+            // Hide all lines
+            visibleLineIds.clear();
+        }
+
+        refreshBusLinesTable();
+
+        if (busLineVisibilityCallback != null) {
+            busLineVisibilityCallback.onBusLineVisibilityChanged(new HashSet<Integer>(visibleLineIds));
+        }
+    }
+
     private void toggleShowAllStops() {
         showingAllStops = !showingAllStops;
-
         refreshBusStopsTable();
 
         if (showAllStopsCallback != null) {
@@ -128,60 +167,57 @@ public class HudPanel {
     private Table createBusLinesTable() {
         Table table = new Table();
 
-        // Static bus line data - organized in grid with custom colors for each line
-        String[][] busLines = {
-            {"1", "2", "3", "4", "6", "7"},
-            {"8", "9", "10", "12", "13", "15"},
-            {"16", "17", "18", "19", "20", "21"},
-            {"151", "k1", "k2"}
-        };
+        if (busLines == null || busLines.isEmpty()) {
+            Label emptyLabel = new Label("Ni podatkov o linijah", skin, "default");
+            emptyLabel.setFontScale(0.8f);
+            table.add(emptyLabel).pad(10);
+            return table;
+        }
 
-        // Define colors for each bus line (you can customize these!)
-        java.util.Map<String, Color> lineColors = new java.util.HashMap<String, Color>();
-
-        // Row 1 - Cool colors
-        lineColors.put("1", new Color(0.2f, 0.6f, 1f, 1f));      // Light Blue
-        lineColors.put("2", new Color(0.4f, 0.8f, 0.4f, 1f));     // Green
-        lineColors.put("3", new Color(1f, 0.5f, 0.8f, 1f));       // Pink
-        lineColors.put("4", new Color(0.6f, 0.3f, 0.9f, 1f));     // Purple
-        lineColors.put("6", new Color(1f, 0.7f, 0.2f, 1f));       // Gold
-        lineColors.put("7", new Color(0.3f, 0.9f, 0.9f, 1f));     // Cyan
-
-        // Row 2 - Warm colors
-        lineColors.put("8", new Color(1f, 0.4f, 0.4f, 1f));       // Red
-        lineColors.put("9", new Color(1f, 0.6f, 0.2f, 1f));       // Orange
-        lineColors.put("10", new Color(0.5f, 0.7f, 0.3f, 1f));    // Lime
-        lineColors.put("12", new Color(0.2f, 0.5f, 0.8f, 1f));    // Blue
-        lineColors.put("13", new Color(0.8f, 0.2f, 0.6f, 1f));    // Magenta
-        lineColors.put("15", new Color(0.9f, 0.5f, 0.3f, 1f));    // Coral
-
-        // Row 3 - Mixed colors
-        lineColors.put("16", new Color(0.4f, 0.6f, 0.8f, 1f));    // Steel Blue
-        lineColors.put("17", new Color(0.7f, 0.4f, 0.7f, 1f));    // Lavender
-        lineColors.put("18", new Color(0.3f, 0.8f, 0.5f, 1f));    // Sea Green
-        lineColors.put("19", new Color(1f, 0.7f, 0.4f, 1f));      // Peach
-        lineColors.put("20", new Color(0.5f, 0.4f, 0.9f, 1f));    // Indigo
-        lineColors.put("21", new Color(0.9f, 0.3f, 0.4f, 1f));    // Crimson
-
-        // Row 4 - Special lines
-        lineColors.put("151", new Color(0.6f, 0.6f, 0.2f, 1f));   // Olive
-        lineColors.put("k1", new Color(0.3f, 0.7f, 0.7f, 1f));    // Teal
-        lineColors.put("k2", new Color(0.8f, 0.5f, 0.7f, 1f));    // Rose
+        // Get unique line IDs and sort them
+        Set<Integer> uniqueLineIds = new TreeSet<Integer>();
+        for (BusLine line : busLines) {
+            uniqueLineIds.add(line.lineId);
+        }
 
         float buttonSize = 45f;
+        int buttonsPerRow = 6;
+        int count = 0;
 
-        for (String[] row : busLines) {
-            for (String lineNumber : row) {
-                TextButton btn = new TextButton(lineNumber, skin, "orange-small-toggle");
+        for (final Integer lineId : uniqueLineIds) {
+            final TextButton btn = new TextButton(String.valueOf(lineId), skin, "orange-small-toggle");
 
-                Color lineColor = lineColors.get(lineNumber);
-                if (lineColor != null) {
-                    btn.setColor(lineColor);
+            // Set the color for this line
+            Color lineColor = BusLineColors.getButtonColor(lineId);
+            btn.setColor(lineColor);
+
+            // Set checked state based on visibility
+            btn.setChecked(visibleLineIds.contains(lineId));
+
+            // Add click listener to toggle line visibility
+            btn.addListener(new ChangeListener() {
+                @Override
+                public void changed(ChangeEvent event, Actor actor) {
+                    if (visibleLineIds.contains(lineId)) {
+                        visibleLineIds.remove(lineId);
+                        btn.setChecked(false);
+                    } else {
+                        visibleLineIds.add(lineId);
+                        btn.setChecked(true);
+                    }
+
+                    if (busLineVisibilityCallback != null) {
+                        busLineVisibilityCallback.onBusLineVisibilityChanged(new HashSet<Integer>(visibleLineIds));
+                    }
                 }
+            });
 
-                table.add(btn).size(buttonSize).pad(4);
+            table.add(btn).size(buttonSize).pad(4);
+            count++;
+
+            if (count % buttonsPerRow == 0) {
+                table.row();
             }
-            table.row();
         }
 
         return table;
@@ -191,25 +227,15 @@ public class HudPanel {
         Table table = new Table();
         table.align(Align.top | Align.left);
 
-        // Only show bus stops if showingAllStops is true
         if (showingAllStops && busStops != null && !busStops.isEmpty()) {
             for (int i = 0; i < busStops.size(); i++) {
                 final BusStop stop = busStops.get(i);
 
-                // Bus stop ID button (using idAvpost)
                 TextButton idBtn = new TextButton(String.valueOf(stop.idAvpost), skin, "maroon-small");
-//                idBtn.getLabel().setFontScale(0.7f);
-
-                // Bus stop name label - with ellipsis for truncation
                 Label stopLabel = new Label(stop.name, skin, "black");
-//                stopLabel.setFontScale(0.8f);
                 stopLabel.setEllipsis(true);
-
-                // Arrow button - clickable to open detail panel
                 TextButton arrowBtn = new TextButton(">", skin, "maroon-small");
-//                arrowBtn.getLabel().setFontScale(0.9f);
 
-                // Add click listener to arrow button
                 arrowBtn.addListener(new ChangeListener() {
                     @Override
                     public void changed(ChangeEvent event, Actor actor) {
@@ -219,28 +245,24 @@ public class HudPanel {
                     }
                 });
 
-                // Add cells with proper sizing - arrow always visible
                 table.add(idBtn).width(30).height(35).padRight(5).left();
                 table.add(stopLabel).expandX().fillX().left().padRight(5).minWidth(0);
                 table.add(arrowBtn).width(30).height(30).right().padRight(15).minWidth(30);
                 table.row().padTop(8).padBottom(8);
 
-                // Add separator line between stops (except after last one)
                 if (i < busStops.size() - 1) {
                     Image separator = new Image(skin.getDrawable("white"));
-                    separator.setColor(0.8f, 0.8f, 0.8f, 0.3f); // Light gray with transparency
+                    separator.setColor(0.8f, 0.8f, 0.8f, 0.3f);
                     table.add(separator).colspan(3).height(1).fillX().padTop(20).padBottom(20).expandX();
                     table.row();
                 }
             }
         } else if (!showingAllStops) {
-            // Show message when stops are hidden
             Label emptyLabel = new Label("Postajališča so skrita", skin, "default");
             emptyLabel.setFontScale(0.8f);
             emptyLabel.setColor(Color.GRAY);
             table.add(emptyLabel).pad(10);
         } else {
-            // Fallback message if no data
             Label emptyLabel = new Label("Ni podatkov o postajališčih", skin, "default");
             emptyLabel.setFontScale(0.8f);
             table.add(emptyLabel).pad(10);
@@ -251,14 +273,35 @@ public class HudPanel {
 
     public void setBusStops(List<BusStop> stops) {
         this.busStops = stops;
-        // Refresh the UI to show the new data
         refreshBusStopsTable();
     }
 
+    public void setBusLines(List<BusLine> lines) {
+        this.busLines = lines;
+
+        // Initially show all lines
+        visibleLineIds.clear();
+        for (BusLine line : lines) {
+            visibleLineIds.add(line.lineId);
+        }
+
+        refreshBusLinesTable();
+
+        if (busLineVisibilityCallback != null) {
+            busLineVisibilityCallback.onBusLineVisibilityChanged(new HashSet<Integer>(visibleLineIds));
+        }
+    }
+
     private void refreshBusStopsTable() {
-        // Find and update the bus stops scroll pane content
         Table newBusStopsTable = createBusStopsTable();
         busStopsScrollPane.setActor(newBusStopsTable);
+    }
+
+    private void refreshBusLinesTable() {
+        // Find the bus lines table in the mainPanel and rebuild it
+        mainPanel.clear();
+        stage.clear();
+        createUI();
     }
 
     public void setShowAllStopsCallback(ShowAllStopsCallback callback) {
@@ -269,18 +312,24 @@ public class HudPanel {
         this.busStopClickCallback = callback;
     }
 
+    public void setBusLineVisibilityCallback(BusLineVisibilityCallback callback) {
+        this.busLineVisibilityCallback = callback;
+    }
+
     public boolean isShowingAllStops() {
         return showingAllStops;
+    }
+
+    public Set<Integer> getVisibleLineIds() {
+        return new HashSet<Integer>(visibleLineIds);
     }
 
     public void resize(int width, int height) {
         stage.getViewport().update(width, height, true);
 
-        // Update panel width
         float panelWidth = width / Constants.HUD_WIDTH;
         mainPanel.setSize(panelWidth, height);
 
-        // Rebuild UI with new dimensions
         mainPanel.clear();
         stage.clear();
         createUI();

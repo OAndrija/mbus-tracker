@@ -13,6 +13,7 @@ import com.badlogic.gdx.utils.ScreenUtils;
 
 import com.mbus.app.MBusTracker;
 import com.mbus.app.assets.AssetDescriptors;
+import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
 import com.mbus.app.model.Geolocation;
 import com.mbus.app.model.ZoomXY;
@@ -27,6 +28,7 @@ import com.mbus.app.utils.Constants;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 public class RasterMapScreen implements Screen {
 
@@ -36,6 +38,7 @@ public class RasterMapScreen implements Screen {
     private Texture markerTexture;
     private ZoomXY beginTile;
     private List<BusStop> stops;
+    private List<BusLine> busLines;
 
     private MapRenderer mapRenderer;
     private MapGestureListener mapGestureListener;
@@ -69,14 +72,30 @@ public class RasterMapScreen implements Screen {
         loadTiles();
         loadData();
 
+        // Create HUD panels FIRST
+        hudPanel = new HudPanel(skin);
+        detailPanel = new BusStopDetailPanel(skin);
+
+        // Set bus lines data in HUD panel
+        hudPanel.setBusLines(busLines);
+        hudPanel.setBusStops(stops);
+
+        // NOW create mapRenderer and use hudPanel data
         mapRenderer = new MapRenderer(app.camera);
         mapRenderer.loadTiles(mapTiles, beginTile);
         mapRenderer.setMarkerTexture(markerTexture);
         mapRenderer.setStops(stops);
+        mapRenderer.setBusLines(busLines);
+        mapRenderer.setVisibleLineIds(hudPanel.getVisibleLineIds());
 
-        // Create HUD panels
-        hudPanel = new HudPanel(skin);
-        detailPanel = new BusStopDetailPanel(skin);
+        // Add callback for bus line visibility changes
+        hudPanel.setBusLineVisibilityCallback(new HudPanel.BusLineVisibilityCallback() {
+            @Override
+            public void onBusLineVisibilityChanged(Set<Integer> visibleLineIds) {
+                Gdx.app.log("RasterMapScreen", "Visible lines: " + visibleLineIds);
+                mapRenderer.setVisibleLineIds(visibleLineIds);
+            }
+        });
 
         // Set callback for when detail panel visibility changes
         detailPanel.setVisibilityChangeCallback(new BusStopDetailPanel.VisibilityChangeCallback() {
@@ -109,9 +128,6 @@ public class RasterMapScreen implements Screen {
                 zoomToBusStop(busStop);
             }
         });
-
-        // Set the bus stops data in the HUD panel
-        hudPanel.setBusStops(stops);
 
         setupInput();
     }
@@ -283,6 +299,10 @@ public class RasterMapScreen implements Screen {
 
     private void loadData() {
         stops = GeoJSONLoader.loadBusStopsFromFile("data/int_mob_marprom_postaje.json");
+        busLines = GeoJSONLoader.loadBusLinesFromFile("data/int_mob_marprom_linije.json");
+
+        Gdx.app.log("RasterMapScreen", "Loaded " + stops.size() + " bus stops and " +
+            busLines.size() + " bus lines");
     }
 
     private void setupInput() {
