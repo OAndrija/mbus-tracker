@@ -25,7 +25,7 @@ import com.mbus.app.systems.map.MapRenderer;
 import com.mbus.app.ui.HudPanel;
 import com.mbus.app.ui.BusStopDetailPanel;
 import com.mbus.app.utils.Constants;
-import com.mbus.app.utils.BusLineStopRelationshipBuilder; // ADD THIS IMPORT
+import com.mbus.app.utils.BusLineStopRelationshipBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,6 +37,7 @@ public class RasterMapScreen implements Screen {
 
     private Texture[] mapTiles;
     private Texture markerTexture;
+    private Texture titleIcon;
     private ZoomXY beginTile;
     private List<BusStop> stops;
     private List<BusLine> busLines;
@@ -69,12 +70,13 @@ public class RasterMapScreen implements Screen {
         // Load skin and marker texture from AssetManager
         skin = app.getAssetManager().get(AssetDescriptors.SKIN);
         markerTexture = app.getAssetManager().get(AssetDescriptors.BUS_ICON);
+        titleIcon = app.getAssetManager().get(AssetDescriptors.TITLE_ICON);
 
         loadTiles();
         loadData(); // This now builds relationships
 
         // Create HUD panels FIRST
-        hudPanel = new HudPanel(skin);
+        hudPanel = new HudPanel(skin, titleIcon);
         detailPanel = new BusStopDetailPanel(skin);
 
         // Set bus lines data in HUD panel (now with relationships)
@@ -88,6 +90,18 @@ public class RasterMapScreen implements Screen {
         mapRenderer.setStops(stops);
         mapRenderer.setBusLines(busLines);
         mapRenderer.setVisibleLineIds(hudPanel.getVisibleLineIds());
+
+        // NEW: Add callback for filtered stops changes
+        hudPanel.setFilteredStopsCallback(new HudPanel.FilteredStopsCallback() {
+            @Override
+            public void onFilteredStopsChanged(List<BusStop> filteredStops) {
+                Gdx.app.log("RasterMapScreen", "Filtered stops count: " + filteredStops.size());
+                mapRenderer.setFilteredStops(filteredStops);
+
+                // Also update marker click handler with filtered stops
+                markerClickHandler.setStops(filteredStops);
+            }
+        });
 
         // Add callback for bus line visibility changes
         hudPanel.setBusLineVisibilityCallback(new HudPanel.BusLineVisibilityCallback() {
@@ -134,7 +148,7 @@ public class RasterMapScreen implements Screen {
     }
 
     /**
-     * MODIFIED: Now loads data and builds relationships
+     * Load data and build relationships
      */
     private void loadData() {
         // 1. Load raw data from JSON files

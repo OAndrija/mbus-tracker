@@ -35,8 +35,9 @@ public class MapRenderer {
     private Texture[] mapTiles;
     private Texture markerTexture;
     private ZoomXY beginTile;
-    private List<BusStop> stops;
-    private List <BusLine> busLines;
+    private List<BusStop> allStops;
+    private List<BusStop> filteredStops; // NEW: Stops to actually render
+    private List<BusLine> busLines;
 
     private TiledMap tiledMap;
     private TiledMapRenderer tiledMapRenderer;
@@ -56,7 +57,7 @@ public class MapRenderer {
     private static final float SELECT_SCALE = 1.4f;
     private static final float PULSE_SPEED = 2.5f;
 
-    // Zoom-based scaling (subtle effect)z
+    // Zoom-based scaling (subtle effect)
     private static final float MIN_ZOOM_SCALE = 0.7f;
     private static final float MAX_ZOOM_SCALE = 4f;
     private static final float ZOOM_SCALE_FACTOR = 6f;
@@ -72,7 +73,6 @@ public class MapRenderer {
         this.shapeRenderer = new ShapeRenderer();
         this.spriteBatch = new SpriteBatch();
         this.font = new BitmapFont();
-        this.font.getData().setScale(1.2f);
     }
 
     // ----------------------------
@@ -90,7 +90,15 @@ public class MapRenderer {
     }
 
     public void setStops(List<BusStop> stops) {
-        this.stops = stops;
+        this.allStops = stops;
+        this.filteredStops = stops; // Initially show all stops
+    }
+
+    /**
+     * NEW: Set the filtered stops to render based on selected lines
+     */
+    public void setFilteredStops(List<BusStop> stops) {
+        this.filteredStops = stops;
     }
 
     public void setBusLines(List<BusLine> busLines) {
@@ -210,7 +218,6 @@ public class MapRenderer {
         return true;
     }
 
-
     public void dispose() {
         shapeRenderer.dispose();
         spriteBatch.dispose();
@@ -233,7 +240,7 @@ public class MapRenderer {
     }
 
     public List<BusStop> getStops() {
-        return stops;
+        return allStops;
     }
 
     // ----------------------------
@@ -275,7 +282,8 @@ public class MapRenderer {
     }
 
     private void renderMarkers() {
-        if (stops == null || stops.isEmpty()) return;
+        // Use filtered stops instead of all stops
+        if (filteredStops == null || filteredStops.isEmpty()) return;
         if (markerTexture == null) {
             renderFallbackMarkers();
             return;
@@ -289,7 +297,7 @@ public class MapRenderer {
 
         // Perform clustering based on current zoom level
         List<MarkerCluster> clusters = MarkerClusterer.clusterMarkers(
-            stops,
+            filteredStops,  // CHANGED: Use filtered stops
             beginTile,
             camera.zoom,
             Constants.MAP_WIDTH,
@@ -444,7 +452,7 @@ public class MapRenderer {
         String countText = String.valueOf(count);
 
         // Scale font with zoom
-        float fontScale = 1f + (zoom * 8f);
+        float fontScale = 0.5f + (zoom * 13f);
         font.getData().setScale(fontScale);
 
         GlyphLayout layout = new GlyphLayout(font, countText);
@@ -467,7 +475,8 @@ public class MapRenderer {
 
         float zoomScale = getZoomScale();
 
-        for (BusStop stop : stops) {
+        // Use filtered stops instead of all stops
+        for (BusStop stop : filteredStops) {
             Vector2 pos = MapRasterTiles.getPixelPosition(
                 stop.geo.lat,
                 stop.geo.lng,

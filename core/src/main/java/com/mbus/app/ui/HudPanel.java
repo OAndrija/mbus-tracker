@@ -2,6 +2,7 @@ package com.mbus.app.ui;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.Actor;
@@ -20,18 +21,17 @@ public class HudPanel {
     private Stage stage;
     private Skin skin;
     private Table mainPanel;
+    private Texture titleIcon;
 
     // UI Components
     private TextField searchField;
     private ScrollPane busStopsScrollPane;
     private TextButton allStopsBtn;
-    private TextButton filterToggleBtn;
 
     // Data
     private List<BusStop> allBusStops;
     private List<BusLine> busLines;
     private Set<Integer> visibleLineIds;
-    private boolean filterStopsByLines = false;
     private boolean showingAllStops = true;
 
     // Callback interfaces
@@ -47,12 +47,18 @@ public class HudPanel {
         void onBusLineVisibilityChanged(Set<Integer> visibleLineIds);
     }
 
+    public interface FilteredStopsCallback {
+        void onFilteredStopsChanged(List<BusStop> filteredStops);
+    }
+
     private ShowAllStopsCallback showAllStopsCallback;
     private BusStopClickCallback busStopClickCallback;
     private BusLineVisibilityCallback busLineVisibilityCallback;
+    private FilteredStopsCallback filteredStopsCallback;
 
-    public HudPanel(Skin skin) {
+    public HudPanel(Skin skin, Texture titleIcon) {
         this.skin = skin;
+        this.titleIcon = titleIcon;
         this.stage = new Stage(new ScreenViewport());
         this.allBusStops = new ArrayList<BusStop>();
         this.busLines = new ArrayList<BusLine>();
@@ -74,17 +80,26 @@ public class HudPanel {
         // Set background
         mainPanel.setBackground(skin.getDrawable("panel-maroon"));
 
-        // Create header
-        Label headerLabel = new Label("MBus", skin, "title-black");
-        headerLabel.setWrap(true);
-        headerLabel.setAlignment(Align.center);
+        // Create header with icon and title
+        Table headerTable = new Table();
 
-        mainPanel.add(headerLabel).width(panelWidth - 20).pad(10).row();
+        if (titleIcon != null) {
+            Image iconImage = new Image(titleIcon);
+            headerTable.add(iconImage).size(35, 35).padRight(5);
+        }
+
+        Label headerLabel = new Label("MBus", skin, "title-black");
+        headerLabel.setWrap(false);
+        headerLabel.setAlignment(Align.center);
+        headerLabel.setFontScale(1.3f);
+        headerTable.add(headerLabel);
+
+        mainPanel.add(headerTable).width(panelWidth - 20).pad(10).row();
 
         // Create search field
-        searchField = new TextField("", skin, "search");
-        searchField.setMessageText("Išči postajališče...");
-        mainPanel.add(searchField).width(panelWidth - 20).padLeft(10).padRight(10).padTop(5).row();
+//        searchField = new TextField("", skin, "search");
+//        searchField.setMessageText("Išči postajališče...");
+//        mainPanel.add(searchField).width(panelWidth - 20).padLeft(10).padRight(10).padTop(5).row();
 
         // Create bus lines section
         Label linesLabel = new Label("Linije", skin, "title-black");
@@ -97,7 +112,7 @@ public class HudPanel {
 
         // "Vse linije" and "Vse postaje" buttons
         Table allButtonsTable = new Table();
-        TextButton allLinesBtn = new TextButton("Vse linije", skin, "orange-small-toggle");
+        TextButton allLinesBtn = new TextButton("Linije", skin, "orange-small-toggle");
         allLinesBtn.setColor(0.663f, 0.620f, 0.58f, 1f);
         allLinesBtn.setChecked(!visibleLineIds.isEmpty());
 
@@ -109,8 +124,9 @@ public class HudPanel {
             }
         });
 
-        allStopsBtn = new TextButton("Vse postaje", skin, "orange-small-toggle");
+        allStopsBtn = new TextButton("Postaje", skin, "orange-small-toggle");
         allStopsBtn.setColor(0.663f, 0.620f, 0.58f, 1f);
+        allStopsBtn.setChecked(showingAllStops); // Set initial checked state
 
         // Add click listener to "Vse postaje" button
         allStopsBtn.addListener(new ChangeListener() {
@@ -125,22 +141,8 @@ public class HudPanel {
 
         mainPanel.add(allButtonsTable).width(panelWidth - 20).padLeft(10).padRight(10).padTop(10).row();
 
-        // Filter toggle button
-        filterToggleBtn = new TextButton("Filter po linijah", skin, "orange-small-toggle");
-        filterToggleBtn.setColor(0.663f, 0.620f, 0.58f, 1f);
-        filterToggleBtn.setChecked(filterStopsByLines);
-
-        filterToggleBtn.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                setFilterStopsByLines(!filterStopsByLines);
-            }
-        });
-
-        mainPanel.add(filterToggleBtn).width(panelWidth - 20).padLeft(10).padRight(10).padTop(10).row();
-
         // Create bus stops section
-        Label stopsLabel = new Label("Postajališča", skin, "title-black");
+        Label stopsLabel = new Label("Postajalisca", skin, "title-black");
         stopsLabel.setFontScale(0.8f);
         mainPanel.add(stopsLabel).left().padLeft(10).padTop(30).padBottom(25).row();
 
@@ -155,24 +157,25 @@ public class HudPanel {
     }
 
     /**
-     * Enable/disable filtering stops by visible lines
-     */
-    public void setFilterStopsByLines(boolean filter) {
-        this.filterStopsByLines = filter;
-        if (filterToggleBtn != null) {
-            filterToggleBtn.setChecked(filterStopsByLines);
-        }
-        refreshBusStopsTable();
-    }
-
-    /**
      * Get stops filtered by currently visible lines
      */
     private List<BusStop> getFilteredStops() {
-        if (!filterStopsByLines || visibleLineIds.isEmpty()) {
+        // If all lines are visible, show all stops
+        boolean allLinesVisible = true;
+        if (busLines != null && !busLines.isEmpty()) {
+            Set<Integer> allLineIds = new HashSet<Integer>();
+            for (BusLine line : busLines) {
+                allLineIds.add(line.lineId);
+            }
+            allLinesVisible = visibleLineIds.containsAll(allLineIds) &&
+                allLineIds.containsAll(visibleLineIds);
+        }
+
+        if (allLinesVisible || visibleLineIds.isEmpty()) {
             return allBusStops;
         }
 
+        // Filter stops by visible lines
         List<BusStop> filtered = new ArrayList<BusStop>();
 
         for (BusStop stop : allBusStops) {
@@ -205,6 +208,12 @@ public class HudPanel {
 
     private void toggleShowAllStops() {
         showingAllStops = !showingAllStops;
+
+        // Update button checked state
+        if (allStopsBtn != null) {
+            allStopsBtn.setChecked(showingAllStops);
+        }
+
         refreshBusStopsTable();
 
         if (showAllStopsCallback != null) {
@@ -216,12 +225,16 @@ public class HudPanel {
      * Called when line visibility changes
      */
     private void onLineVisibilityChanged() {
-        if (filterStopsByLines) {
-            refreshBusStopsTable();
-        }
+        refreshBusStopsTable();
 
         if (busLineVisibilityCallback != null) {
             busLineVisibilityCallback.onBusLineVisibilityChanged(new HashSet<Integer>(visibleLineIds));
+        }
+
+        // Notify about filtered stops for map rendering
+        if (filteredStopsCallback != null) {
+            List<BusStop> filtered = getFilteredStops();
+            filteredStopsCallback.onFilteredStopsChanged(filtered);
         }
     }
 
@@ -289,6 +302,9 @@ public class HudPanel {
         // Get the appropriate stops list
         List<BusStop> stopsToShow = getFilteredStops();
 
+        // Check if we're filtering
+        boolean isFiltering = stopsToShow.size() < allBusStops.size();
+
         if (showingAllStops && stopsToShow != null && !stopsToShow.isEmpty()) {
             for (int i = 0; i < stopsToShow.size(); i++) {
                 final BusStop stop = stopsToShow.get(i);
@@ -297,8 +313,25 @@ public class HudPanel {
 
                 // Create label with stop name and line info if filtering
                 String labelText = stop.name;
-                if (filterStopsByLines && stop.getLineCount() > 0) {
-                    labelText += " (" + stop.getLineIdsString() + ")";
+                if (isFiltering && stop.getLineCount() > 0) {
+                    // Show which visible lines pass through this stop
+                    List<Integer> visibleStopLines = new ArrayList<Integer>();
+                    for (Integer lineId : stop.getLineIds()) {
+                        if (visibleLineIds.contains(lineId)) {
+                            visibleStopLines.add(lineId);
+                        }
+                    }
+
+                    if (!visibleStopLines.isEmpty()) {
+                        StringBuilder lineStr = new StringBuilder();
+                        for (int j = 0; j < visibleStopLines.size(); j++) {
+                            lineStr.append(visibleStopLines.get(j));
+                            if (j < visibleStopLines.size() - 1) {
+                                lineStr.append(", ");
+                            }
+                        }
+                        labelText += " (" + lineStr.toString() + ")";
+                    }
                 }
 
                 Label stopLabel = new Label(labelText, skin, "black");
@@ -330,7 +363,7 @@ public class HudPanel {
             }
 
             // Show count info if filtered
-            if (filterStopsByLines && stopsToShow.size() < allBusStops.size()) {
+            if (isFiltering) {
                 Label infoLabel = new Label(
                     stopsToShow.size() + " od " + allBusStops.size() + " postajališč",
                     skin,
@@ -402,12 +435,12 @@ public class HudPanel {
         this.busLineVisibilityCallback = callback;
     }
 
-    public boolean isShowingAllStops() {
-        return showingAllStops;
+    public void setFilteredStopsCallback(FilteredStopsCallback callback) {
+        this.filteredStopsCallback = callback;
     }
 
-    public boolean isFilteringByLines() {
-        return filterStopsByLines;
+    public boolean isShowingAllStops() {
+        return showingAllStops;
     }
 
     public Set<Integer> getVisibleLineIds() {

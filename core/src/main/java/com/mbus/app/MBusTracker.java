@@ -38,6 +38,7 @@ public class MBusTracker extends Game {
             Gdx.app.log(TAG, "Loading assets...");
             assetManager.load(AssetDescriptors.SKIN);
             assetManager.load(AssetDescriptors.BUS_ICON);
+            assetManager.load(AssetDescriptors.TITLE_ICON);
             assetManager.finishLoading();
             Gdx.app.log(TAG, "Assets loaded successfully");
         } catch (Exception e) {
