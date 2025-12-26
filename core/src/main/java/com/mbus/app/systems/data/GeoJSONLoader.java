@@ -25,8 +25,11 @@ public class GeoJSONLoader {
      * Load Marprom bus stops from a GeoJSON file and convert coordinates
      * from EPSG:3794 (D96/TM) to WGS84 (lat,lon) using GeoConverter3794.
      *
+     * NOTE: This loads raw stops WITHOUT line relationships.
+     * Use BusLineStopRelationshipBuilder.buildRelationships() to establish connections.
+     *
      * @param path path to GeoJSON file (e.g. "data/int_mob_marprom_postaje.json")
-     * @return list of BusStop objects
+     * @return list of BusStop objects (without line relationships)
      */
     public static List<BusStop> loadBusStopsFromFile(String path) {
 
@@ -83,6 +86,8 @@ public class GeoJSONLoader {
             String idMarprom = props.optString("id_marprom", "");
             String name = props.optString("ime_postaj", "");
 
+            // Use backward-compatible constructor (without lineIds)
+            // Line relationships will be established by BusLineStopRelationshipBuilder
             BusStop stop = new BusStop(
                 idAvpost,
                 idMarprom,
@@ -90,6 +95,7 @@ public class GeoJSONLoader {
                 x,
                 y,
                 geo
+                // lineIds parameter omitted - will be added by relationship builder
             );
 
             stops.add(stop);
@@ -103,8 +109,11 @@ public class GeoJSONLoader {
      * Load Marprom bus lines from a GeoJSON file and convert coordinates
      * from EPSG:3794 (D96/TM) to WGS84 (lat,lon) using GeoConverter3794.
      *
+     * NOTE: This loads raw lines WITHOUT stop relationships.
+     * Use BusLineStopRelationshipBuilder.buildRelationships() to establish connections.
+     *
      * @param path path to GeoJSON file (e.g. "data/int_mob_marprom_linije.json")
-     * @return list of BusLine objects
+     * @return list of BusLine objects (without stop relationships)
      */
     public static List<BusLine> loadBusLinesFromFile(String path) {
 
@@ -177,6 +186,8 @@ public class GeoJSONLoader {
             String providerName = props.optString("naziv_ponudnik", "");
             String providerLink = props.optString("povezava_ponudnik", "");
 
+            // UPDATED: Pass null for stops parameter (11th parameter)
+            // Stop relationships will be established by BusLineStopRelationshipBuilder
             BusLine line = new BusLine(
                 lineId,
                 variantId,
@@ -187,7 +198,8 @@ public class GeoJSONLoader {
                 providerName,
                 providerLink,
                 paths,
-                originalCoords
+                originalCoords,
+                null  // stops - will be added by relationship builder
             );
 
             lines.add(line);

@@ -25,6 +25,7 @@ import com.mbus.app.systems.map.MapRenderer;
 import com.mbus.app.ui.HudPanel;
 import com.mbus.app.ui.BusStopDetailPanel;
 import com.mbus.app.utils.Constants;
+import com.mbus.app.utils.BusLineStopRelationshipBuilder; // ADD THIS IMPORT
 
 import java.io.IOException;
 import java.util.List;
@@ -70,13 +71,13 @@ public class RasterMapScreen implements Screen {
         markerTexture = app.getAssetManager().get(AssetDescriptors.BUS_ICON);
 
         loadTiles();
-        loadData();
+        loadData(); // This now builds relationships
 
         // Create HUD panels FIRST
         hudPanel = new HudPanel(skin);
         detailPanel = new BusStopDetailPanel(skin);
 
-        // Set bus lines data in HUD panel
+        // Set bus lines data in HUD panel (now with relationships)
         hudPanel.setBusLines(busLines);
         hudPanel.setBusStops(stops);
 
@@ -130,6 +131,68 @@ public class RasterMapScreen implements Screen {
         });
 
         setupInput();
+    }
+
+    /**
+     * MODIFIED: Now loads data and builds relationships
+     */
+    private void loadData() {
+        // 1. Load raw data from JSON files
+        List<BusStop> rawStops = GeoJSONLoader.loadBusStopsFromFile("data/int_mob_marprom_postaje.json");
+        List<BusLine> rawLines = GeoJSONLoader.loadBusLinesFromFile("data/int_mob_marprom_linije.json");
+
+        Gdx.app.log("RasterMapScreen", "Loaded " + rawStops.size() + " raw bus stops and " +
+            rawLines.size() + " raw bus lines");
+
+        // 2. Build relationships between lines and stops
+        // The proximity threshold is in meters - adjust based on your data accuracy
+        // 50 meters works well for most cases, but you might need to tune this
+        double proximityThreshold = 50.0;
+
+        BusLineStopRelationshipBuilder.RelationshipResult result =
+            BusLineStopRelationshipBuilder.buildRelationships(rawLines, rawStops, proximityThreshold);
+
+        // 3. Use the data with relationships established
+        this.busLines = result.lines;
+        this.stops = result.stops;
+
+        // 4. Log statistics
+        Gdx.app.log("RasterMapScreen", "Built relationships:");
+
+        // Log some stats about the relationships
+        int totalStopsWithLines = 0;
+        int totalLinesWithStops = 0;
+
+        for (BusStop stop : stops) {
+            if (stop.getLineCount() > 0) {
+                totalStopsWithLines++;
+            }
+        }
+
+        for (BusLine line : busLines) {
+            if (line.getStopCount() > 0) {
+                totalLinesWithStops++;
+            }
+        }
+
+        Gdx.app.log("RasterMapScreen",
+            "  - " + totalStopsWithLines + "/" + stops.size() + " stops have lines");
+        Gdx.app.log("RasterMapScreen",
+            "  - " + totalLinesWithStops + "/" + busLines.size() + " lines have stops");
+
+        // Log a few examples
+        if (!stops.isEmpty()) {
+            BusStop exampleStop = stops.get(0);
+            Gdx.app.log("RasterMapScreen",
+                "  - Example: " + exampleStop.name + " has " + exampleStop.getLineCount() +
+                    " lines: " + exampleStop.getLineIdsString());
+        }
+
+        if (!busLines.isEmpty()) {
+            BusLine exampleLine = busLines.get(0);
+            Gdx.app.log("RasterMapScreen",
+                "  - Example: Line " + exampleLine.lineId + " has " + exampleLine.getStopCount() + " stops");
+        }
     }
 
     /**
@@ -295,14 +358,6 @@ public class RasterMapScreen implements Screen {
         } catch (IOException e) {
             Gdx.app.error("RasterMapScreen", "Failed to load tiles", e);
         }
-    }
-
-    private void loadData() {
-        stops = GeoJSONLoader.loadBusStopsFromFile("data/int_mob_marprom_postaje.json");
-        busLines = GeoJSONLoader.loadBusLinesFromFile("data/int_mob_marprom_linije.json");
-
-        Gdx.app.log("RasterMapScreen", "Loaded " + stops.size() + " bus stops and " +
-            busLines.size() + " bus lines");
     }
 
     private void setupInput() {

@@ -25,11 +25,13 @@ public class HudPanel {
     private TextField searchField;
     private ScrollPane busStopsScrollPane;
     private TextButton allStopsBtn;
+    private TextButton filterToggleBtn;
 
     // Data
-    private List<BusStop> busStops;
+    private List<BusStop> allBusStops;
     private List<BusLine> busLines;
-    private Set<Integer> visibleLineIds; // Track which lines are currently visible
+    private Set<Integer> visibleLineIds;
+    private boolean filterStopsByLines = false;
     private boolean showingAllStops = true;
 
     // Callback interfaces
@@ -52,7 +54,7 @@ public class HudPanel {
     public HudPanel(Skin skin) {
         this.skin = skin;
         this.stage = new Stage(new ScreenViewport());
-        this.busStops = new ArrayList<BusStop>();
+        this.allBusStops = new ArrayList<BusStop>();
         this.busLines = new ArrayList<BusLine>();
         this.visibleLineIds = new HashSet<Integer>();
 
@@ -97,6 +99,7 @@ public class HudPanel {
         Table allButtonsTable = new Table();
         TextButton allLinesBtn = new TextButton("Vse linije", skin, "orange-small-toggle");
         allLinesBtn.setColor(0.663f, 0.620f, 0.58f, 1f);
+        allLinesBtn.setChecked(!visibleLineIds.isEmpty());
 
         // Add click listener to "Vse linije" button
         allLinesBtn.addListener(new ChangeListener() {
@@ -106,7 +109,7 @@ public class HudPanel {
             }
         });
 
-        allStopsBtn = new TextButton("Vse postaje", skin, "orange-small");
+        allStopsBtn = new TextButton("Vse postaje", skin, "orange-small-toggle");
         allStopsBtn.setColor(0.663f, 0.620f, 0.58f, 1f);
 
         // Add click listener to "Vse postaje" button
@@ -122,8 +125,22 @@ public class HudPanel {
 
         mainPanel.add(allButtonsTable).width(panelWidth - 20).padLeft(10).padRight(10).padTop(10).row();
 
+        // Filter toggle button
+        filterToggleBtn = new TextButton("Filter po linijah", skin, "orange-small-toggle");
+        filterToggleBtn.setColor(0.663f, 0.620f, 0.58f, 1f);
+        filterToggleBtn.setChecked(filterStopsByLines);
+
+        filterToggleBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                setFilterStopsByLines(!filterStopsByLines);
+            }
+        });
+
+        mainPanel.add(filterToggleBtn).width(panelWidth - 20).padLeft(10).padRight(10).padTop(10).row();
+
         // Create bus stops section
-        Label stopsLabel = new Label("Postajalisce", skin, "title-black");
+        Label stopsLabel = new Label("Postajališča", skin, "title-black");
         stopsLabel.setFontScale(0.8f);
         mainPanel.add(stopsLabel).left().padLeft(10).padTop(30).padBottom(25).row();
 
@@ -135,6 +152,40 @@ public class HudPanel {
         mainPanel.add(busStopsScrollPane).width(panelWidth - 20).expand().fill().padLeft(10).padRight(10).padBottom(10).row();
 
         stage.addActor(mainPanel);
+    }
+
+    /**
+     * Enable/disable filtering stops by visible lines
+     */
+    public void setFilterStopsByLines(boolean filter) {
+        this.filterStopsByLines = filter;
+        if (filterToggleBtn != null) {
+            filterToggleBtn.setChecked(filterStopsByLines);
+        }
+        refreshBusStopsTable();
+    }
+
+    /**
+     * Get stops filtered by currently visible lines
+     */
+    private List<BusStop> getFilteredStops() {
+        if (!filterStopsByLines || visibleLineIds.isEmpty()) {
+            return allBusStops;
+        }
+
+        List<BusStop> filtered = new ArrayList<BusStop>();
+
+        for (BusStop stop : allBusStops) {
+            // Check if this stop has any visible lines
+            for (Integer lineId : stop.getLineIds()) {
+                if (visibleLineIds.contains(lineId)) {
+                    filtered.add(stop);
+                    break; // Stop is included, no need to check more lines
+                }
+            }
+        }
+
+        return filtered;
     }
 
     private void toggleAllLines() {
@@ -149,10 +200,7 @@ public class HudPanel {
         }
 
         refreshBusLinesTable();
-
-        if (busLineVisibilityCallback != null) {
-            busLineVisibilityCallback.onBusLineVisibilityChanged(new HashSet<Integer>(visibleLineIds));
-        }
+        onLineVisibilityChanged();
     }
 
     private void toggleShowAllStops() {
@@ -161,6 +209,19 @@ public class HudPanel {
 
         if (showAllStopsCallback != null) {
             showAllStopsCallback.onShowAllStopsChanged(showingAllStops);
+        }
+    }
+
+    /**
+     * Called when line visibility changes
+     */
+    private void onLineVisibilityChanged() {
+        if (filterStopsByLines) {
+            refreshBusStopsTable();
+        }
+
+        if (busLineVisibilityCallback != null) {
+            busLineVisibilityCallback.onBusLineVisibilityChanged(new HashSet<Integer>(visibleLineIds));
         }
     }
 
@@ -206,9 +267,7 @@ public class HudPanel {
                         btn.setChecked(true);
                     }
 
-                    if (busLineVisibilityCallback != null) {
-                        busLineVisibilityCallback.onBusLineVisibilityChanged(new HashSet<Integer>(visibleLineIds));
-                    }
+                    onLineVisibilityChanged();
                 }
             });
 
@@ -227,13 +286,25 @@ public class HudPanel {
         Table table = new Table();
         table.align(Align.top | Align.left);
 
-        if (showingAllStops && busStops != null && !busStops.isEmpty()) {
-            for (int i = 0; i < busStops.size(); i++) {
-                final BusStop stop = busStops.get(i);
+        // Get the appropriate stops list
+        List<BusStop> stopsToShow = getFilteredStops();
+
+        if (showingAllStops && stopsToShow != null && !stopsToShow.isEmpty()) {
+            for (int i = 0; i < stopsToShow.size(); i++) {
+                final BusStop stop = stopsToShow.get(i);
 
                 TextButton idBtn = new TextButton(String.valueOf(stop.idAvpost), skin, "maroon-small");
-                Label stopLabel = new Label(stop.name, skin, "black");
+
+                // Create label with stop name and line info if filtering
+                String labelText = stop.name;
+                if (filterStopsByLines && stop.getLineCount() > 0) {
+                    labelText += " (" + stop.getLineIdsString() + ")";
+                }
+
+                Label stopLabel = new Label(labelText, skin, "black");
                 stopLabel.setEllipsis(true);
+                stopLabel.setWrap(false);
+
                 TextButton arrowBtn = new TextButton(">", skin, "maroon-small");
 
                 arrowBtn.addListener(new ChangeListener() {
@@ -250,21 +321,36 @@ public class HudPanel {
                 table.add(arrowBtn).width(30).height(30).right().padRight(15).minWidth(30);
                 table.row().padTop(8).padBottom(8);
 
-                if (i < busStops.size() - 1) {
+                if (i < stopsToShow.size() - 1) {
                     Image separator = new Image(skin.getDrawable("white"));
                     separator.setColor(0.8f, 0.8f, 0.8f, 0.3f);
                     table.add(separator).colspan(3).height(1).fillX().padTop(20).padBottom(20).expandX();
                     table.row();
                 }
             }
+
+            // Show count info if filtered
+            if (filterStopsByLines && stopsToShow.size() < allBusStops.size()) {
+                Label infoLabel = new Label(
+                    stopsToShow.size() + " od " + allBusStops.size() + " postajališč",
+                    skin,
+                    "default"
+                );
+                infoLabel.setFontScale(0.7f);
+                infoLabel.setColor(Color.GRAY);
+                table.add(infoLabel).colspan(3).pad(10).center();
+                table.row();
+            }
+
         } else if (!showingAllStops) {
             Label emptyLabel = new Label("Postajališča so skrita", skin, "default");
             emptyLabel.setFontScale(0.8f);
             emptyLabel.setColor(Color.GRAY);
             table.add(emptyLabel).pad(10);
         } else {
-            Label emptyLabel = new Label("Ni podatkov o postajališčih", skin, "default");
+            Label emptyLabel = new Label("Ni postajališč za izbrane linije", skin, "default");
             emptyLabel.setFontScale(0.8f);
+            emptyLabel.setColor(Color.GRAY);
             table.add(emptyLabel).pad(10);
         }
 
@@ -272,16 +358,16 @@ public class HudPanel {
     }
 
     public void setBusStops(List<BusStop> stops) {
-        this.busStops = stops;
+        this.allBusStops = stops != null ? stops : new ArrayList<BusStop>();
         refreshBusStopsTable();
     }
 
     public void setBusLines(List<BusLine> lines) {
-        this.busLines = lines;
+        this.busLines = lines != null ? lines : new ArrayList<BusLine>();
 
         // Initially show all lines
         visibleLineIds.clear();
-        for (BusLine line : lines) {
+        for (BusLine line : this.busLines) {
             visibleLineIds.add(line.lineId);
         }
 
@@ -318,6 +404,10 @@ public class HudPanel {
 
     public boolean isShowingAllStops() {
         return showingAllStops;
+    }
+
+    public boolean isFilteringByLines() {
+        return filterStopsByLines;
     }
 
     public Set<Integer> getVisibleLineIds() {

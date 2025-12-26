@@ -21,6 +21,9 @@ public class BusLine {
     // Optional: original D96/TM coordinates if needed for debugging
     private final List<double[]> originalCoordinates;
 
+    // NEW: Bus stops along this line (ordered)
+    private final List<BusStop> stops;
+
     public BusLine(int lineId,
                    int variantId,
                    int direction,
@@ -30,7 +33,8 @@ public class BusLine {
                    String providerName,
                    String providerLink,
                    List<Geolocation> path,
-                   List<double[]> originalCoordinates) {
+                   List<double[]> originalCoordinates,
+                   List<BusStop> stops) {
 
         this.lineId = lineId;
         this.variantId = variantId;
@@ -44,6 +48,9 @@ public class BusLine {
         this.originalCoordinates = originalCoordinates != null
             ? Collections.unmodifiableList(new ArrayList<double[]>(originalCoordinates))
             : null;
+        this.stops = stops != null
+            ? Collections.unmodifiableList(new ArrayList<BusStop>(stops))
+            : Collections.unmodifiableList(new ArrayList<BusStop>());
     }
 
     /**
@@ -61,10 +68,43 @@ public class BusLine {
     }
 
     /**
+     * Get the bus stops along this line (ordered)
+     */
+    public List<BusStop> getStops() {
+        return stops;
+    }
+
+    /**
      * Get the number of points in this line
      */
     public int getPointCount() {
         return path.size();
+    }
+
+    /**
+     * Get the number of stops on this line
+     */
+    public int getStopCount() {
+        return stops.size();
+    }
+
+    /**
+     * Check if this line contains a specific stop
+     */
+    public boolean hasStop(BusStop stop) {
+        return stops.contains(stop);
+    }
+
+    /**
+     * Check if this line contains a stop with the given ID
+     */
+    public boolean hasStop(int stopId) {
+        for (BusStop stop : stops) {
+            if (stop.idAvpost == stopId) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -75,6 +115,7 @@ public class BusLine {
             ", direction=" + direction +
             ", name='" + name + '\'' +
             ", points=" + path.size() +
+            ", stops=" + stops.size() +
             '}';
     }
 }
