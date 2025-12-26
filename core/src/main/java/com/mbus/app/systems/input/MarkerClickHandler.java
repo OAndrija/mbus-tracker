@@ -12,7 +12,11 @@ import java.util.List;
 
 public class MarkerClickHandler {
 
-    private static final float CLICK_RADIUS = 15f; // pixels, adjust for click tolerance
+    // Base marker size should match the rendered size (32px base size)
+    private static final float BASE_MARKER_SIZE = 32f;
+
+    // Click tolerance multiplier - makes the clickable area slightly larger than visual
+    private static final float CLICK_TOLERANCE = 1.2f;
 
     private OrthographicCamera camera;
     private List<BusStop> stops;
@@ -46,7 +50,15 @@ public class MarkerClickHandler {
         float worldX = worldCoords.x;
         float worldY = worldCoords.y;
 
+        // Calculate the effective click radius in world coordinates
+        // The marker size stays constant in world space, so we use the base size
+        float clickRadius = (BASE_MARKER_SIZE / 2f) * CLICK_TOLERANCE;
+
         // Check each bus stop marker
+        // To handle overlapping markers, we'll find the closest one within range
+        BusStop closestStop = null;
+        float closestDistance = Float.MAX_VALUE;
+
         for (BusStop stop : stops) {
             Vector2 markerPos = MapRasterTiles.getPixelPosition(
                 stop.geo.lat,
@@ -61,19 +73,18 @@ public class MarkerClickHandler {
                 continue;
             }
 
-            // Calculate distance from click to marker
+            // Calculate distance from click to marker center
             float dx = worldX - markerPos.x;
             float dy = worldY - markerPos.y;
-            float distanceSquared = dx * dx + dy * dy;
+            float distance = (float) Math.sqrt(dx * dx + dy * dy);
 
-            // Adjust click radius based on camera zoom (larger radius when zoomed out)
-            float effectiveRadius = CLICK_RADIUS * camera.zoom;
-
-            if (distanceSquared <= effectiveRadius * effectiveRadius) {
-                return stop; // Found a clicked marker
+            // Check if click is within the marker's clickable area
+            if (distance <= clickRadius && distance < closestDistance) {
+                closestStop = stop;
+                closestDistance = distance;
             }
         }
 
-        return null; // No marker was clicked
+        return closestStop;
     }
 }

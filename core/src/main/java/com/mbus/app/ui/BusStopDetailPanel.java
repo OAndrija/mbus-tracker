@@ -39,7 +39,7 @@ public class BusStopDetailPanel {
         mainPanel.setPosition(panelWidth, 0); // Position next to left panel
 
         // Set background
-        mainPanel.setBackground(skin.getDrawable("window-orange"));
+        mainPanel.setBackground(skin.getDrawable("window-maroon"));
 
         mainPanel.setVisible(visible);
         stage.addActor(mainPanel);

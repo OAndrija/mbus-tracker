@@ -28,7 +28,7 @@ public class MapRasterTiles {
     // Geoapify raster tiles
     static String mapServiceUrl = "https://maps.geoapify.com/v1/tile/";
     static String token = "?&apiKey=" + Keys.GEOAPIFY;
-    static String tilesetId = "klokantech-basic";
+    static String tilesetId = "osm-bright-smooth";
     static String format = "@2x.png";
 
     public static final int TILE_SIZE = 512;

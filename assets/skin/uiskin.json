@@ -87,8 +87,8 @@ com.badlogic.gdx.scenes.scene2d.ui.TextButton$TextButtonStyle: {
 	orange-small-toggle: {
 		font: font,
 		fontColor: { a: 1, b: 1, g: 1, r: 1 },
-		downFontColor: { a: 1, b: 0.2627451, g: 0.05490196, r: 0.6 },
-		checkedFontColor: { a: 1, b: 0.2627451, g: 0.05490196, r: 0.6 },
+		downFontColor: { a: 1, b: 1, g: 1, r: 1 },
+		checkedFontColor: { a: 1, b: 1, g: 1, r: 1 },
 		up: round-orange,
 		down: round-dark-orange,
 		checked: round-dark-orange
@@ -293,6 +293,10 @@ com.badlogic.gdx.scenes.scene2d.ui.Label$LabelStyle: {
 		font: font,
 		fontColor: { a: 1, b: 0.08235294, g: 0.627451, r: 1 }
 	},
+  black: {
+    font: font,
+    fontColor: { a: 1, b: 0.01, g: 0.01, r: 0.01 }
+  },
 	error: {
 		font: font,
 		fontColor: { a: 1, b: 0.2627451, g: 0.05490196, r: 0.6 }
@@ -309,6 +313,10 @@ com.badlogic.gdx.scenes.scene2d.ui.Label$LabelStyle: {
 		font: font-title,
 		fontColor: { a: 1, b: 1, g: 1, r: 1 }
 	},
+  title-black: {
+    font: font-title,
+    fontColor: { a: 1, b: 0.1, g: 0.1, r: 0.1 }
+  },
 	title: {
 		font: font-title,
 		fontColor: { a: 1, b: 0.08235294, g: 0.627451, r: 1 }

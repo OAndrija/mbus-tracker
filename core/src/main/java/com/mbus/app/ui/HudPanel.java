@@ -59,32 +59,33 @@ public class HudPanel {
         mainPanel.setPosition(0, 0);
 
         // Set background
-        mainPanel.setBackground(skin.getDrawable("window-peach"));
+        mainPanel.setBackground(skin.getDrawable("panel-maroon"));
 
         // Create header
-        Label headerLabel = new Label("Mestni avtobusni promet", skin, "title");
+        Label headerLabel = new Label("Mestni avtobusni promet", skin, "title-black");
         headerLabel.setWrap(true);
         headerLabel.setAlignment(Align.center);
 
         mainPanel.add(headerLabel).width(panelWidth - 20).pad(10).row();
 
         // Create search field
-        searchField = new TextField("", skin, "search");
-        searchField.setMessageText("Išči postajališče...");
-        mainPanel.add(searchField).width(panelWidth - 20).padLeft(10).padRight(10).padTop(5).row();
+//        searchField = new TextField("", skin, "search");
+//        searchField.setMessageText("Išči postajališče...");
+//        mainPanel.add(searchField).width(panelWidth - 20).padLeft(10).padRight(10).padTop(5).row();
 
         // Create bus lines section
-        Label linesLabel = new Label("Linije", skin, "default");
-        mainPanel.add(linesLabel).left().padLeft(10).padTop(15).padBottom(5).row();
+        Label linesLabel = new Label("Linije", skin, "title-black");
+        linesLabel.setFontScale(0.8f);
+        mainPanel.add(linesLabel).left().padLeft(10).padTop(15).padBottom(15).row();
 
         // Create bus line buttons container (NO ScrollPane)
         Table busLinesTable = createBusLinesTable();
-        mainPanel.add(busLinesTable).width(panelWidth - 20).padLeft(10).padRight(10).row();
+        mainPanel.add(busLinesTable).width(panelWidth - 20).padLeft(10).padBottom(20).padRight(10).row();
 
         // "Vse linije" and "Vse postaje" buttons
         Table allButtonsTable = new Table();
-        TextButton allLinesBtn = new TextButton("Vse linije", skin, "orange-small");
-        allStopsBtn = new TextButton("Vse postaje", skin, "orange-small");
+        TextButton allLinesBtn = new TextButton("Vse linije", skin, "menu-item");
+        allStopsBtn = new TextButton("Vse postaje", skin, "menu-item");
 
         // Add click listener to "Vse postaje" button
         allStopsBtn.addListener(new ChangeListener() {
@@ -100,8 +101,9 @@ public class HudPanel {
         mainPanel.add(allButtonsTable).width(panelWidth - 20).padLeft(10).padRight(10).padTop(10).row();
 
         // Create bus stops section
-        Label stopsLabel = new Label("Postajališče", skin, "default");
-        mainPanel.add(stopsLabel).left().padLeft(10).padTop(15).padBottom(5).row();
+        Label stopsLabel = new Label("Postajalisce", skin, "title-black");
+        stopsLabel.setFontScale(0.8f);
+        mainPanel.add(stopsLabel).left().padLeft(10).padTop(30).padBottom(25).row();
 
         // Create bus stops list - this should expand to fill remaining space
         Table busStopsTable = createBusStopsTable();
@@ -126,7 +128,7 @@ public class HudPanel {
     private Table createBusLinesTable() {
         Table table = new Table();
 
-        // Static bus line data - organized in grid
+        // Static bus line data - organized in grid with custom colors for each line
         String[][] busLines = {
             {"1", "2", "3", "4", "6", "7"},
             {"8", "9", "10", "12", "13", "15"},
@@ -134,13 +136,50 @@ public class HudPanel {
             {"151", "k1", "k2"}
         };
 
+        // Define colors for each bus line (you can customize these!)
+        java.util.Map<String, Color> lineColors = new java.util.HashMap<String, Color>();
+
+        // Row 1 - Cool colors
+        lineColors.put("1", new Color(0.2f, 0.6f, 1f, 1f));      // Light Blue
+        lineColors.put("2", new Color(0.4f, 0.8f, 0.4f, 1f));     // Green
+        lineColors.put("3", new Color(1f, 0.5f, 0.8f, 1f));       // Pink
+        lineColors.put("4", new Color(0.6f, 0.3f, 0.9f, 1f));     // Purple
+        lineColors.put("6", new Color(1f, 0.7f, 0.2f, 1f));       // Gold
+        lineColors.put("7", new Color(0.3f, 0.9f, 0.9f, 1f));     // Cyan
+
+        // Row 2 - Warm colors
+        lineColors.put("8", new Color(1f, 0.4f, 0.4f, 1f));       // Red
+        lineColors.put("9", new Color(1f, 0.6f, 0.2f, 1f));       // Orange
+        lineColors.put("10", new Color(0.5f, 0.7f, 0.3f, 1f));    // Lime
+        lineColors.put("12", new Color(0.2f, 0.5f, 0.8f, 1f));    // Blue
+        lineColors.put("13", new Color(0.8f, 0.2f, 0.6f, 1f));    // Magenta
+        lineColors.put("15", new Color(0.9f, 0.5f, 0.3f, 1f));    // Coral
+
+        // Row 3 - Mixed colors
+        lineColors.put("16", new Color(0.4f, 0.6f, 0.8f, 1f));    // Steel Blue
+        lineColors.put("17", new Color(0.7f, 0.4f, 0.7f, 1f));    // Lavender
+        lineColors.put("18", new Color(0.3f, 0.8f, 0.5f, 1f));    // Sea Green
+        lineColors.put("19", new Color(1f, 0.7f, 0.4f, 1f));      // Peach
+        lineColors.put("20", new Color(0.5f, 0.4f, 0.9f, 1f));    // Indigo
+        lineColors.put("21", new Color(0.9f, 0.3f, 0.4f, 1f));    // Crimson
+
+        // Row 4 - Special lines
+        lineColors.put("151", new Color(0.6f, 0.6f, 0.2f, 1f));   // Olive
+        lineColors.put("k1", new Color(0.3f, 0.7f, 0.7f, 1f));    // Teal
+        lineColors.put("k2", new Color(0.8f, 0.5f, 0.7f, 1f));    // Rose
+
         float buttonSize = 45f;
 
         for (String[] row : busLines) {
             for (String lineNumber : row) {
                 TextButton btn = new TextButton(lineNumber, skin, "orange-small-toggle");
-                btn.getLabel().setFontScale(0.8f);
-                table.add(btn).size(buttonSize).pad(2);
+
+                Color lineColor = lineColors.get(lineNumber);
+                if (lineColor != null) {
+                    btn.setColor(lineColor);
+                }
+
+                table.add(btn).size(buttonSize).pad(4);
             }
             table.row();
         }
@@ -159,16 +198,16 @@ public class HudPanel {
 
                 // Bus stop ID button (using idAvpost)
                 TextButton idBtn = new TextButton(String.valueOf(stop.idAvpost), skin, "maroon-small");
-                idBtn.getLabel().setFontScale(0.7f);
+//                idBtn.getLabel().setFontScale(0.7f);
 
                 // Bus stop name label - with ellipsis for truncation
-                Label stopLabel = new Label(stop.name, skin, "default");
-                stopLabel.setFontScale(0.8f);
+                Label stopLabel = new Label(stop.name, skin, "black");
+//                stopLabel.setFontScale(0.8f);
                 stopLabel.setEllipsis(true);
 
                 // Arrow button - clickable to open detail panel
-                TextButton arrowBtn = new TextButton(">", skin, "orange-small");
-                arrowBtn.getLabel().setFontScale(0.9f);
+                TextButton arrowBtn = new TextButton(">", skin, "maroon-small");
+//                arrowBtn.getLabel().setFontScale(0.9f);
 
                 // Add click listener to arrow button
                 arrowBtn.addListener(new ChangeListener() {
@@ -183,14 +222,14 @@ public class HudPanel {
                 // Add cells with proper sizing - arrow always visible
                 table.add(idBtn).width(30).height(35).padRight(5).left();
                 table.add(stopLabel).expandX().fillX().left().padRight(5).minWidth(0);
-                table.add(arrowBtn).width(30).height(25).right().padRight(5).minWidth(30);
+                table.add(arrowBtn).width(30).height(30).right().padRight(15).minWidth(30);
                 table.row().padTop(8).padBottom(8);
 
                 // Add separator line between stops (except after last one)
                 if (i < busStops.size() - 1) {
                     Image separator = new Image(skin.getDrawable("white"));
                     separator.setColor(0.8f, 0.8f, 0.8f, 0.3f); // Light gray with transparency
-                    table.add(separator).colspan(3).height(1).fillX().expandX();
+                    table.add(separator).colspan(3).height(1).fillX().padTop(20).padBottom(20).expandX();
                     table.row();
                 }
             }

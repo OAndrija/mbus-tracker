@@ -33,6 +33,7 @@ public class RasterMapScreen implements Screen {
     private final MBusTracker app;
 
     private Texture[] mapTiles;
+    private Texture markerTexture;
     private ZoomXY beginTile;
     private List<BusStop> stops;
 
@@ -43,10 +44,12 @@ public class RasterMapScreen implements Screen {
     private BusStopDetailPanel detailPanel;
     private Skin skin;
 
+    private MarkerClickHandler markerClickHandler;
+
     // Camera animation
     private boolean animatingCamera = false;
     private float animationProgress = 0f;
-    private float animationDuration = 1.5f; // Duration in seconds
+    private float animationDuration = 1.5f;
     private float startX, startY, startZoom;
     private float targetX, targetY, targetZoom;
 
@@ -59,14 +62,16 @@ public class RasterMapScreen implements Screen {
 
     @Override
     public void show() {
-        // Load skin from AssetManager
+        // Load skin and marker texture from AssetManager
         skin = app.getAssetManager().get(AssetDescriptors.SKIN);
+        markerTexture = app.getAssetManager().get(AssetDescriptors.BUS_ICON);
 
         loadTiles();
         loadData();
 
         mapRenderer = new MapRenderer(app.camera);
         mapRenderer.loadTiles(mapTiles, beginTile);
+        mapRenderer.setMarkerTexture(markerTexture);
         mapRenderer.setStops(stops);
 
         // Create HUD panels
@@ -78,6 +83,10 @@ public class RasterMapScreen implements Screen {
             @Override
             public void onVisibilityChanged(boolean visible) {
                 updateHudBoundaries();
+                // Clear selection when detail panel closes
+                if (!visible) {
+                    mapRenderer.setSelectedStop(null);
+                }
             }
         });
 
@@ -95,9 +104,8 @@ public class RasterMapScreen implements Screen {
             @Override
             public void onBusStopClicked(BusStop busStop) {
                 Gdx.app.log("RasterMapScreen", "HUD clicked bus stop: " + busStop.name);
-                // Show the detail panel
+                mapRenderer.setSelectedStop(busStop);
                 detailPanel.showBusStop(busStop);
-                // Zoom to the bus stop on the map
                 zoomToBusStop(busStop);
             }
         });
@@ -112,7 +120,6 @@ public class RasterMapScreen implements Screen {
      * Zoom and center the camera on a specific bus stop with smooth animation
      */
     private void zoomToBusStop(BusStop busStop) {
-        // Get the pixel position of the bus stop on the map
         Vector2 pos = MapRasterTiles.getPixelPosition(
             busStop.geo.lat,
             busStop.geo.lng,
@@ -122,30 +129,25 @@ public class RasterMapScreen implements Screen {
 
         Gdx.app.log("RasterMapScreen", "Zooming to bus stop: " + busStop.name +
             " at position (" + pos.x + ", " + pos.y + ")");
-        Gdx.app.log("RasterMapScreen", "Map dimensions: " + Constants.MAP_WIDTH + " x " + Constants.MAP_HEIGHT);
 
-        // Store current camera state
         startX = app.camera.position.x;
         startY = app.camera.position.y;
         startZoom = app.camera.zoom;
 
-        // Set target camera state
         targetX = pos.x;
         targetY = pos.y;
         targetZoom = 0.1f;
 
-        Gdx.app.log("RasterMapScreen", "Animation: from (" + startX + ", " + startY + ", zoom=" + startZoom +
-            ") to (" + targetX + ", " + targetY + ", zoom=" + targetZoom + ")");
-
-        // Start animation
         animatingCamera = true;
         animationProgress = 0f;
     }
 
     @Override
     public void render(float delta) {
-
         ScreenUtils.clear(0, 0, 0, 1);
+
+        // Update hover state based on mouse position
+        updateHoverState();
 
         // Update camera animation if active
         if (animatingCamera) {
@@ -157,7 +159,7 @@ public class RasterMapScreen implements Screen {
         app.viewport.apply();
         app.camera.update();
 
-        mapRenderer.render();
+        mapRenderer.render(delta);
 
         // Render HUD panels on top
         hudPanel.render();
@@ -165,17 +167,41 @@ public class RasterMapScreen implements Screen {
     }
 
     // ------------------------------------------------------
+    // HOVER STATE DETECTION
+    // ------------------------------------------------------
+
+    private void updateHoverState() {
+        // Only check hover if markers are visible and we're not animating
+        if (!mapRenderer.isShowingMarkers() || animatingCamera) {
+            mapRenderer.setHoveredStop(null);
+            return;
+        }
+
+        // Check if mouse is over HUD area
+        int mouseX = Gdx.input.getX();
+        float hudPanelWidth = Gdx.graphics.getWidth() / Constants.HUD_WIDTH;
+        float detailPanelWidth = detailPanel.getEffectiveWidth();
+        float totalHudWidth = hudPanelWidth + detailPanelWidth;
+
+        if (mouseX < totalHudWidth) {
+            mapRenderer.setHoveredStop(null);
+            return;
+        }
+
+        // Check which marker is under the mouse
+        int mouseY = Gdx.input.getY();
+        BusStop hoveredStop = markerClickHandler.checkMarkerClick(mouseX, mouseY);
+        mapRenderer.setHoveredStop(hoveredStop);
+    }
+
+    // ------------------------------------------------------
     // CAMERA UPDATE + CLAMP
     // ------------------------------------------------------
 
-    /**
-     * Update camera animation for smooth zoom/pan to bus stop
-     */
     private void updateCameraAnimation(float delta) {
         animationProgress += delta / animationDuration;
 
         if (animationProgress >= 1f) {
-            // Animation complete
             animationProgress = 1f;
             animatingCamera = false;
             Gdx.app.log("RasterMapScreen", "Animation complete at (" +
@@ -183,10 +209,8 @@ public class RasterMapScreen implements Screen {
                 ", zoom=" + app.camera.zoom + ")");
         }
 
-        // Use easeInOutCubic for smooth animation
         float t = easeInOutCubic(animationProgress);
 
-        // Interpolate position and zoom
         app.camera.position.x = MathUtils.lerp(startX, targetX, t);
         app.camera.position.y = MathUtils.lerp(startY, targetY, t);
         app.camera.zoom = MathUtils.lerp(startZoom, targetZoom, t);
@@ -196,9 +220,6 @@ public class RasterMapScreen implements Screen {
         }
     }
 
-    /**
-     * Easing function for smooth animation (ease in-out cubic)
-     */
     private float easeInOutCubic(float t) {
         if (t < 0.5f) {
             return 4f * t * t * t;
@@ -209,7 +230,6 @@ public class RasterMapScreen implements Screen {
     }
 
     private void updateCamera() {
-        // Don't update camera controller during animation
         if (!animatingCamera) {
             app.cameraController.update();
         }
@@ -220,23 +240,18 @@ public class RasterMapScreen implements Screen {
         float effectiveViewportWidth  = app.camera.viewportWidth  * app.camera.zoom;
         float effectiveViewportHeight = app.camera.viewportHeight * app.camera.zoom;
 
-        // Calculate bounds - if viewport is larger than map, center it
         float minX, maxX, minY, maxY;
 
         if (effectiveViewportWidth >= Constants.MAP_WIDTH) {
-            // Viewport wider than map - center horizontally
             minX = maxX = Constants.MAP_WIDTH / 2f;
         } else {
-            // Normal clamping
             minX = effectiveViewportWidth / 2f;
             maxX = Constants.MAP_WIDTH - effectiveViewportWidth / 2f;
         }
 
         if (effectiveViewportHeight >= Constants.MAP_HEIGHT) {
-            // Viewport taller than map - center vertically
             minY = maxY = Constants.MAP_HEIGHT / 2f;
         } else {
-            // Normal clamping
             minY = effectiveViewportHeight / 2f;
             maxY = Constants.MAP_HEIGHT - effectiveViewportHeight / 2f;
         }
@@ -244,7 +259,6 @@ public class RasterMapScreen implements Screen {
         app.camera.position.x = MathUtils.clamp(app.camera.position.x, minX, maxX);
         app.camera.position.y = MathUtils.clamp(app.camera.position.y, minY, maxY);
     }
-
 
     private void loadTiles() {
         try {
@@ -272,11 +286,9 @@ public class RasterMapScreen implements Screen {
     }
 
     private void setupInput() {
-        // Create gesture listener with marker click handling
         mapGestureListener = new MapGestureListener(app.camera);
 
-        // Set up marker click handler
-        MarkerClickHandler markerClickHandler = new MarkerClickHandler(app.camera);
+        markerClickHandler = new MarkerClickHandler(app.camera);
         markerClickHandler.setStops(stops);
         markerClickHandler.setBeginTile(beginTile);
         mapGestureListener.setMarkerClickHandler(markerClickHandler);
@@ -285,11 +297,11 @@ public class RasterMapScreen implements Screen {
         mapGestureListener.setBusStopClickCallback(new MapGestureListener.BusStopClickCallback() {
             @Override
             public void onBusStopClicked(BusStop busStop) {
-                // Only show detail panel if markers are visible
                 if (mapRenderer.isShowingMarkers()) {
                     Gdx.app.log("RasterMapScreen", "Map clicked bus stop: " + busStop.name);
+                    mapRenderer.setSelectedStop(busStop);
                     detailPanel.showBusStop(busStop);
-                    updateHudBoundaries(); // Update boundaries when detail panel opens
+                    updateHudBoundaries();
                 }
             }
         });
@@ -297,10 +309,9 @@ public class RasterMapScreen implements Screen {
         gestureDetector = new GestureDetector(mapGestureListener);
 
         if (app.inputMultiplexer != null) {
-            // Add processors in priority order (first = highest priority)
-            app.inputMultiplexer.addProcessor(detailPanel.getStage()); // Detail panel first
-            app.inputMultiplexer.addProcessor(hudPanel.getStage()); // HUD panel second
-            app.inputMultiplexer.addProcessor(gestureDetector); // Map gestures (including tap) last
+            app.inputMultiplexer.addProcessor(detailPanel.getStage());
+            app.inputMultiplexer.addProcessor(hudPanel.getStage());
+            app.inputMultiplexer.addProcessor(gestureDetector);
         } else {
             Gdx.input.setInputProcessor(new InputMultiplexer(
                 detailPanel.getStage(),
@@ -310,13 +321,9 @@ public class RasterMapScreen implements Screen {
             ));
         }
 
-        // Set initial HUD boundaries
         updateHudBoundaries();
     }
 
-    /**
-     * Update HUD width boundaries for map input handlers
-     */
     private void updateHudBoundaries() {
         float hudPanelWidth = Gdx.graphics.getWidth() / Constants.HUD_WIDTH;
         float detailPanelWidth = detailPanel.getEffectiveWidth();
@@ -342,7 +349,6 @@ public class RasterMapScreen implements Screen {
 
     @Override
     public void hide() {
-        // remove to avoid stacking
         if (gestureDetector != null && app.inputMultiplexer != null) {
             app.inputMultiplexer.removeProcessor(gestureDetector);
         }
