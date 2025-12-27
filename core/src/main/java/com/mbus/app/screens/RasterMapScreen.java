@@ -18,6 +18,7 @@ import com.mbus.app.model.BusStop;
 import com.mbus.app.model.Geolocation;
 import com.mbus.app.model.ZoomXY;
 import com.mbus.app.systems.data.GeoJSONLoader;
+import com.mbus.app.systems.input.BusLineClickHandler;
 import com.mbus.app.systems.input.MapGestureListener;
 import com.mbus.app.systems.input.MarkerClickHandler;
 import com.mbus.app.systems.map.MapRasterTiles;
@@ -50,6 +51,7 @@ public class RasterMapScreen implements Screen {
     private Skin skin;
 
     private MarkerClickHandler markerClickHandler;
+    private BusLineClickHandler lineClickHandler;
 
     // Camera animation
     private boolean animatingCamera = false;
@@ -73,17 +75,17 @@ public class RasterMapScreen implements Screen {
         titleIcon = app.getAssetManager().get(AssetDescriptors.TITLE_ICON);
 
         loadTiles();
-        loadData(); // This now builds relationships
+        loadData();
 
         // Create HUD panels FIRST
         hudPanel = new HudPanel(skin, titleIcon);
         detailPanel = new BusStopDetailPanel(skin);
 
-        // Set bus lines data in HUD panel (now with relationships)
+        // Set bus lines data in HUD panel
         hudPanel.setBusLines(busLines);
         hudPanel.setBusStops(stops);
 
-        // NOW create mapRenderer and use hudPanel data
+        // NOW create mapRenderer
         mapRenderer = new MapRenderer(app.camera);
         mapRenderer.loadTiles(mapTiles, beginTile);
         mapRenderer.setMarkerTexture(markerTexture);
@@ -91,14 +93,12 @@ public class RasterMapScreen implements Screen {
         mapRenderer.setBusLines(busLines);
         mapRenderer.setVisibleLineIds(hudPanel.getVisibleLineIds());
 
-        // NEW: Add callback for filtered stops changes
+        // Add callback for filtered stops changes
         hudPanel.setFilteredStopsCallback(new HudPanel.FilteredStopsCallback() {
             @Override
             public void onFilteredStopsChanged(List<BusStop> filteredStops) {
                 Gdx.app.log("RasterMapScreen", "Filtered stops count: " + filteredStops.size());
                 mapRenderer.setFilteredStops(filteredStops);
-
-                // Also update marker click handler with filtered stops
                 markerClickHandler.setStops(filteredStops);
             }
         });
@@ -109,6 +109,9 @@ public class RasterMapScreen implements Screen {
             public void onBusLineVisibilityChanged(Set<Integer> visibleLineIds) {
                 Gdx.app.log("RasterMapScreen", "Visible lines: " + visibleLineIds);
                 mapRenderer.setVisibleLineIds(visibleLineIds);
+                if (lineClickHandler != null) {
+                    lineClickHandler.setVisibleLineIds(visibleLineIds);
+                }
             }
         });
 
@@ -117,7 +120,6 @@ public class RasterMapScreen implements Screen {
             @Override
             public void onVisibilityChanged(boolean visible) {
                 updateHudBoundaries();
-                // Clear selection when detail panel closes
                 if (!visible) {
                     mapRenderer.setSelectedStop(null);
                 }
@@ -147,33 +149,22 @@ public class RasterMapScreen implements Screen {
         setupInput();
     }
 
-    /**
-     * Load data and build relationships
-     */
     private void loadData() {
-        // 1. Load raw data from JSON files
         List<BusStop> rawStops = GeoJSONLoader.loadBusStopsFromFile("data/int_mob_marprom_postaje.json");
         List<BusLine> rawLines = GeoJSONLoader.loadBusLinesFromFile("data/int_mob_marprom_linije.json");
 
         Gdx.app.log("RasterMapScreen", "Loaded " + rawStops.size() + " raw bus stops and " +
             rawLines.size() + " raw bus lines");
 
-        // 2. Build relationships between lines and stops
-        // The proximity threshold is in meters - adjust based on your data accuracy
-        // 50 meters works well for most cases, but you might need to tune this
         double proximityThreshold = 50.0;
 
         BusLineStopRelationshipBuilder.RelationshipResult result =
             BusLineStopRelationshipBuilder.buildRelationships(rawLines, rawStops, proximityThreshold);
 
-        // 3. Use the data with relationships established
         this.busLines = result.lines;
         this.stops = result.stops;
 
-        // 4. Log statistics
-        Gdx.app.log("RasterMapScreen", "Built relationships:");
-
-        // Log some stats about the relationships
+        // Log statistics
         int totalStopsWithLines = 0;
         int totalLinesWithStops = 0;
 
@@ -190,28 +181,11 @@ public class RasterMapScreen implements Screen {
         }
 
         Gdx.app.log("RasterMapScreen",
-            "  - " + totalStopsWithLines + "/" + stops.size() + " stops have lines");
+            "Built relationships: " + totalStopsWithLines + "/" + stops.size() + " stops have lines");
         Gdx.app.log("RasterMapScreen",
-            "  - " + totalLinesWithStops + "/" + busLines.size() + " lines have stops");
-
-        // Log a few examples
-        if (!stops.isEmpty()) {
-            BusStop exampleStop = stops.get(0);
-            Gdx.app.log("RasterMapScreen",
-                "  - Example: " + exampleStop.name + " has " + exampleStop.getLineCount() +
-                    " lines: " + exampleStop.getLineIdsString());
-        }
-
-        if (!busLines.isEmpty()) {
-            BusLine exampleLine = busLines.get(0);
-            Gdx.app.log("RasterMapScreen",
-                "  - Example: Line " + exampleLine.lineId + " has " + exampleLine.getStopCount() + " stops");
-        }
+            totalLinesWithStops + "/" + busLines.size() + " lines have stops");
     }
 
-    /**
-     * Zoom and center the camera on a specific bus stop with smooth animation
-     */
     private void zoomToBusStop(BusStop busStop) {
         Vector2 pos = MapRasterTiles.getPixelPosition(
             busStop.geo.lat,
@@ -239,10 +213,8 @@ public class RasterMapScreen implements Screen {
     public void render(float delta) {
         ScreenUtils.clear(0, 0, 0, 1);
 
-        // Update hover state based on mouse position
         updateHoverState();
 
-        // Update camera animation if active
         if (animatingCamera) {
             updateCameraAnimation(delta);
         } else {
@@ -254,23 +226,11 @@ public class RasterMapScreen implements Screen {
 
         mapRenderer.render(delta);
 
-        // Render HUD panels on top
         hudPanel.render();
         detailPanel.render();
     }
 
-    // ------------------------------------------------------
-    // HOVER STATE DETECTION
-    // ------------------------------------------------------
-
     private void updateHoverState() {
-        // Only check hover if markers are visible and we're not animating
-        if (!mapRenderer.isShowingMarkers() || animatingCamera) {
-            mapRenderer.setHoveredStop(null);
-            return;
-        }
-
-        // Check if mouse is over HUD area
         int mouseX = Gdx.input.getX();
         float hudPanelWidth = Gdx.graphics.getWidth() / Constants.HUD_WIDTH;
         float detailPanelWidth = detailPanel.getEffectiveWidth();
@@ -278,18 +238,34 @@ public class RasterMapScreen implements Screen {
 
         if (mouseX < totalHudWidth) {
             mapRenderer.setHoveredStop(null);
+            mapRenderer.setHoveredLine(null);
             return;
         }
 
-        // Check which marker is under the mouse
         int mouseY = Gdx.input.getY();
-        BusStop hoveredStop = markerClickHandler.checkMarkerClick(mouseX, mouseY);
-        mapRenderer.setHoveredStop(hoveredStop);
-    }
 
-    // ------------------------------------------------------
-    // CAMERA UPDATE + CLAMP
-    // ------------------------------------------------------
+        // Check for marker hover first (priority over lines)
+        if (mapRenderer.isShowingMarkers() && !animatingCamera) {
+            BusStop hoveredStop = markerClickHandler.checkMarkerClick(mouseX, mouseY);
+            mapRenderer.setHoveredStop(hoveredStop);
+
+            // Only check line hover if no marker is hovered
+            if (hoveredStop == null && lineClickHandler != null) {
+                BusLine hoveredLine = lineClickHandler.checkLineClick(mouseX, mouseY);
+                mapRenderer.setHoveredLine(hoveredLine);
+            } else {
+                mapRenderer.setHoveredLine(null);
+            }
+        } else {
+            mapRenderer.setHoveredStop(null);
+
+            // Check for line hover even when markers are hidden
+            if (lineClickHandler != null) {
+                BusLine hoveredLine = lineClickHandler.checkLineClick(mouseX, mouseY);
+                mapRenderer.setHoveredLine(hoveredLine);
+            }
+        }
+    }
 
     private void updateCameraAnimation(float delta) {
         animationProgress += delta / animationDuration;
@@ -382,6 +358,12 @@ public class RasterMapScreen implements Screen {
         markerClickHandler.setBeginTile(beginTile);
         mapGestureListener.setMarkerClickHandler(markerClickHandler);
 
+        lineClickHandler = new BusLineClickHandler(app.camera);
+        lineClickHandler.setBusLines(busLines);
+        lineClickHandler.setBeginTile(beginTile);
+        lineClickHandler.setVisibleLineIds(hudPanel.getVisibleLineIds());
+        mapGestureListener.setLineClickHandler(lineClickHandler);
+
         // Set callback for when a bus stop is clicked on the map
         mapGestureListener.setBusStopClickCallback(new MapGestureListener.BusStopClickCallback() {
             @Override
@@ -389,8 +371,26 @@ public class RasterMapScreen implements Screen {
                 if (mapRenderer.isShowingMarkers()) {
                     Gdx.app.log("RasterMapScreen", "Map clicked bus stop: " + busStop.name);
                     mapRenderer.setSelectedStop(busStop);
+                    mapRenderer.setSelectedLine(null); // Clear line selection
                     detailPanel.showBusStop(busStop);
                     updateHudBoundaries();
+                }
+            }
+        });
+
+        // Set callback for when a bus line is clicked on the map
+        mapGestureListener.setBusLineClickCallback(new MapGestureListener.BusLineClickCallback() {
+            @Override
+            public void onBusLineClicked(BusLine busLine) {
+                // Toggle selection - if clicking the same line, deselect it
+                if (mapRenderer.getSelectedLine() == busLine) {
+                    Gdx.app.log("RasterMapScreen", "Deselecting bus line: " + busLine.lineId);
+                    mapRenderer.setSelectedLine(null);
+                } else {
+                    Gdx.app.log("RasterMapScreen", "Map clicked bus line: " + busLine.lineId);
+                    mapRenderer.setSelectedLine(busLine);
+                    mapRenderer.setSelectedStop(null); // Clear stop selection
+                    // TODO: You could show a detail panel for the line here
                 }
             }
         });

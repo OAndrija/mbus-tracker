@@ -5,6 +5,7 @@ import com.badlogic.gdx.input.GestureDetector;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.mbus.app.model.BusStop;
+import com.mbus.app.model.BusLine;
 
 public class MapGestureListener implements GestureDetector.GestureListener {
 
@@ -12,7 +13,9 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     private float initialZoom = 1f;
 
     private MarkerClickHandler markerClickHandler;
-    private BusStopClickCallback clickCallback;
+    private BusLineClickHandler lineClickHandler;
+    private BusStopClickCallback stopClickCallback;
+    private BusLineClickCallback lineClickCallback;
 
     // HUD boundary
     private float hudWidth = 0f;
@@ -20,6 +23,7 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     public MapGestureListener(OrthographicCamera camera) {
         this.camera = camera;
         this.markerClickHandler = new MarkerClickHandler(camera);
+        this.lineClickHandler = new BusLineClickHandler(camera);
     }
 
     /**
@@ -40,7 +44,14 @@ public class MapGestureListener implements GestureDetector.GestureListener {
      * Set the callback to be invoked when a bus stop marker is clicked
      */
     public void setBusStopClickCallback(BusStopClickCallback callback) {
-        this.clickCallback = callback;
+        this.stopClickCallback = callback;
+    }
+
+    /**
+     * Set the callback to be invoked when a bus line is clicked
+     */
+    public void setBusLineClickCallback(BusLineClickCallback callback) {
+        this.lineClickCallback = callback;
     }
 
     /**
@@ -48,6 +59,13 @@ public class MapGestureListener implements GestureDetector.GestureListener {
      */
     public void setMarkerClickHandler(MarkerClickHandler handler) {
         this.markerClickHandler = handler;
+    }
+
+    /**
+     * Set the line click handler with line data
+     */
+    public void setLineClickHandler(BusLineClickHandler handler) {
+        this.lineClickHandler = handler;
     }
 
     @Override
@@ -99,14 +117,24 @@ public class MapGestureListener implements GestureDetector.GestureListener {
             return false;
         }
 
-        // Check if a marker was tapped
-        if (markerClickHandler != null && clickCallback != null) {
+        // Check if a marker was tapped first (markers have priority)
+        if (markerClickHandler != null && stopClickCallback != null) {
             BusStop clickedStop = markerClickHandler.checkMarkerClick((int)x, (int)y);
             if (clickedStop != null) {
-                clickCallback.onBusStopClicked(clickedStop);
+                stopClickCallback.onBusStopClicked(clickedStop);
                 return true; // Consume the event
             }
         }
+
+        // If no marker was clicked, check if a bus line was tapped
+        if (lineClickHandler != null && lineClickCallback != null) {
+            BusLine clickedLine = lineClickHandler.checkLineClick((int)x, (int)y);
+            if (clickedLine != null) {
+                lineClickCallback.onBusLineClicked(clickedLine);
+                return true; // Consume the event
+            }
+        }
+
         return false;
     }
 
@@ -118,5 +146,12 @@ public class MapGestureListener implements GestureDetector.GestureListener {
      */
     public interface BusStopClickCallback {
         void onBusStopClicked(BusStop busStop);
+    }
+
+    /**
+     * Callback interface for bus line clicks
+     */
+    public interface BusLineClickCallback {
+        void onBusLineClicked(BusLine busLine);
     }
 }
