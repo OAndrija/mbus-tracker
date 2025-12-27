@@ -7,12 +7,16 @@ import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
-import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.mbus.app.assets.AssetDescriptors;
+import com.mbus.app.model.BusLine;
+import com.mbus.app.model.BusStop;
+import com.mbus.app.screens.LoadingScreen;
 import com.mbus.app.screens.RasterMapScreen;
 import com.mbus.app.systems.input.CameraController;
 import com.mbus.app.utils.Constants;
+
+import java.util.List;
 
 public class MBusTracker extends Game {
     private static final String TAG = MBusTracker.class.getSimpleName();
@@ -24,6 +28,10 @@ public class MBusTracker extends Game {
     private AssetManager assetManager;
 
     public float initialZoom;
+
+    // Shared game data
+    private List<BusStop> busStops;
+    private List<BusLine> busLines;
 
     @Override
     public void create() {
@@ -67,8 +75,8 @@ public class MBusTracker extends Game {
         inputMultiplexer.addProcessor(cameraController);
         Gdx.input.setInputProcessor(inputMultiplexer);
 
-        // --- START SCREEN ---
-        setScreen(new RasterMapScreen(this));
+        // --- START WITH LOADING SCREEN ---
+        setScreen(new LoadingScreen(this));
     }
 
     @Override
@@ -87,5 +95,18 @@ public class MBusTracker extends Game {
 
     public AssetManager getAssetManager() {
         return assetManager;
+    }
+
+    public void setBusData(List<BusStop> stops, List<BusLine> lines) {
+        this.busStops = stops;
+        this.busLines = lines;
+    }
+
+    public List<BusStop> getBusStops() {
+        return busStops;
+    }
+
+    public List<BusLine> getBusLines() {
+        return busLines;
     }
 }

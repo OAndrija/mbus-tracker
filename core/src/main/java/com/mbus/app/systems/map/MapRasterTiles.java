@@ -248,6 +248,47 @@ public class MapRasterTiles {
     // ===========================
     // ROUTING API
     // ===========================
+    /**
+     * Downloads tile data as byte array (can be called from background thread)
+     * This separates the download from texture creation
+     */
+    public static byte[] downloadTileData(int zoom, int x, int y) throws IOException {
+        String fileName = zoom + "_" + x + "_" + y + ".png";
+        FileHandle file = Gdx.files.local(CACHE_FOLDER + fileName);
+
+        // 1) LOAD FROM CACHE
+        if (file.exists()) {
+            byte[] cached = readFileBytes(fileName);
+            if (cached != null) {
+                log.info("Cache hit → " + fileName);
+                return cached;
+            } else {
+                log.error("Cache read failed for " + fileName + ", redownloading.");
+            }
+        }
+
+        // 2) DOWNLOAD
+        String urlStr = mapServiceUrl + tilesetId + "/" + zoom + "/" + x + "/" + y + format + token;
+        log.info("Downloading tile: zoom=" + zoom + " x=" + x + " y=" + y);
+
+        URL url = new URL(urlStr);
+        ByteArrayOutputStream bis = fetchTile(url);
+
+        byte[] data = bis.toByteArray();
+        log.info("Tile downloaded (" + data.length + " bytes)");
+
+        // 3) SAVE TO CACHE
+        saveFileBytes(fileName, data);
+
+        return data;
+    }
+
+    /**
+     * Creates a texture from byte array (MUST be called from main OpenGL thread)
+     */
+    public static Texture createTextureFromData(byte[] data) {
+        return new Texture(new Pixmap(data, 0, data.length));
+    }
 
     public static Geolocation[][] fetchPath(Geolocation[] geolocations) {
         log.info("Fetching interpolated route for " + geolocations.length + " points");

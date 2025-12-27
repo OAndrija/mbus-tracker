@@ -17,7 +17,6 @@ import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
 import com.mbus.app.model.Geolocation;
 import com.mbus.app.model.ZoomXY;
-import com.mbus.app.systems.data.GeoJSONLoader;
 import com.mbus.app.systems.input.BusLineClickHandler;
 import com.mbus.app.systems.input.MapGestureListener;
 import com.mbus.app.systems.input.MarkerClickHandler;
@@ -26,7 +25,6 @@ import com.mbus.app.systems.map.MapRenderer;
 import com.mbus.app.ui.HudPanel;
 import com.mbus.app.ui.BusStopDetailPanel;
 import com.mbus.app.utils.Constants;
-import com.mbus.app.utils.BusLineStopRelationshipBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -63,8 +61,10 @@ public class RasterMapScreen implements Screen {
     private final Geolocation CENTER_GEOLOCATION =
         new Geolocation(46.557314, 15.637771);
 
-    public RasterMapScreen(MBusTracker app) {
+    public RasterMapScreen(MBusTracker app, Texture[] preloadedTiles, ZoomXY preloadedBeginTile) {
         this.app = app;
+        this.mapTiles = preloadedTiles;
+        this.beginTile = preloadedBeginTile;
     }
 
     @Override
@@ -74,8 +74,18 @@ public class RasterMapScreen implements Screen {
         markerTexture = app.getAssetManager().get(AssetDescriptors.BUS_ICON);
         titleIcon = app.getAssetManager().get(AssetDescriptors.TITLE_ICON);
 
-        loadTiles();
-        loadData();
+
+        // Get pre-loaded data from app
+        stops = app.getBusStops();
+        busLines = app.getBusLines();
+
+        if (stops == null || busLines == null) {
+            Gdx.app.error("RasterMapScreen", "Bus data not loaded! This should not happen.");
+            return;
+        }
+
+        Gdx.app.log("RasterMapScreen", "Using " + stops.size() + " stops and " +
+            busLines.size() + " lines from pre-loaded data");
 
         // Create HUD panels FIRST
         hudPanel = new HudPanel(skin, titleIcon);
@@ -147,43 +157,6 @@ public class RasterMapScreen implements Screen {
         });
 
         setupInput();
-    }
-
-    private void loadData() {
-        List<BusStop> rawStops = GeoJSONLoader.loadBusStopsFromFile("data/int_mob_marprom_postaje.json");
-        List<BusLine> rawLines = GeoJSONLoader.loadBusLinesFromFile("data/int_mob_marprom_linije.json");
-
-        Gdx.app.log("RasterMapScreen", "Loaded " + rawStops.size() + " raw bus stops and " +
-            rawLines.size() + " raw bus lines");
-
-        double proximityThreshold = 50.0;
-
-        BusLineStopRelationshipBuilder.RelationshipResult result =
-            BusLineStopRelationshipBuilder.buildRelationships(rawLines, rawStops, proximityThreshold);
-
-        this.busLines = result.lines;
-        this.stops = result.stops;
-
-        // Log statistics
-        int totalStopsWithLines = 0;
-        int totalLinesWithStops = 0;
-
-        for (BusStop stop : stops) {
-            if (stop.getLineCount() > 0) {
-                totalStopsWithLines++;
-            }
-        }
-
-        for (BusLine line : busLines) {
-            if (line.getStopCount() > 0) {
-                totalLinesWithStops++;
-            }
-        }
-
-        Gdx.app.log("RasterMapScreen",
-            "Built relationships: " + totalStopsWithLines + "/" + stops.size() + " stops have lines");
-        Gdx.app.log("RasterMapScreen",
-            totalLinesWithStops + "/" + busLines.size() + " lines have stops");
     }
 
     private void zoomToBusStop(BusStop busStop) {
