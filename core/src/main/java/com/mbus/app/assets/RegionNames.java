@@ -8,7 +8,7 @@ public class RegionNames {
     public static final String BUS_NORTH_EAST = "bus_northeast";
     public static final String BUS_SOUTH_EAST = "bus_southeast";
     public static final String BUS_NORTH_WEST = "bus_northwest";
-    public static final String BUS_WEST_EAST = "bus_southwest";
+    public static final String BUS_SOUTH_WEST = "bus_southwest";
 
     private RegionNames() {
     }

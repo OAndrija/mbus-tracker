@@ -80,17 +80,34 @@ public class MapRenderer {
     private static final float LABEL_SHADOW_OFFSET = 3f;
 
     private Set<Integer> visibleLineIds;
+    private BusAnimationRenderer busAnimationRenderer;
+    private int currentTimeMinutes = 0;
+    private int currentDayType = 0;
 
     public MapRenderer(OrthographicCamera camera) {
         this.camera = camera;
         this.shapeRenderer = new ShapeRenderer();
         this.spriteBatch = new SpriteBatch();
         this.font = new BitmapFont();
+        this.busAnimationRenderer = new BusAnimationRenderer(spriteBatch);
     }
 
     // ----------------------------
     // PUBLIC API
     // ----------------------------
+
+    public void loadBusSprites(TextureRegion north, TextureRegion northeast,
+                               TextureRegion east, TextureRegion southeast,
+                               TextureRegion south, TextureRegion southwest,
+                               TextureRegion west, TextureRegion northwest) {
+        busAnimationRenderer.loadBusSprites(north, northeast, east, southeast,
+            south, southwest, west, northwest);
+    }
+
+    public void setCurrentTime(int timeMinutes, int dayType) {
+        this.currentTimeMinutes = timeMinutes;
+        this.currentDayType = dayType;
+    }
 
     public void loadTiles(Texture[] tiles, ZoomXY beginTile) {
         this.mapTiles = tiles;
@@ -160,6 +177,20 @@ public class MapRenderer {
         if (showMarkers) {
             pulseTime += delta;
             renderMarkers();
+        }
+
+        // Render animated buses for selected line
+        if (selectedLine != null) {
+            spriteBatch.setProjectionMatrix(camera.combined);
+            spriteBatch.begin();
+            busAnimationRenderer.renderActiveBuses(
+                selectedLine,
+                currentTimeMinutes,
+                currentDayType,
+                beginTile,
+                camera.zoom
+            );
+            spriteBatch.end();
         }
 
         // Render line labels after everything else
@@ -578,27 +609,6 @@ public class MapRenderer {
 
         // Reset
         font.getData().setScale(1f);
-    }
-
-    /**
-     * Calculate the center position of a line's path
-     */
-    private Vector2 calculateLineCenterPosition(BusLine line) {
-        List<com.mbus.app.model.Geolocation> path = line.getPath();
-        if (path.isEmpty()) {
-            return new Vector2(camera.position.x, camera.position.y);
-        }
-
-        // Find the middle point of the path
-        int midIndex = path.size() / 2;
-        com.mbus.app.model.Geolocation midPoint = path.get(midIndex);
-
-        return MapRasterTiles.getPixelPosition(
-            midPoint.lat,
-            midPoint.lng,
-            beginTile.x,
-            beginTile.y
-        );
     }
 
     /**

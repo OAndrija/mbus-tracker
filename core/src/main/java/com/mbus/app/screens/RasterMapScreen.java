@@ -5,6 +5,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.input.GestureDetector;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
@@ -13,6 +14,7 @@ import com.badlogic.gdx.utils.ScreenUtils;
 
 import com.mbus.app.MBusTracker;
 import com.mbus.app.assets.AssetDescriptors;
+import com.mbus.app.assets.RegionNames;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
 import com.mbus.app.model.Geolocation;
@@ -24,6 +26,7 @@ import com.mbus.app.systems.map.MapRasterTiles;
 import com.mbus.app.systems.map.MapRenderer;
 import com.mbus.app.ui.HudPanel;
 import com.mbus.app.ui.BusStopDetailPanel;
+import com.mbus.app.utils.BusPositionCalculator;
 import com.mbus.app.utils.Constants;
 
 import java.io.IOException;
@@ -36,6 +39,7 @@ public class RasterMapScreen implements Screen {
     private Texture[] mapTiles;
     private Texture markerTexture;
     private Texture titleIcon;
+    private TextureAtlas uiAtlas;
     private ZoomXY beginTile;
     private List<BusStop> stops;
     private List<BusLine> busLines;
@@ -75,6 +79,7 @@ public class RasterMapScreen implements Screen {
         skin = app.getAssetManager().get(AssetDescriptors.SKIN);
         markerTexture = app.getAssetManager().get(AssetDescriptors.BUS_ICON);
         titleIcon = app.getAssetManager().get(AssetDescriptors.TITLE_ICON);
+        uiAtlas = app.getAssetManager().get(AssetDescriptors.BUS);
 
         stops = app.getBusStops();
         busLines = app.getBusLines();
@@ -100,6 +105,31 @@ public class RasterMapScreen implements Screen {
         mapRenderer.setStops(stops);
         mapRenderer.setBusLines(busLines);
         mapRenderer.setVisibleLineIds(hudPanel.getVisibleLineIds());
+
+        // Load bus sprites from atlas
+        TextureAtlas.AtlasRegion busNorth = uiAtlas.findRegion(RegionNames.BUS_NORTH);
+        TextureAtlas.AtlasRegion busNortheast = uiAtlas.findRegion(RegionNames.BUS_NORTH_EAST);
+        TextureAtlas.AtlasRegion busEast = uiAtlas.findRegion(RegionNames.BUS_EAST);
+        TextureAtlas.AtlasRegion busSoutheast = uiAtlas.findRegion(RegionNames.BUS_SOUTH_EAST);
+        TextureAtlas.AtlasRegion busSouth = uiAtlas.findRegion(RegionNames.BUS_SOUTH);
+        TextureAtlas.AtlasRegion busSouthwest = uiAtlas.findRegion(RegionNames.BUS_SOUTH_WEST);
+        TextureAtlas.AtlasRegion busWest = uiAtlas.findRegion(RegionNames.BUS_WEST);
+        TextureAtlas.AtlasRegion busNorthwest = uiAtlas.findRegion(RegionNames.BUS_NORTH_WEST);
+
+        if (busNorth != null && busEast != null) {
+            mapRenderer.loadBusSprites(
+                busNorth, busNortheast, busEast, busSoutheast,
+                busSouth, busSouthwest, busWest, busNorthwest
+            );
+        } else {
+            Gdx.app.error("RasterMapScreen", "Failed to load bus sprites");
+        }
+
+        // Set initial time
+        mapRenderer.setCurrentTime(
+            BusPositionCalculator.getCurrentTimeMinutes(),
+            BusPositionCalculator.getCurrentDayType()
+        );
 
         hudPanel.setFilteredStopsCallback(new HudPanel.FilteredStopsCallback() {
             @Override
@@ -154,6 +184,13 @@ public class RasterMapScreen implements Screen {
             @Override
             public void onTimeChanged(String time, int dayOfWeek) {
                 Gdx.app.log("RasterMapScreen", "Time changed to: " + time + " on day " + dayOfWeek);
+
+                // Parse time to minutes
+                int timeMinutes = parseTimeToMinutes(time);
+
+                // Update map renderer
+                mapRenderer.setCurrentTime(timeMinutes, dayOfWeek);
+
                 // Update the detail panel if it's currently showing a bus stop
                 if (detailPanel.isVisible()) {
                     detailPanel.setScheduleTime(time, dayOfWeek);
@@ -163,6 +200,16 @@ public class RasterMapScreen implements Screen {
         });
 
         setupInput();
+    }
+
+    private int parseTimeToMinutes(String timeStr) {
+        try {
+            String[] parts = timeStr.split(":");
+            return Integer.parseInt(parts[0]) * 60 + Integer.parseInt(parts[1]);
+        } catch (Exception e) {
+            Gdx.app.error("RasterMapScreen", "Failed to parse time: " + timeStr, e);
+            return BusPositionCalculator.getCurrentTimeMinutes();
+        }
     }
 
     private void zoomToBusStop(BusStop busStop) {
@@ -202,6 +249,12 @@ public class RasterMapScreen implements Screen {
 
         app.viewport.apply();
         app.camera.update();
+
+        // Update bus positions every frame based on current time
+        mapRenderer.setCurrentTime(
+            BusPositionCalculator.getCurrentTimeMinutes(),
+            BusPositionCalculator.getCurrentDayType()
+        );
 
         mapRenderer.render(delta);
 
