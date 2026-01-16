@@ -1,0 +1,62 @@
+
+bus.png
+size: 4096, 2048
+format: RGBA8888
+filter: Nearest, Nearest
+repeat: none
+bus_east
+  rotate: false
+  xy: 2, 1338
+  size: 720, 666
+  orig: 720, 666
+  offset: 0, 0
+  index: -1
+bus_north
+  rotate: false
+  xy: 2, 670
+  size: 720, 666
+  orig: 720, 666
+  offset: 0, 0
+  index: -1
+bus_northeast
+  rotate: false
+  xy: 724, 1338
+  size: 720, 666
+  orig: 720, 666
+  offset: 0, 0
+  index: -1
+bus_northwest
+  rotate: false
+  xy: 2, 2
+  size: 720, 666
+  orig: 720, 666
+  offset: 0, 0
+  index: -1
+bus_south
+  rotate: false
+  xy: 724, 670
+  size: 720, 666
+  orig: 720, 666
+  offset: 0, 0
+  index: -1
+bus_southeast
+  rotate: false
+  xy: 1446, 1338
+  size: 720, 666
+  orig: 720, 666
+  offset: 0, 0
+  index: -1
+bus_southwest
+  rotate: false
+  xy: 724, 2
+  size: 720, 666
+  orig: 720, 666
+  offset: 0, 0
+  index: -1
+bus_west
+  rotate: false
+  xy: 1446, 670
+  size: 720, 666
+  orig: 720, 666
+  offset: 0, 0
+  index: -1

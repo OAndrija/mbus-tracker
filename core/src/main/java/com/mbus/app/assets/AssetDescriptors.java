@@ -2,6 +2,7 @@ package com.mbus.app.assets;
 
 import com.badlogic.gdx.assets.AssetDescriptor;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 
 public class AssetDescriptors {
@@ -13,6 +14,9 @@ public class AssetDescriptors {
 
     public static final AssetDescriptor<Texture> TITLE_ICON =
         new AssetDescriptor<Texture>(AssetPaths.TITLE_ICON, Texture.class);
+
+    public static final AssetDescriptor<TextureAtlas> BUS =
+        new AssetDescriptor<TextureAtlas>(AssetPaths.BUS, TextureAtlas.class);
 
     private AssetDescriptors() {
     }

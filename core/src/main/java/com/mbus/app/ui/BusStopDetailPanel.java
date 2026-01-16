@@ -28,6 +28,11 @@ public class BusStopDetailPanel {
     private List<BusLine> allLines;
     private VisibilityChangeCallback visibilityCallback;
 
+    // Schedule time control
+    private String scheduleTime;
+    private int scheduleDayOfWeek;
+    private boolean useCustomTime = false;
+
     public BusStopDetailPanel(Skin skin) {
         this.skin = skin;
         this.stage = new Stage(new ScreenViewport());
@@ -41,7 +46,7 @@ public class BusStopDetailPanel {
         mainPanel.setFillParent(false);
 
         // Thinner panel - 1/8th of screen width
-        float panelWidth = Gdx.graphics.getWidth() / 8f;
+        float panelWidth = Gdx.graphics.getWidth() / 7f;
         mainPanel.setSize(panelWidth, Gdx.graphics.getHeight());
         mainPanel.setPosition(Gdx.graphics.getWidth() / Constants.HUD_WIDTH, 0);
 
@@ -55,6 +60,17 @@ public class BusStopDetailPanel {
         this.visible = true;
 
         rebuildUI();
+    }
+
+    /**
+     * Set the time and day to use for schedule display
+     * @param time Time in HH:MM format
+     * @param dayOfWeek Day of week (1=Monday, 7=Sunday)
+     */
+    public void setScheduleTime(String time, int dayOfWeek) {
+        this.scheduleTime = time;
+        this.scheduleDayOfWeek = dayOfWeek;
+        this.useCustomTime = true;
     }
 
     private void rebuildUI() {
@@ -103,6 +119,7 @@ public class BusStopDetailPanel {
         ScrollPane arrivalsScrollPane = new ScrollPane(arrivalsTable, skin, "no-bg");
         arrivalsScrollPane.setFadeScrollBars(false);
         arrivalsScrollPane.setScrollingDisabled(true, false);
+
         mainPanel.add(arrivalsScrollPane).width(panelWidth - 10).expand().fill().padLeft(5).padRight(5).padBottom(10).row();
 
         mainPanel.setVisible(true);
@@ -124,8 +141,17 @@ public class BusStopDetailPanel {
             return table;
         }
 
-        int currentTime = BusPositionCalculator.getCurrentTimeMinutes();
-        int dayType = BusPositionCalculator.getCurrentDayType();
+        // Use custom time if set, otherwise use current system time
+        int currentTime;
+        int dayType;
+
+        if (useCustomTime && scheduleTime != null) {
+            currentTime = parseTimeToMinutes(scheduleTime);
+            dayType = convertDayOfWeekToDayType(scheduleDayOfWeek);
+        } else {
+            currentTime = BusPositionCalculator.getCurrentTimeMinutes();
+            dayType = BusPositionCalculator.getCurrentDayType();
+        }
 
         List<BusStop.StopArrival> upcomingArrivals =
             currentStop.getUpcomingArrivals(allLines, currentTime, dayType, 20);
@@ -144,7 +170,7 @@ public class BusStopDetailPanel {
             BusLine line = arrival.line;
 
             // Line number button
-            TextButton lineBtn = new TextButton(String.valueOf(line.lineId), skin, "orange-small-toggle");
+            TextButton lineBtn = new TextButton(String.valueOf(line.lineId), skin, "orange-small");
             Color lineColor = BusLineColors.getButtonColor(line.lineId);
             lineBtn.setColor(lineColor);
             lineBtn.setChecked(false);
@@ -174,7 +200,7 @@ public class BusStopDetailPanel {
             timeLabel.setAlignment(Align.right);
 
             // Layout
-            table.add(lineBtn).size(40, 32).padRight(8).left();
+            table.add(lineBtn).size(40, 32).padRight(14).padLeft(14).padTop(5).padBottom(5).left();
             table.add(timeLabel).width(55).right().padRight(10);
             table.row().padTop(6).padBottom(6);
 
@@ -209,6 +235,35 @@ public class BusStopDetailPanel {
         table.row();
 
         return table;
+    }
+
+    /**
+     * Parse time string (HH:MM) to minutes since midnight
+     */
+    private int parseTimeToMinutes(String time) {
+        try {
+            String[] parts = time.split(":");
+            int hours = Integer.parseInt(parts[0]);
+            int minutes = Integer.parseInt(parts[1]);
+            return hours * 60 + minutes;
+        } catch (Exception e) {
+            Gdx.app.error("BusStopDetailPanel", "Failed to parse time: " + time);
+            return BusPositionCalculator.getCurrentTimeMinutes();
+        }
+    }
+
+    /**
+     * Convert day of week (1=Monday, 7=Sunday) to day type (0=Weekday, 1=Saturday, 2=Sunday)
+     */
+    private int convertDayOfWeekToDayType(int dayOfWeek) {
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+            return 0; // Weekday
+        } else if (dayOfWeek == 6) {
+            return 1; // Saturday
+        } else if (dayOfWeek == 7) {
+            return 2; // Sunday
+        }
+        return 0; // Default to weekday
     }
 
     public void setBusLines(List<BusLine> lines) {
@@ -248,7 +303,7 @@ public class BusStopDetailPanel {
     public void resize(int width, int height) {
         stage.getViewport().update(width, height, true);
 
-        float panelWidth = width / 8f;
+        float panelWidth = width / 7f;
         mainPanel.setSize(panelWidth, height);
         mainPanel.setPosition(width / Constants.HUD_WIDTH, 0);
 

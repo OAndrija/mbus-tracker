@@ -145,7 +145,20 @@ public class RasterMapScreen implements Screen {
                 Gdx.app.log("RasterMapScreen", "HUD clicked bus stop: " + busStop.name);
                 mapRenderer.setSelectedStop(busStop);
                 detailPanel.showBusStop(busStop);
+                detailPanel.setScheduleTime(hudPanel.getCurrentTime(), hudPanel.getCurrentDayOfWeek());
                 zoomToBusStop(busStop);
+            }
+        });
+
+        hudPanel.setTimeChangedCallback(new HudPanel.TimeChangedCallback() {
+            @Override
+            public void onTimeChanged(String time, int dayOfWeek) {
+                Gdx.app.log("RasterMapScreen", "Time changed to: " + time + " on day " + dayOfWeek);
+                // Update the detail panel if it's currently showing a bus stop
+                if (detailPanel.isVisible()) {
+                    detailPanel.setScheduleTime(time, dayOfWeek);
+                    detailPanel.refresh();
+                }
             }
         });
 
@@ -341,8 +354,10 @@ public class RasterMapScreen implements Screen {
                 if (mapRenderer.isShowingMarkers()) {
                     Gdx.app.log("RasterMapScreen", "Map clicked bus stop: " + busStop.name);
                     mapRenderer.setSelectedStop(busStop);
-                    mapRenderer.setSelectedLine(null);
+                    // Don't deselect the line when clicking a bus stop
+                    // mapRenderer.setSelectedLine(null);
                     detailPanel.showBusStop(busStop);
+                    detailPanel.setScheduleTime(hudPanel.getCurrentTime(), hudPanel.getCurrentDayOfWeek());
                     updateHudBoundaries();
                 }
             }
