@@ -29,7 +29,6 @@ public class MBusTracker extends Game {
 
     public float initialZoom;
 
-    // Shared game data
     private List<BusStop> busStops;
     private List<BusLine> busLines;
 
@@ -54,7 +53,6 @@ public class MBusTracker extends Game {
             return;
         }
 
-        // Platform-dependent initial zoom
         if (Gdx.app.getType() == Application.ApplicationType.Desktop) {
             initialZoom = 0.20f;
         } else if (Gdx.app.getType() == Application.ApplicationType.Android
@@ -68,14 +66,12 @@ public class MBusTracker extends Game {
         camera.position.set(Constants.MAP_WIDTH / 2f, Constants.MAP_HEIGHT / 2f, 0);
         camera.update();
 
-        // --- INPUT SYSTEM (shared) ---
         cameraController = new CameraController(camera);
 
         inputMultiplexer = new InputMultiplexer();
         inputMultiplexer.addProcessor(cameraController);
         Gdx.input.setInputProcessor(inputMultiplexer);
 
-        // --- START WITH LOADING SCREEN ---
         setScreen(new LoadingScreen(this));
     }
 
@@ -90,8 +86,6 @@ public class MBusTracker extends Game {
         super.dispose();
         assetManager.dispose();
     }
-
-    // PUBLIC API
 
     public AssetManager getAssetManager() {
         return assetManager;

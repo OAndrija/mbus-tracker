@@ -21,8 +21,11 @@ public class BusLine {
     // Optional: original D96/TM coordinates if needed for debugging
     private final List<double[]> originalCoordinates;
 
-    // NEW: Bus stops along this line (ordered)
+    // Bus stops along this line (ordered)
     private final List<BusStop> stops;
+
+    // NEW: Schedules for this line
+    private final List<BusSchedule> schedules;
 
     public BusLine(int lineId,
                    int variantId,
@@ -34,7 +37,8 @@ public class BusLine {
                    String providerLink,
                    List<Geolocation> path,
                    List<double[]> originalCoordinates,
-                   List<BusStop> stops) {
+                   List<BusStop> stops,
+                   List<BusSchedule> schedules) {
 
         this.lineId = lineId;
         this.variantId = variantId;
@@ -51,6 +55,25 @@ public class BusLine {
         this.stops = stops != null
             ? Collections.unmodifiableList(new ArrayList<BusStop>(stops))
             : Collections.unmodifiableList(new ArrayList<BusStop>());
+        this.schedules = schedules != null
+            ? Collections.unmodifiableList(new ArrayList<BusSchedule>(schedules))
+            : Collections.unmodifiableList(new ArrayList<BusSchedule>());
+    }
+
+    // Backward compatibility constructor
+    public BusLine(int lineId,
+                   int variantId,
+                   int direction,
+                   double length,
+                   String name,
+                   String note,
+                   String providerName,
+                   String providerLink,
+                   List<Geolocation> path,
+                   List<double[]> originalCoordinates,
+                   List<BusStop> stops) {
+        this(lineId, variantId, direction, length, name, note, providerName,
+            providerLink, path, originalCoordinates, stops, null);
     }
 
     /**
@@ -75,6 +98,50 @@ public class BusLine {
     }
 
     /**
+     * Get all schedules for this line
+     */
+    public List<BusSchedule> getSchedules() {
+        return schedules;
+    }
+
+    /**
+     * Get schedules for a specific day type
+     * @param dayType 0=workday, 1=saturday, 2=sunday/holiday
+     */
+    public List<BusSchedule> getSchedulesForDayType(int dayType) {
+        List<BusSchedule> result = new ArrayList<BusSchedule>();
+        for (BusSchedule schedule : schedules) {
+            if (schedule.dayType == dayType) {
+                result.add(schedule);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Get the next departure time after a given time (in minutes from midnight)
+     * @param currentTime Time in minutes from midnight
+     * @param dayType Day type (0=workday, 1=saturday, 2=sunday/holiday)
+     * @return Next schedule, or null if no more departures today
+     */
+    public BusSchedule getNextDeparture(int currentTime, int dayType) {
+        BusSchedule nextSchedule = null;
+        int minTimeDiff = Integer.MAX_VALUE;
+
+        for (BusSchedule schedule : schedules) {
+            if (schedule.dayType == dayType && schedule.departureTime >= currentTime) {
+                int timeDiff = schedule.departureTime - currentTime;
+                if (timeDiff < minTimeDiff) {
+                    minTimeDiff = timeDiff;
+                    nextSchedule = schedule;
+                }
+            }
+        }
+
+        return nextSchedule;
+    }
+
+    /**
      * Get the number of points in this line
      */
     public int getPointCount() {
@@ -86,6 +153,13 @@ public class BusLine {
      */
     public int getStopCount() {
         return stops.size();
+    }
+
+    /**
+     * Get the number of schedules for this line
+     */
+    public int getScheduleCount() {
+        return schedules.size();
     }
 
     /**
@@ -116,6 +190,7 @@ public class BusLine {
             ", name='" + name + '\'' +
             ", points=" + path.size() +
             ", stops=" + stops.size() +
+            ", schedules=" + schedules.size() +
             '}';
     }
 }

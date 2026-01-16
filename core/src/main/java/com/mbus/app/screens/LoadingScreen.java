@@ -13,10 +13,12 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.mbus.app.MBusTracker;
 import com.mbus.app.assets.AssetDescriptors;
 import com.mbus.app.model.BusLine;
+import com.mbus.app.model.BusSchedule;
 import com.mbus.app.model.BusStop;
 import com.mbus.app.model.Geolocation;
 import com.mbus.app.model.ZoomXY;
 import com.mbus.app.systems.data.GeoJSONLoader;
+import com.mbus.app.systems.data.ScheduleLoader;
 import com.mbus.app.systems.map.MapRasterTiles;
 import com.mbus.app.utils.BusLineStopRelationshipBuilder;
 import com.mbus.app.utils.Constants;
@@ -65,8 +67,8 @@ public class LoadingScreen implements Screen {
         }
     }
 
-    private ConcurrentLinkedQueue<TileData> tileDataQueue = new ConcurrentLinkedQueue<>();
-    private AtomicBoolean tilesDownloadComplete = new AtomicBoolean(false);
+    private final ConcurrentLinkedQueue<TileData> tileDataQueue = new ConcurrentLinkedQueue<TileData>();
+    private final AtomicBoolean tilesDownloadComplete = new AtomicBoolean(false);
 
     private static final Geolocation CENTER_GEOLOCATION =
         new Geolocation(46.557314, 15.637771);
@@ -90,7 +92,7 @@ public class LoadingScreen implements Screen {
         stage.addActor(rootTable);
 
         // Create UI elements
-        titleLabel = new Label("MBus Tracker", skin, "title");
+        titleLabel = new Label("MBus", skin, "title");
         statusLabel = new Label("Initializing...", skin);
         percentLabel = new Label("0%", skin);
 
@@ -196,9 +198,30 @@ public class LoadingScreen implements Screen {
                     BusLineStopRelationshipBuilder.RelationshipResult result =
                         BusLineStopRelationshipBuilder.buildRelationships(rawLines, rawStops, proximityThreshold);
 
+                    // Load or generate schedules
+                    Gdx.app.log(TAG, "Loading schedules...");
+                    List<BusSchedule> schedules;
+
+                    // Try to load from file first
+                    schedules = ScheduleLoader.loadSchedulesFromFile("data/schedules.json");
+
+                    // If no schedules file exists, generate example data
+                    if (schedules.isEmpty()) {
+                        Gdx.app.log(TAG, "No schedule file found, generating example schedules...");
+                        schedules = ScheduleLoader.generateExampleSchedules(result.lines);
+                    }
+
+                    Gdx.app.log(TAG, "Loaded/generated " + schedules.size() + " schedules");
+
+                    // Assign schedules to lines
+                    Gdx.app.log(TAG, "Assigning schedules to lines...");
+                    List<BusLine> linesWithSchedules = ScheduleLoader.assignSchedulesToLines(
+                        result.lines, schedules);
+
                     // Log statistics
                     int totalStopsWithLines = 0;
                     int totalLinesWithStops = 0;
+                    int totalLinesWithSchedules = 0;
 
                     for (BusStop stop : result.stops) {
                         if (stop.getLineCount() > 0) {
@@ -206,19 +229,23 @@ public class LoadingScreen implements Screen {
                         }
                     }
 
-                    for (BusLine line : result.lines) {
+                    for (BusLine line : linesWithSchedules) {
                         if (line.getStopCount() > 0) {
                             totalLinesWithStops++;
+                        }
+                        if (line.getScheduleCount() > 0) {
+                            totalLinesWithSchedules++;
                         }
                     }
 
                     Gdx.app.log(TAG, "Built relationships: " + totalStopsWithLines + "/" +
                         result.stops.size() + " stops have lines");
-                    Gdx.app.log(TAG, totalLinesWithStops + "/" + result.lines.size() + " lines have stops");
+                    Gdx.app.log(TAG, totalLinesWithStops + "/" + linesWithSchedules.size() + " lines have stops");
+                    Gdx.app.log(TAG, totalLinesWithSchedules + "/" + linesWithSchedules.size() + " lines have schedules");
 
                     // Store results
                     loadedStops = result.stops;
-                    loadedLines = result.lines;
+                    loadedLines = linesWithSchedules;
                     dataLoadingComplete = true;
 
                     Gdx.app.log(TAG, "Data loading complete");
@@ -261,11 +288,11 @@ public class LoadingScreen implements Screen {
             }
         }
 
-        // Calculate progress (50% tiles, 50% data)
+        // Calculate progress (40% tiles, 60% data because data loading includes schedules now)
         float tileProgress = totalTiles > 0 ? (float) tilesLoaded / totalTiles : 0f;
         float dataProgress = dataLoadingComplete ? 1f : 0f;
 
-        progress = (tileProgress * 0.5f) + (dataProgress * 0.5f);
+        progress = (tileProgress * 0.4f) + (dataProgress * 0.6f);
 
         // Update UI
         progressBar.setValue(progress);
@@ -275,7 +302,7 @@ public class LoadingScreen implements Screen {
         if (!dataLoadingComplete && tilesLoaded < totalTiles) {
             statusLabel.setText("Loading data and map... (" + tilesLoaded + "/" + totalTiles + " tiles)");
         } else if (!dataLoadingComplete) {
-            statusLabel.setText("Loading bus data...");
+            statusLabel.setText("Loading bus data and schedules...");
         } else if (tilesLoaded < totalTiles) {
             statusLabel.setText("Loading map tiles... (" + tilesLoaded + "/" + totalTiles + ")");
         } else {

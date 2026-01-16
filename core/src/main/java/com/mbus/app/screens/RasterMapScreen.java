@@ -58,6 +58,10 @@ public class RasterMapScreen implements Screen {
     private float startX, startY, startZoom;
     private float targetX, targetY, targetZoom;
 
+    // Timetable refresh
+    private float timeSinceLastRefresh = 0f;
+    private static final float REFRESH_INTERVAL = 30f; // Refresh every 30 seconds
+
     private final Geolocation CENTER_GEOLOCATION =
         new Geolocation(46.557314, 15.637771);
 
@@ -73,7 +77,6 @@ public class RasterMapScreen implements Screen {
         skin = app.getAssetManager().get(AssetDescriptors.SKIN);
         markerTexture = app.getAssetManager().get(AssetDescriptors.BUS_ICON);
         titleIcon = app.getAssetManager().get(AssetDescriptors.TITLE_ICON);
-
 
         // Get pre-loaded data from app
         stops = app.getBusStops();
@@ -94,6 +97,9 @@ public class RasterMapScreen implements Screen {
         // Set bus lines data in HUD panel
         hudPanel.setBusLines(busLines);
         hudPanel.setBusStops(stops);
+
+        // IMPORTANT: Pass bus lines to detail panel for timetable queries
+        detailPanel.setBusLines(busLines);
 
         // NOW create mapRenderer
         mapRenderer = new MapRenderer(app.camera);
@@ -201,6 +207,15 @@ public class RasterMapScreen implements Screen {
 
         hudPanel.render();
         detailPanel.render();
+
+        // Periodic timetable refresh
+        timeSinceLastRefresh += delta;
+        if (timeSinceLastRefresh >= REFRESH_INTERVAL) {
+            timeSinceLastRefresh = 0f;
+            if (detailPanel.isVisible()) {
+                detailPanel.refresh();
+            }
+        }
     }
 
     private void updateHoverState() {

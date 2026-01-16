@@ -1,14 +1,20 @@
 package com.mbus.app.ui;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
+import com.mbus.app.utils.BusLineColors;
+import com.mbus.app.utils.BusPositionCalculator;
 import com.mbus.app.utils.Constants;
+
+import java.util.List;
 
 public class BusStopDetailPanel {
 
@@ -18,6 +24,7 @@ public class BusStopDetailPanel {
     private boolean visible;
 
     private BusStop currentStop;
+    private List<BusLine> allLines;
     private VisibilityChangeCallback visibilityCallback;
 
     public BusStopDetailPanel(Skin skin) {
@@ -34,12 +41,12 @@ public class BusStopDetailPanel {
         mainPanel.setFillParent(false);
 
         // Calculate panel width (1/6th of screen) and position
-        float panelWidth = Gdx.graphics.getWidth() / Constants.HUD_WIDTH;
+        float panelWidth = Gdx.graphics.getWidth() / 70f;
         mainPanel.setSize(panelWidth, Gdx.graphics.getHeight());
         mainPanel.setPosition(panelWidth, 0); // Position next to left panel
 
-        // Set background
-        mainPanel.setBackground(skin.getDrawable("window-maroon"));
+        // Set background to match HudPanel
+        mainPanel.setBackground(skin.getDrawable("panel-maroon"));
 
         mainPanel.setVisible(visible);
         stage.addActor(mainPanel);
@@ -53,9 +60,10 @@ public class BusStopDetailPanel {
         mainPanel.clear();
         float panelWidth = mainPanel.getWidth();
 
-        // Close button
+        // Header with title and close button
         Table headerTable = new Table();
-        Label titleLabel = new Label("Postajališče", skin, "white");
+        Label titleLabel = new Label("Postajališče", skin, "title-black");
+        titleLabel.setFontScale(0.9f);
         titleLabel.setAlignment(Align.left);
 
         TextButton closeBtn = new TextButton("X", skin, "maroon-small");
@@ -66,56 +74,43 @@ public class BusStopDetailPanel {
             }
         });
 
-        headerTable.add(titleLabel).expandX().left().padLeft(10);
-        headerTable.add(closeBtn).size(40, 40).padRight(10);
+        headerTable.add(titleLabel).expandX().left().padLeft(15);
+        headerTable.add(closeBtn).size(35, 35).padRight(10);
 
-        mainPanel.add(headerTable).width(panelWidth).height(50).row();
+        mainPanel.add(headerTable).width(panelWidth).padTop(10).padBottom(5).row();
 
         // Bus stop name
-        Label stopNameLabel = new Label(busStop.name, skin);
+        Label stopNameLabel = new Label(busStop.name, skin, "black");
         stopNameLabel.setWrap(true);
-        stopNameLabel.setAlignment(Align.center);
-        mainPanel.add(stopNameLabel).width(panelWidth - 20).pad(15).row();
+        stopNameLabel.setAlignment(Align.left);
+        stopNameLabel.setFontScale(1.1f);
+        mainPanel.add(stopNameLabel).width(panelWidth - 30).padLeft(15).padRight(15).padTop(5).padBottom(10).row();
 
         // Separator
-        mainPanel.add(new Image(skin, "white")).width(panelWidth - 40).height(2).pad(5).row();
+        Image separator1 = new Image(skin.getDrawable("white"));
+        separator1.setColor(0.8f, 0.8f, 0.8f, 0.3f);
+        mainPanel.add(separator1).width(panelWidth - 30).height(1).padLeft(15).padRight(15).padBottom(15).row();
 
-        // Bus stop details section
-        Label detailsHeaderLabel = new Label("Informacije", skin);
-        mainPanel.add(detailsHeaderLabel).left().padLeft(10).padTop(10).padBottom(5).row();
+        // Bus stop ID info
+        Table idTable = new Table();
+        Label idLabel = new Label("ID: " + busStop.idAvpost, skin, "black");
+        idLabel.setFontScale(0.75f);
+        idLabel.setColor(Color.GRAY);
+        idTable.add(idLabel).left();
 
-        // ID and coordinates info
-        Table infoTable = new Table();
-        infoTable.align(Align.topLeft);
+        mainPanel.add(idTable).width(panelWidth - 30).padLeft(15).padBottom(15).row();
 
-        addInfoRow(infoTable, "ID Avpost:", String.valueOf(busStop.idAvpost), panelWidth);
-        addInfoRow(infoTable, "ID Marprom:", busStop.idMarprom, panelWidth);
-        addInfoRow(infoTable, "Lat:", String.format("%.6f", busStop.geo.lat), panelWidth);
-        addInfoRow(infoTable, "Lng:", String.format("%.6f", busStop.geo.lng), panelWidth);
+        // Arrivals section header
+        Label arrivalsHeaderLabel = new Label("Prihodi", skin, "title-black");
+        arrivalsHeaderLabel.setFontScale(0.8f);
+        mainPanel.add(arrivalsHeaderLabel).left().padLeft(15).padTop(5).padBottom(15).row();
 
-        ScrollPane infoScrollPane = new ScrollPane(infoTable, skin);
-        infoScrollPane.setFadeScrollBars(false);
-        mainPanel.add(infoScrollPane).width(panelWidth - 20).padLeft(10).padRight(10).padTop(5).row();
-
-        // Bus lines section
-        Label busLinesHeaderLabel = new Label("Linije na postaji", skin);
-        mainPanel.add(busLinesHeaderLabel).left().padLeft(10).padTop(20).padBottom(5).row();
-
-        // Static bus lines data for demonstration
-        Table busLinesTable = createBusLinesForStop();
-        ScrollPane busLinesScrollPane = new ScrollPane(busLinesTable, skin);
-        busLinesScrollPane.setFadeScrollBars(false);
-        mainPanel.add(busLinesScrollPane).width(panelWidth - 20).height(200).expandY().padLeft(10).padRight(10).row();
-
-        // Action buttons at bottom
-        Table actionButtonsTable = new Table();
-        TextButton routeBtn = new TextButton("Prikaži poti", skin, "maroon-small");
-        TextButton scheduleBtn = new TextButton("Vozni red", skin, "maroon-small");
-
-        actionButtonsTable.add(routeBtn).width((panelWidth - 30) / 2f).height(40).padRight(5);
-        actionButtonsTable.add(scheduleBtn).width((panelWidth - 30) / 2f).height(40).padLeft(5);
-
-        mainPanel.add(actionButtonsTable).width(panelWidth - 20).padLeft(10).padRight(10).padTop(15).padBottom(15).row();
+        // Get upcoming arrivals
+        Table arrivalsTable = createArrivalsTable(busStop, panelWidth);
+        ScrollPane arrivalsScrollPane = new ScrollPane(arrivalsTable, skin, "no-bg");
+        arrivalsScrollPane.setFadeScrollBars(false);
+        arrivalsScrollPane.setScrollingDisabled(true, false);
+        mainPanel.add(arrivalsScrollPane).width(panelWidth - 20).expand().fill().padLeft(10).padRight(10).padBottom(15).row();
 
         mainPanel.setVisible(true);
 
@@ -125,57 +120,138 @@ public class BusStopDetailPanel {
         }
     }
 
-    private void addInfoRow(Table table, String label, String value, float panelWidth) {
-        Label labelWidget = new Label(label, skin);
-        labelWidget.setFontScale(0.85f);
-
-        Label valueWidget = new Label(value, skin, "peach");
-        valueWidget.setFontScale(0.85f);
-
-        table.add(labelWidget).left().padLeft(10).padRight(10).padTop(5);
-        table.add(valueWidget).expandX().left().padTop(5);
-        table.row();
-    }
-
-    private Table createBusLinesForStop() {
+    private Table createArrivalsTable(BusStop busStop, float panelWidth) {
         Table table = new Table();
         table.align(Align.top | Align.left);
 
-        // Static bus lines - in reality, you'd get this from your data model
-        String[] busLines = {"1", "3", "9", "12", "362", "388"};
-        String[] destinations = {
-            "Pokopališka - Brezje",
-            "Gosposvetska - Turnerjeva",
-            "Glavni trg - Vetrinjska",
-            "Duplek - Tezensko",
-            "Cesta XIV.divizije",
-            "Dogošta - vrtec"
-        };
-        String[] times = {"5 min", "8 min", "12 min", "15 min", "20 min", "25 min"};
-
-        for (int i = 0; i < busLines.length; i++) {
-            // Bus line number button
-            TextButton lineBtn = new TextButton(busLines[i], skin, "maroon-small");
-            lineBtn.getLabel().setFontScale(0.7f);
-
-            // Container for destination and time
-            Table infoTable = new Table();
-            Label destLabel = new Label(destinations[i], skin, "white");
-            destLabel.setFontScale(0.75f);
-            destLabel.setWrap(true);
-
-            Label timeLabel = new Label(times[i], skin, "peach");
-            timeLabel.setFontScale(0.7f);
-
-            infoTable.add(destLabel).left().row();
-            infoTable.add(timeLabel).left().padTop(2);
-
-            table.add(lineBtn).size(50, 35).padRight(8).left();
-            table.add(infoTable).expandX().left().padRight(5);
-            table.row().padBottom(8);
+        if (allLines == null || allLines.isEmpty()) {
+            Label emptyLabel = new Label("Ni podatkov o voznem redu", skin, "black");
+            emptyLabel.setFontScale(0.8f);
+            emptyLabel.setColor(Color.GRAY);
+            table.add(emptyLabel).pad(10);
+            return table;
         }
 
+        // Get current time and day type
+        int currentTime = BusPositionCalculator.getCurrentTimeMinutes();
+        int dayType = BusPositionCalculator.getCurrentDayType();
+
+        // Get upcoming arrivals (next 10)
+        List<BusStop.StopArrival> upcomingArrivals =
+            busStop.getUpcomingArrivals(allLines, currentTime, dayType, 10);
+
+        if (upcomingArrivals.isEmpty()) {
+            Label emptyLabel = new Label("Ni več prihodov danes", skin, "black");
+            emptyLabel.setFontScale(0.8f);
+            emptyLabel.setColor(Color.GRAY);
+            table.add(emptyLabel).pad(10);
+            return table;
+        }
+
+        // Display each arrival
+        for (int i = 0; i < upcomingArrivals.size(); i++) {
+            BusStop.StopArrival arrival = upcomingArrivals.get(i);
+            BusLine line = arrival.line;
+
+            // Line number button
+            TextButton lineBtn = new TextButton(String.valueOf(line.lineId), skin, "orange-small-toggle");
+            Color lineColor = BusLineColors.getButtonColor(line.lineId);
+            lineBtn.setColor(lineColor);
+            lineBtn.setChecked(false); // Not toggleable in this context
+
+            // Line destination/name
+            String lineName = line.name;
+            if (lineName.length() > 35) {
+                lineName = lineName.substring(0, 32) + "...";
+            }
+
+            Label nameLabel = new Label(lineName, skin, "black");
+            nameLabel.setWrap(false);
+            nameLabel.setEllipsis(true);
+            nameLabel.setFontScale(0.8f);
+
+            // Time info
+            int minutesUntil = arrival.getMinutesUntilArrival(currentTime);
+            String timeText;
+            Color timeColor;
+
+            if (minutesUntil == 0) {
+                timeText = "Zdaj";
+                timeColor = new Color(1f, 0.3f, 0.3f, 1f); // Red
+            } else if (minutesUntil <= 5) {
+                timeText = minutesUntil + " min";
+                timeColor = new Color(1f, 0.6f, 0.2f, 1f); // Orange
+            } else if (minutesUntil <= 15) {
+                timeText = minutesUntil + " min";
+                timeColor = new Color(0.8f, 0.8f, 0.8f, 1f); // Light gray
+            } else {
+                timeText = arrival.getArrivalTimeFormatted();
+                timeColor = Color.GRAY;
+            }
+
+            Label timeLabel = new Label(timeText, skin, "black");
+            timeLabel.setFontScale(0.85f);
+            timeLabel.setColor(timeColor);
+            timeLabel.setAlignment(Align.right);
+
+            // Layout
+            table.add(lineBtn).size(45, 35).padRight(8).left();
+            table.add(nameLabel).expandX().left().padRight(8).minWidth(0);
+            table.add(timeLabel).width(60).right().padRight(15);
+            table.row().padTop(8).padBottom(8);
+
+            // Add separator between items (except after last item)
+            if (i < upcomingArrivals.size() - 1) {
+                Image separator = new Image(skin.getDrawable("white"));
+                separator.setColor(0.8f, 0.8f, 0.8f, 0.3f);
+                table.add(separator).colspan(3).height(1).fillX().padTop(8).padBottom(8).expandX();
+                table.row();
+            }
+        }
+
+        // Add footer with day type and current time
+        String dayTypeStr;
+        switch (dayType) {
+            case 0: dayTypeStr = "Delovnik"; break;
+            case 1: dayTypeStr = "Sobota"; break;
+            case 2: dayTypeStr = "Nedelja/Praznik"; break;
+            default: dayTypeStr = "Neznano";
+        }
+
+        Label footerLabel = new Label(
+            dayTypeStr + " • " + BusPositionCalculator.formatTimeDifference(currentTime),
+            skin,
+            "black"
+        );
+        footerLabel.setFontScale(0.65f);
+        footerLabel.setColor(Color.GRAY);
+        footerLabel.setAlignment(Align.center);
+
+        table.add(footerLabel).colspan(3).padTop(20).padBottom(10).center();
+        table.row();
+
         return table;
+    }
+
+    /**
+     * Set the list of all bus lines (needed for schedule queries)
+     */
+    public void setBusLines(List<BusLine> lines) {
+        this.allLines = lines;
+
+        // Refresh if currently showing a stop
+        if (visible && currentStop != null) {
+            showBusStop(currentStop);
+        }
+    }
+
+    /**
+     * Refresh the timetable display (call this periodically to update times)
+     */
+    public void refresh() {
+        if (visible && currentStop != null) {
+            showBusStop(currentStop);
+        }
     }
 
     public void hide() {

@@ -2,6 +2,7 @@ package com.mbus.app.model;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 public class BusStop {
@@ -17,7 +18,7 @@ public class BusStop {
     // Converted WGS84 coordinates
     public final Geolocation geo;
 
-    // NEW: Line IDs that pass through this stop
+    // Line IDs that pass through this stop
     private final List<Integer> lineIds;
 
     public BusStop(int idAvpost,
@@ -91,6 +92,77 @@ public class BusStop {
         return sb.toString();
     }
 
+    /**
+     * Get all upcoming arrivals at this stop from a list of bus lines
+     * @param lines All bus lines in the system
+     * @param currentTime Current time in minutes from midnight
+     * @param dayType Day type (0=workday, 1=saturday, 2=sunday/holiday)
+     * @param maxResults Maximum number of results to return
+     * @return List of upcoming arrivals sorted by time
+     */
+    public List<StopArrival> getUpcomingArrivals(List<BusLine> lines,
+                                                 int currentTime,
+                                                 int dayType,
+                                                 int maxResults) {
+        List<StopArrival> arrivals = new ArrayList<StopArrival>();
+
+        // Check each line that passes through this stop
+        for (BusLine line : lines) {
+            if (!hasLine(line.lineId)) continue;
+
+            // Check all schedules for this line
+            for (BusSchedule schedule : line.getSchedules()) {
+                if (schedule.dayType != dayType) continue;
+
+                // Get arrival time at this stop
+                int arrivalTime = schedule.getArrivalTimeAtStop(idAvpost);
+                if (arrivalTime >= currentTime) {
+                    arrivals.add(new StopArrival(line, schedule, arrivalTime));
+                }
+            }
+        }
+
+        // Sort by arrival time
+        Collections.sort(arrivals, new Comparator<StopArrival>() {
+            @Override
+            public int compare(StopArrival a1, StopArrival a2) {
+                return Integer.compare(a1.arrivalTime, a2.arrivalTime);
+            }
+        });
+
+        // Limit results
+        if (arrivals.size() > maxResults) {
+            return arrivals.subList(0, maxResults);
+        }
+
+        return arrivals;
+    }
+
+    /**
+     * Get the next arrival for a specific line
+     */
+    public StopArrival getNextArrivalForLine(BusLine line,
+                                             int currentTime,
+                                             int dayType) {
+        StopArrival nextArrival = null;
+        int minTimeDiff = Integer.MAX_VALUE;
+
+        for (BusSchedule schedule : line.getSchedules()) {
+            if (schedule.dayType != dayType) continue;
+
+            int arrivalTime = schedule.getArrivalTimeAtStop(idAvpost);
+            if (arrivalTime >= currentTime) {
+                int timeDiff = arrivalTime - currentTime;
+                if (timeDiff < minTimeDiff) {
+                    minTimeDiff = timeDiff;
+                    nextArrival = new StopArrival(line, schedule, arrivalTime);
+                }
+            }
+        }
+
+        return nextArrival;
+    }
+
     @Override
     public String toString() {
         return "BusStop{" +
@@ -102,5 +174,36 @@ public class BusStop {
             ", geo=(" + geo.lat + ", " + geo.lng + ")" +
             ", lines=" + getLineIdsString() +
             '}';
+    }
+
+    /**
+     * Represents an upcoming bus arrival at this stop
+     */
+    public static class StopArrival {
+        public final BusLine line;
+        public final BusSchedule schedule;
+        public final int arrivalTime;  // Minutes from midnight
+
+        public StopArrival(BusLine line, BusSchedule schedule, int arrivalTime) {
+            this.line = line;
+            this.schedule = schedule;
+            this.arrivalTime = arrivalTime;
+        }
+
+        /**
+         * Get time until arrival in minutes
+         */
+        public int getMinutesUntilArrival(int currentTime) {
+            return arrivalTime - currentTime;
+        }
+
+        public String getArrivalTimeFormatted() {
+            return BusSchedule.formatTime(arrivalTime);
+        }
+
+        @Override
+        public String toString() {
+            return "Line " + line.lineId + " at " + getArrivalTimeFormatted();
+        }
     }
 }
