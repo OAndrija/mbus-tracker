@@ -252,7 +252,7 @@ public class MapRasterTiles {
      * Downloads tile data as byte array (can be called from background thread)
      * This separates the download from texture creation
      */
-    public static byte[] downloadTileData(int zoom, int x, int y) throws IOException {
+    public static byte[] getTileData(int zoom, int x, int y) throws IOException {
         String fileName = zoom + "_" + x + "_" + y + ".png";
         FileHandle file = Gdx.files.local(CACHE_FOLDER + fileName);
 

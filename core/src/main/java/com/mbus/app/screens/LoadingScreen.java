@@ -158,9 +158,8 @@ public class LoadingScreen implements Screen {
                         int ty = centerTile.y + factorY[i];
 
                         try {
-                            byte[] tileData = MapRasterTiles.downloadTileData(Constants.ZOOM, tx, ty);
+                            byte[] tileData = MapRasterTiles.getTileData(Constants.ZOOM, tx, ty);
                             tileDataQueue.add(new TileData(i, tileData));
-                            Gdx.app.log(TAG, "Downloaded tile " + (i + 1) + "/" + totalTiles);
                         } catch (Exception e) {
                             Gdx.app.error(TAG, "Failed to download tile " + i, e);
                         }

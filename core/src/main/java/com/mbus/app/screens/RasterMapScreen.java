@@ -27,8 +27,7 @@ import com.mbus.app.ui.BusStopDetailPanel;
 import com.mbus.app.utils.Constants;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class RasterMapScreen implements Screen {
 
@@ -60,7 +59,7 @@ public class RasterMapScreen implements Screen {
 
     // Timetable refresh
     private float timeSinceLastRefresh = 0f;
-    private static final float REFRESH_INTERVAL = 30f; // Refresh every 30 seconds
+    private static final float REFRESH_INTERVAL = 30f;
 
     private final Geolocation CENTER_GEOLOCATION =
         new Geolocation(46.557314, 15.637771);
@@ -73,12 +72,10 @@ public class RasterMapScreen implements Screen {
 
     @Override
     public void show() {
-        // Load skin and marker texture from AssetManager
         skin = app.getAssetManager().get(AssetDescriptors.SKIN);
         markerTexture = app.getAssetManager().get(AssetDescriptors.BUS_ICON);
         titleIcon = app.getAssetManager().get(AssetDescriptors.TITLE_ICON);
 
-        // Get pre-loaded data from app
         stops = app.getBusStops();
         busLines = app.getBusLines();
 
@@ -90,18 +87,13 @@ public class RasterMapScreen implements Screen {
         Gdx.app.log("RasterMapScreen", "Using " + stops.size() + " stops and " +
             busLines.size() + " lines from pre-loaded data");
 
-        // Create HUD panels FIRST
         hudPanel = new HudPanel(skin, titleIcon);
         detailPanel = new BusStopDetailPanel(skin);
 
-        // Set bus lines data in HUD panel
         hudPanel.setBusLines(busLines);
         hudPanel.setBusStops(stops);
-
-        // IMPORTANT: Pass bus lines to detail panel for timetable queries
         detailPanel.setBusLines(busLines);
 
-        // NOW create mapRenderer
         mapRenderer = new MapRenderer(app.camera);
         mapRenderer.loadTiles(mapTiles, beginTile);
         mapRenderer.setMarkerTexture(markerTexture);
@@ -109,7 +101,6 @@ public class RasterMapScreen implements Screen {
         mapRenderer.setBusLines(busLines);
         mapRenderer.setVisibleLineIds(hudPanel.getVisibleLineIds());
 
-        // Add callback for filtered stops changes
         hudPanel.setFilteredStopsCallback(new HudPanel.FilteredStopsCallback() {
             @Override
             public void onFilteredStopsChanged(List<BusStop> filteredStops) {
@@ -119,7 +110,6 @@ public class RasterMapScreen implements Screen {
             }
         });
 
-        // Add callback for bus line visibility changes
         hudPanel.setBusLineVisibilityCallback(new HudPanel.BusLineVisibilityCallback() {
             @Override
             public void onBusLineVisibilityChanged(Set<Integer> visibleLineIds) {
@@ -131,7 +121,6 @@ public class RasterMapScreen implements Screen {
             }
         });
 
-        // Set callback for when detail panel visibility changes
         detailPanel.setVisibilityChangeCallback(new BusStopDetailPanel.VisibilityChangeCallback() {
             @Override
             public void onVisibilityChanged(boolean visible) {
@@ -142,7 +131,6 @@ public class RasterMapScreen implements Screen {
             }
         });
 
-        // Set callback for "Vse postaje" button toggle
         hudPanel.setShowAllStopsCallback(new HudPanel.ShowAllStopsCallback() {
             @Override
             public void onShowAllStopsChanged(boolean showAll) {
@@ -151,7 +139,6 @@ public class RasterMapScreen implements Screen {
             }
         });
 
-        // Set callback for when a bus stop is clicked in the HUD panel
         hudPanel.setBusStopClickCallback(new HudPanel.BusStopClickCallback() {
             @Override
             public void onBusStopClicked(BusStop busStop) {
@@ -208,7 +195,6 @@ public class RasterMapScreen implements Screen {
         hudPanel.render();
         detailPanel.render();
 
-        // Periodic timetable refresh
         timeSinceLastRefresh += delta;
         if (timeSinceLastRefresh >= REFRESH_INTERVAL) {
             timeSinceLastRefresh = 0f;
@@ -232,12 +218,10 @@ public class RasterMapScreen implements Screen {
 
         int mouseY = Gdx.input.getY();
 
-        // Check for marker hover first (priority over lines)
         if (mapRenderer.isShowingMarkers() && !animatingCamera) {
             BusStop hoveredStop = markerClickHandler.checkMarkerClick(mouseX, mouseY);
             mapRenderer.setHoveredStop(hoveredStop);
 
-            // Only check line hover if no marker is hovered
             if (hoveredStop == null && lineClickHandler != null) {
                 BusLine hoveredLine = lineClickHandler.checkLineClick(mouseX, mouseY);
                 mapRenderer.setHoveredLine(hoveredLine);
@@ -247,7 +231,6 @@ public class RasterMapScreen implements Screen {
         } else {
             mapRenderer.setHoveredStop(null);
 
-            // Check for line hover even when markers are hidden
             if (lineClickHandler != null) {
                 BusLine hoveredLine = lineClickHandler.checkLineClick(mouseX, mouseY);
                 mapRenderer.setHoveredLine(hoveredLine);
@@ -352,33 +335,39 @@ public class RasterMapScreen implements Screen {
         lineClickHandler.setVisibleLineIds(hudPanel.getVisibleLineIds());
         mapGestureListener.setLineClickHandler(lineClickHandler);
 
-        // Set callback for when a bus stop is clicked on the map
         mapGestureListener.setBusStopClickCallback(new MapGestureListener.BusStopClickCallback() {
             @Override
             public void onBusStopClicked(BusStop busStop) {
                 if (mapRenderer.isShowingMarkers()) {
                     Gdx.app.log("RasterMapScreen", "Map clicked bus stop: " + busStop.name);
                     mapRenderer.setSelectedStop(busStop);
-                    mapRenderer.setSelectedLine(null); // Clear line selection
+                    mapRenderer.setSelectedLine(null);
                     detailPanel.showBusStop(busStop);
                     updateHudBoundaries();
                 }
             }
         });
 
-        // Set callback for when a bus line is clicked on the map
         mapGestureListener.setBusLineClickCallback(new MapGestureListener.BusLineClickCallback() {
             @Override
             public void onBusLineClicked(BusLine busLine) {
-                // Toggle selection - if clicking the same line, deselect it
                 if (mapRenderer.getSelectedLine() == busLine) {
                     Gdx.app.log("RasterMapScreen", "Deselecting bus line: " + busLine.lineId);
                     mapRenderer.setSelectedLine(null);
+
+                    // When deselecting, show all lines and all stops
+                    hudPanel.selectAllLines();
+                    hudPanel.setShowAllStops(true);
                 } else {
                     Gdx.app.log("RasterMapScreen", "Map clicked bus line: " + busLine.lineId);
                     mapRenderer.setSelectedLine(busLine);
-                    mapRenderer.setSelectedStop(null); // Clear stop selection
-                    // TODO: You could show a detail panel for the line here
+                    mapRenderer.setSelectedStop(null);
+
+                    // Update HUD to show only this line
+                    hudPanel.selectOnlyLine(busLine.lineId);
+
+                    // Show stops for the selected line
+                    hudPanel.setShowAllStops(true);
                 }
             }
         });

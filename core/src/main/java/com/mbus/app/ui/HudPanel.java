@@ -207,6 +207,10 @@ public class HudPanel {
     }
 
     private void toggleShowAllStops() {
+        if (updatingProgrammatically) {
+            return; // Skip if being updated programmatically
+        }
+
         showingAllStops = !showingAllStops;
 
         // Update button checked state
@@ -408,6 +412,58 @@ public class HudPanel {
 
         if (busLineVisibilityCallback != null) {
             busLineVisibilityCallback.onBusLineVisibilityChanged(new HashSet<Integer>(visibleLineIds));
+        }
+    }
+
+    /**
+     * Select only a specific bus line and deselect all others
+     * @param lineId The ID of the line to select
+     */
+    public void selectOnlyLine(int lineId) {
+        visibleLineIds.clear();
+        visibleLineIds.add(lineId);
+
+        refreshBusLinesTable();
+        onLineVisibilityChanged();
+    }
+
+    /**
+     * Select all bus lines
+     */
+    public void selectAllLines() {
+        visibleLineIds.clear();
+        for (BusLine line : busLines) {
+            visibleLineIds.add(line.lineId);
+        }
+
+        refreshBusLinesTable();
+        onLineVisibilityChanged();
+    }
+
+    // Flag to prevent circular updates
+    private boolean updatingProgrammatically = false;
+
+    /**
+     * Programmatically set the showAllStops state
+     * @param show Whether to show all stops
+     */
+    public void setShowAllStops(boolean show) {
+        if (showingAllStops != show && !updatingProgrammatically) {
+            updatingProgrammatically = true;
+
+            showingAllStops = show;
+
+            if (allStopsBtn != null) {
+                allStopsBtn.setChecked(showingAllStops);
+            }
+
+            refreshBusStopsTable();
+
+            if (showAllStopsCallback != null) {
+                showAllStopsCallback.onShowAllStopsChanged(showingAllStops);
+            }
+
+            updatingProgrammatically = false;
         }
     }
 
