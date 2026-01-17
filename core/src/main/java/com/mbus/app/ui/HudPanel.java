@@ -116,85 +116,81 @@ public class HudPanel {
 
         mainPanel.add(headerTable).width(panelWidth - 20).pad(10).row();
 
-        // Create time input section
-        Table timeTable = new Table();
-
-        timeField = new TextField(currentTime, skin, "search");
-        timeField.setMessageText("HH:MM");
-        timeField.setMaxLength(5);
-        timeField.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                String text = timeField.getText();
-                if (isValidTimeFormat(text)) {
-                    currentTime = text;
-                    if (timeChangedCallback != null) {
-                        timeChangedCallback.onTimeChanged(currentTime, currentDayOfWeek);
-                    }
-                    Gdx.app.log("HudPanel", "Time changed to: " + currentTime);
-                }
-            }
-        });
-        timeTable.add(timeField).width(120);
-
-        // Day of week buttons
-        TextButton prevDayBtn = new TextButton("<", skin, "maroon-small");
-        prevDayBtn.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                currentDayOfWeek--;
-                if (currentDayOfWeek < 1) currentDayOfWeek = 7;
-                updateDayLabel();
-                if (timeChangedCallback != null) {
-                    timeChangedCallback.onTimeChanged(currentTime, currentDayOfWeek);
-                }
-            }
-        });
-
-        currentTimeLabel = new Label(getDayName(currentDayOfWeek), skin, "default");
-        currentTimeLabel.setFontScale(0.65f);
-        currentTimeLabel.setAlignment(Align.center);
-
-        TextButton nextDayBtn = new TextButton(">", skin, "maroon-small");
-        nextDayBtn.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                currentDayOfWeek++;
-                if (currentDayOfWeek > 7) currentDayOfWeek = 1;
-                updateDayLabel();
-                if (timeChangedCallback != null) {
-                    timeChangedCallback.onTimeChanged(currentTime, currentDayOfWeek);
-                }
-            }
-        });
-
-        timeTable.add(prevDayBtn).width(25).height(25).padLeft(8);
-        timeTable.add(currentTimeLabel).width(50).padLeft(3).padRight(3);
-        timeTable.add(nextDayBtn).width(25).height(25);
-
-        mainPanel.add(timeTable).width(panelWidth - 20).padLeft(10).padRight(10).padTop(5).padBottom(5).row();
+//        // Create time input section
+//        Table timeTable = new Table();
+//
+//        timeField = new TextField(currentTime, skin, "search");
+//        timeField.setMessageText("HH:MM");
+//        timeField.setMaxLength(5);
+//        timeField.addListener(new ChangeListener() {
+//            @Override
+//            public void changed(ChangeEvent event, Actor actor) {
+//                String text = timeField.getText();
+//                if (isValidTimeFormat(text)) {
+//                    currentTime = text;
+//                    if (timeChangedCallback != null) {
+//                        timeChangedCallback.onTimeChanged(currentTime, currentDayOfWeek);
+//                    }
+//                    Gdx.app.log("HudPanel", "Time changed to: " + currentTime);
+//                }
+//            }
+//        });
+//        timeTable.add(timeField).width(120);
+//
+//        // Day of week buttons
+//        TextButton prevDayBtn = new TextButton("<", skin, "maroon-small");
+//        prevDayBtn.addListener(new ChangeListener() {
+//            @Override
+//            public void changed(ChangeEvent event, Actor actor) {
+//                currentDayOfWeek--;
+//                if (currentDayOfWeek < 1) currentDayOfWeek = 7;
+//                updateDayLabel();
+//                if (timeChangedCallback != null) {
+//                    timeChangedCallback.onTimeChanged(currentTime, currentDayOfWeek);
+//                }
+//            }
+//        });
+//
+//        currentTimeLabel = new Label(getDayName(currentDayOfWeek), skin, "default");
+//        currentTimeLabel.setFontScale(0.65f);
+//        currentTimeLabel.setAlignment(Align.center);
+//
+//        TextButton nextDayBtn = new TextButton(">", skin, "maroon-small");
+//        nextDayBtn.addListener(new ChangeListener() {
+//            @Override
+//            public void changed(ChangeEvent event, Actor actor) {
+//                currentDayOfWeek++;
+//                if (currentDayOfWeek > 7) currentDayOfWeek = 1;
+//                updateDayLabel();
+//                if (timeChangedCallback != null) {
+//                    timeChangedCallback.onTimeChanged(currentTime, currentDayOfWeek);
+//                }
+//            }
+//        });
+//
+//        timeTable.add(prevDayBtn).width(25).height(25).padLeft(8);
+//        timeTable.add(currentTimeLabel).width(50).padLeft(3).padRight(3);
+//        timeTable.add(nextDayBtn).width(25).height(25);
+//
+//        mainPanel.add(timeTable).width(panelWidth - 20).padLeft(10).padRight(10).padTop(5).padBottom(5).row();
 
         // Create search field (commented out as before)
 //        searchField = new TextField("", skin, "search");
 //        searchField.setMessageText("Išči postajališče...");
 //        mainPanel.add(searchField).width(panelWidth - 20).padLeft(10).padRight(10).padTop(5).row();
 
-        // Create bus lines section
         Label linesLabel = new Label("Linije", skin, "title-black");
         linesLabel.setFontScale(0.8f);
         mainPanel.add(linesLabel).left().padLeft(10).padTop(15).padBottom(15).row();
 
-        // Create bus line buttons container
         Table busLinesTable = createBusLinesTable();
         mainPanel.add(busLinesTable).width(panelWidth - 20).padLeft(10).padBottom(20).padRight(10).row();
 
-        // "Vse linije" and "Vse postaje" buttons
         Table allButtonsTable = new Table();
         TextButton allLinesBtn = new TextButton("Linije", skin, "orange-small-toggle");
         allLinesBtn.setColor(0.663f, 0.620f, 0.58f, 1f);
         allLinesBtn.setChecked(!visibleLineIds.isEmpty());
 
-        // Add click listener to "Vse linije" button
         allLinesBtn.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -206,7 +202,6 @@ public class HudPanel {
         allStopsBtn.setColor(0.663f, 0.620f, 0.58f, 1f);
         allStopsBtn.setChecked(showingAllStops); // Set initial checked state
 
-        // Add click listener to "Vse postaje" button
         allStopsBtn.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -219,12 +214,10 @@ public class HudPanel {
 
         mainPanel.add(allButtonsTable).width(panelWidth - 20).padLeft(10).padRight(10).padTop(10).row();
 
-        // Create bus stops section
         Label stopsLabel = new Label("Postajalisca", skin, "title-black");
         stopsLabel.setFontScale(0.8f);
         mainPanel.add(stopsLabel).left().padLeft(10).padTop(30).padBottom(25).row();
 
-        // Create bus stops list - this should expand to fill remaining space
         Table busStopsTable = createBusStopsTable();
         busStopsScrollPane = new ScrollPane(busStopsTable, skin, "no-bg");
         busStopsScrollPane.setFadeScrollBars(false);
@@ -234,11 +227,7 @@ public class HudPanel {
         stage.addActor(mainPanel);
     }
 
-    /**
-     * Get stops filtered by currently visible lines
-     */
     private List<BusStop> getFilteredStops() {
-        // If all lines are visible, show all stops
         boolean allLinesVisible = true;
         if (busLines != null && !busLines.isEmpty()) {
             Set<Integer> allLineIds = new HashSet<Integer>();
@@ -253,15 +242,13 @@ public class HudPanel {
             return allBusStops;
         }
 
-        // Filter stops by visible lines
         List<BusStop> filtered = new ArrayList<BusStop>();
 
         for (BusStop stop : allBusStops) {
-            // Check if this stop has any visible lines
             for (Integer lineId : stop.getLineIds()) {
                 if (visibleLineIds.contains(lineId)) {
                     filtered.add(stop);
-                    break; // Stop is included, no need to check more lines
+                    break;
                 }
             }
         }
@@ -271,12 +258,10 @@ public class HudPanel {
 
     private void toggleAllLines() {
         if (visibleLineIds.isEmpty()) {
-            // Show all lines
             for (BusLine line : busLines) {
                 visibleLineIds.add(line.lineId);
             }
         } else {
-            // Hide all lines
             visibleLineIds.clear();
         }
 
@@ -286,12 +271,11 @@ public class HudPanel {
 
     private void toggleShowAllStops() {
         if (updatingProgrammatically) {
-            return; // Skip if being updated programmatically
+            return;
         }
 
         showingAllStops = !showingAllStops;
 
-        // Update button checked state
         if (allStopsBtn != null) {
             allStopsBtn.setChecked(showingAllStops);
         }
@@ -303,9 +287,6 @@ public class HudPanel {
         }
     }
 
-    /**
-     * Called when line visibility changes
-     */
     private void onLineVisibilityChanged() {
         refreshBusStopsTable();
 
@@ -313,7 +294,6 @@ public class HudPanel {
             busLineVisibilityCallback.onBusLineVisibilityChanged(new HashSet<Integer>(visibleLineIds));
         }
 
-        // Notify about filtered stops for map rendering
         if (filteredStopsCallback != null) {
             List<BusStop> filtered = getFilteredStops();
             filteredStopsCallback.onFilteredStopsChanged(filtered);
@@ -330,7 +310,6 @@ public class HudPanel {
             return table;
         }
 
-        // Get unique line IDs and sort them
         Set<Integer> uniqueLineIds = new TreeSet<Integer>();
         for (BusLine line : busLines) {
             uniqueLineIds.add(line.lineId);
@@ -343,14 +322,11 @@ public class HudPanel {
         for (final Integer lineId : uniqueLineIds) {
             final TextButton btn = new TextButton(String.valueOf(lineId), skin, "orange-small-toggle");
 
-            // Set the color for this line
             Color lineColor = BusLineColors.getButtonColor(lineId);
             btn.setColor(lineColor);
 
-            // Set checked state based on visibility
             btn.setChecked(visibleLineIds.contains(lineId));
 
-            // Add click listener to toggle line visibility
             btn.addListener(new ChangeListener() {
                 @Override
                 public void changed(ChangeEvent event, Actor actor) {
@@ -381,10 +357,8 @@ public class HudPanel {
         Table table = new Table();
         table.align(Align.top | Align.left);
 
-        // Get the appropriate stops list
         List<BusStop> stopsToShow = getFilteredStops();
 
-        // Check if we're filtering
         boolean isFiltering = stopsToShow.size() < allBusStops.size();
 
         if (showingAllStops && stopsToShow != null && !stopsToShow.isEmpty()) {
@@ -393,10 +367,8 @@ public class HudPanel {
 
                 TextButton idBtn = new TextButton(String.valueOf(stop.idAvpost), skin, "maroon-small");
 
-                // Create label with stop name and line info if filtering
                 String labelText = stop.name;
                 if (isFiltering && stop.getLineCount() > 0) {
-                    // Show which visible lines pass through this stop
                     List<Integer> visibleStopLines = new ArrayList<Integer>();
                     for (Integer lineId : stop.getLineIds()) {
                         if (visibleLineIds.contains(lineId)) {
@@ -444,7 +416,6 @@ public class HudPanel {
                 }
             }
 
-            // Show count info if filtered
             if (isFiltering) {
                 Label infoLabel = new Label(
                     stopsToShow.size() + " od " + allBusStops.size() + " postajališč",
@@ -480,7 +451,6 @@ public class HudPanel {
     public void setBusLines(List<BusLine> lines) {
         this.busLines = lines != null ? lines : new ArrayList<BusLine>();
 
-        // Initially show all lines
         visibleLineIds.clear();
         for (BusLine line : this.busLines) {
             visibleLineIds.add(line.lineId);
@@ -493,15 +463,10 @@ public class HudPanel {
         }
     }
 
-    /**
-     * Select only a specific bus line and deselect all others
-     * @param lineId The ID of the line to select
-     */
     public void selectOnlyLine(int lineId) {
         visibleLineIds.clear();
         visibleLineIds.add(lineId);
 
-        // Always show stops when selecting a single line
         if (!showingAllStops) {
             setShowAllStops(true);
         }
@@ -510,16 +475,12 @@ public class HudPanel {
         onLineVisibilityChanged();
     }
 
-    /**
-     * Select all bus lines
-     */
     public void selectAllLines() {
         visibleLineIds.clear();
         for (BusLine line : busLines) {
             visibleLineIds.add(line.lineId);
         }
 
-        // Show all stops when showing all lines
         if (!showingAllStops) {
             setShowAllStops(true);
         }
@@ -528,13 +489,8 @@ public class HudPanel {
         onLineVisibilityChanged();
     }
 
-    // Flag to prevent circular updates
     private boolean updatingProgrammatically = false;
 
-    /**
-     * Programmatically set the showAllStops state
-     * @param show Whether to show all stops
-     */
     public void setShowAllStops(boolean show) {
         if (showingAllStops != show && !updatingProgrammatically) {
             updatingProgrammatically = true;
@@ -561,7 +517,6 @@ public class HudPanel {
     }
 
     private void refreshBusLinesTable() {
-        // Find the bus lines table in the mainPanel and rebuild it
         mainPanel.clear();
         stage.clear();
         createUI();

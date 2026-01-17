@@ -11,14 +11,11 @@ public class BusStop {
     public final String idMarprom;
     public final String name;
 
-    // Original D96/TM coordinates (EPSG:3794)
     public final double x3794;
     public final double y3794;
 
-    // Converted WGS84 coordinates
     public final Geolocation geo;
 
-    // Line IDs that pass through this stop
     private final List<Integer> lineIds;
 
     public BusStop(int idAvpost,
@@ -43,7 +40,6 @@ public class BusStop {
             : Collections.unmodifiableList(new ArrayList<Integer>());
     }
 
-    // Convenience constructor without lineIds for backward compatibility
     public BusStop(int idAvpost,
                    String idMarprom,
                    String name,
@@ -53,30 +49,18 @@ public class BusStop {
         this(idAvpost, idMarprom, name, x3794, y3794, geo, null);
     }
 
-    /**
-     * Get all line IDs that pass through this stop
-     */
     public List<Integer> getLineIds() {
         return lineIds;
     }
 
-    /**
-     * Get the number of lines that pass through this stop
-     */
     public int getLineCount() {
         return lineIds.size();
     }
 
-    /**
-     * Check if a specific line passes through this stop
-     */
     public boolean hasLine(int lineId) {
         return lineIds.contains(lineId);
     }
 
-    /**
-     * Get a formatted string of all line IDs (e.g., "1, 3, 6")
-     */
     public String getLineIdsString() {
         if (lineIds.isEmpty()) {
             return "No lines";
@@ -92,29 +76,15 @@ public class BusStop {
         return sb.toString();
     }
 
-    /**
-     * Get all upcoming arrivals at this stop from a list of bus lines
-     * @param lines All bus lines in the system
-     * @param currentTime Current time in minutes from midnight
-     * @param dayType Day type (0=workday, 1=saturday, 2=sunday/holiday)
-     * @param maxResults Maximum number of results to return
-     * @return List of upcoming arrivals sorted by time
-     */
-    public List<StopArrival> getUpcomingArrivals(List<BusLine> lines,
-                                                 int currentTime,
-                                                 int dayType,
-                                                 int maxResults) {
+    public List<StopArrival> getUpcomingArrivals(List<BusLine> lines, int currentTime, int dayType, int maxResults) {
         List<StopArrival> arrivals = new ArrayList<StopArrival>();
 
-        // Check each line that passes through this stop
         for (BusLine line : lines) {
             if (!hasLine(line.lineId)) continue;
 
-            // Check all schedules for this line
             for (BusSchedule schedule : line.getSchedules()) {
                 if (schedule.dayType != dayType) continue;
 
-                // Get arrival time at this stop
                 int arrivalTime = schedule.getArrivalTimeAtStop(idAvpost);
                 if (arrivalTime >= currentTime) {
                     arrivals.add(new StopArrival(line, schedule, arrivalTime));
@@ -122,7 +92,6 @@ public class BusStop {
             }
         }
 
-        // Sort by arrival time
         Collections.sort(arrivals, new Comparator<StopArrival>() {
             @Override
             public int compare(StopArrival a1, StopArrival a2) {
@@ -130,7 +99,6 @@ public class BusStop {
             }
         });
 
-        // Limit results
         if (arrivals.size() > maxResults) {
             return arrivals.subList(0, maxResults);
         }
@@ -138,12 +106,7 @@ public class BusStop {
         return arrivals;
     }
 
-    /**
-     * Get the next arrival for a specific line
-     */
-    public StopArrival getNextArrivalForLine(BusLine line,
-                                             int currentTime,
-                                             int dayType) {
+    public StopArrival getNextArrivalForLine(BusLine line, int currentTime, int dayType) {
         StopArrival nextArrival = null;
         int minTimeDiff = Integer.MAX_VALUE;
 
@@ -176,9 +139,6 @@ public class BusStop {
             '}';
     }
 
-    /**
-     * Represents an upcoming bus arrival at this stop
-     */
     public static class StopArrival {
         public final BusLine line;
         public final BusSchedule schedule;
@@ -190,9 +150,6 @@ public class BusStop {
             this.arrivalTime = arrivalTime;
         }
 
-        /**
-         * Get time until arrival in minutes
-         */
         public int getMinutesUntilArrival(int currentTime) {
             return arrivalTime - currentTime;
         }

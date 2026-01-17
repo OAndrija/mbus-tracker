@@ -44,6 +44,10 @@ public class MapRasterTiles {
         } else {
             log.info("Using existing tile cache: " + cacheDir.path());
         }
+
+        // Enable HTTP connection pooling and keep-alive
+        System.setProperty("http.keepAlive", "true");
+        System.setProperty("http.maxConnections", "16");
     }
 
     // ===========================
@@ -167,39 +171,46 @@ public class MapRasterTiles {
         }
     }
 
-    // ===========================
-    // TILE DOWNLOAD CORE
-    // ===========================
-
     public static ByteArrayOutputStream fetchTile(URL url) throws IOException {
         log.debug("Connecting…");
 
         long start = System.currentTimeMillis();
 
-        ByteArrayOutputStream bis = new ByteArrayOutputStream();
-        InputStream is = url.openStream();
-        byte[] buffer = new byte[4096];
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) url.openConnection();
 
-        int n;
-        while ((n = is.read(buffer)) > 0) {
-            bis.write(buffer, 0, n);
+            // Enable keep-alive and optimize connection
+            connection.setRequestProperty("Connection", "keep-alive");
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(10000);
+            connection.setUseCaches(true);
+
+            ByteArrayOutputStream bis = new ByteArrayOutputStream();
+            InputStream is = connection.getInputStream();
+            byte[] buffer = new byte[8192]; // Larger buffer for better performance
+
+            int n;
+            while ((n = is.read(buffer)) > 0) {
+                bis.write(buffer, 0, n);
+            }
+
+            is.close();
+            long time = System.currentTimeMillis() - start;
+
+            log.info("Tile fetched in " + time + " ms");
+
+            return bis;
+        } finally {
+            if (connection != null) {
+                connection.getInputStream().close();
+            }
         }
-
-        is.close();
-        long time = System.currentTimeMillis() - start;
-
-        log.info("Tile fetched in " + time + " ms");
-
-        return bis;
     }
 
     public static Texture getTexture(byte[] array) {
         return new Texture(new Pixmap(array, 0, array.length));
     }
-
-    // ===========================
-    // TILE NUMBER CALCULATION
-    // ===========================
 
     public static ZoomXY getTileNumber(final double lat, final double lon, final int zoom) {
         int xtile = (int) Math.floor((lon + 180) / 360 * (1 << zoom));
@@ -214,10 +225,6 @@ public class MapRasterTiles {
 
         return tile;
     }
-
-    // ===========================
-    // PIXEL POSITION CONVERSION
-    // ===========================
 
     public static Vector2 getPixelPosition(double lat, double lng, int beginTileX, int beginTileY) {
         double[] worldCoordinate = project(lat, lng, TILE_SIZE);
@@ -245,13 +252,6 @@ public class MapRasterTiles {
         };
     }
 
-    // ===========================
-    // ROUTING API
-    // ===========================
-    /**
-     * Downloads tile data as byte array (can be called from background thread)
-     * This separates the download from texture creation
-     */
     public static byte[] getTileData(int zoom, int x, int y) throws IOException {
         String fileName = zoom + "_" + x + "_" + y + ".png";
         FileHandle file = Gdx.files.local(CACHE_FOLDER + fileName);
@@ -283,9 +283,6 @@ public class MapRasterTiles {
         return data;
     }
 
-    /**
-     * Creates a texture from byte array (MUST be called from main OpenGL thread)
-     */
     public static Texture createTextureFromData(byte[] data) {
         return new Texture(new Pixmap(data, 0, data.length));
     }
@@ -324,6 +321,9 @@ public class MapRasterTiles {
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
         connection.setRequestMethod("GET");
+        connection.setRequestProperty("Connection", "keep-alive");
+        connection.setConnectTimeout(5000);
+        connection.setReadTimeout(10000);
 
         if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
             log.error("Routing request failed. HTTP " + connection.getResponseCode());

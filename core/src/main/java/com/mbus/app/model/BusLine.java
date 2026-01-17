@@ -15,16 +15,12 @@ public class BusLine {
     public final String providerName;
     public final String providerLink;
 
-    // Path as a list of WGS84 coordinates
     private final List<Geolocation> path;
 
-    // Optional: original D96/TM coordinates if needed for debugging
     private final List<double[]> originalCoordinates;
 
-    // Bus stops along this line (ordered)
     private final List<BusStop> stops;
 
-    // NEW: Schedules for this line
     private final List<BusSchedule> schedules;
 
     public BusLine(int lineId,
@@ -60,7 +56,6 @@ public class BusLine {
             : Collections.unmodifiableList(new ArrayList<BusSchedule>());
     }
 
-    // Backward compatibility constructor
     public BusLine(int lineId,
                    int variantId,
                    int direction,
@@ -76,38 +71,22 @@ public class BusLine {
             providerLink, path, originalCoordinates, stops, null);
     }
 
-    /**
-     * Get the path as an unmodifiable list of WGS84 coordinates
-     */
     public List<Geolocation> getPath() {
         return path;
     }
 
-    /**
-     * Get the original EPSG:3794 coordinates (for debugging)
-     */
     public List<double[]> getOriginalCoordinates() {
         return originalCoordinates;
     }
 
-    /**
-     * Get the bus stops along this line (ordered)
-     */
     public List<BusStop> getStops() {
         return stops;
     }
 
-    /**
-     * Get all schedules for this line
-     */
     public List<BusSchedule> getSchedules() {
         return schedules;
     }
 
-    /**
-     * Get schedules for a specific day type
-     * @param dayType 0=workday, 1=saturday, 2=sunday/holiday
-     */
     public List<BusSchedule> getSchedulesForDayType(int dayType) {
         List<BusSchedule> result = new ArrayList<BusSchedule>();
         for (BusSchedule schedule : schedules) {
@@ -118,12 +97,6 @@ public class BusLine {
         return result;
     }
 
-    /**
-     * Get the next departure time after a given time (in minutes from midnight)
-     * @param currentTime Time in minutes from midnight
-     * @param dayType Day type (0=workday, 1=saturday, 2=sunday/holiday)
-     * @return Next schedule, or null if no more departures today
-     */
     public BusSchedule getNextDeparture(int currentTime, int dayType) {
         BusSchedule nextSchedule = null;
         int minTimeDiff = Integer.MAX_VALUE;
@@ -141,37 +114,22 @@ public class BusLine {
         return nextSchedule;
     }
 
-    /**
-     * Get the number of points in this line
-     */
     public int getPointCount() {
         return path.size();
     }
 
-    /**
-     * Get the number of stops on this line
-     */
     public int getStopCount() {
         return stops.size();
     }
 
-    /**
-     * Get the number of schedules for this line
-     */
     public int getScheduleCount() {
         return schedules.size();
     }
 
-    /**
-     * Check if this line contains a specific stop
-     */
     public boolean hasStop(BusStop stop) {
         return stops.contains(stop);
     }
 
-    /**
-     * Check if this line contains a stop with the given ID
-     */
     public boolean hasStop(int stopId) {
         for (BusStop stop : stops) {
             if (stop.idAvpost == stopId) {

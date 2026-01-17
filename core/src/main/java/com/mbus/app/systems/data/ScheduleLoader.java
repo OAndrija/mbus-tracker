@@ -14,16 +14,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-/**
- * Loads bus schedules from JSON files or generates realistic schedules.
- */
 public class ScheduleLoader {
 
     private static final String TAG = "ScheduleLoader";
 
-    /**
-     * Load schedules from a JSON file
-     */
     public static List<BusSchedule> loadSchedulesFromFile(String filePath) {
         List<BusSchedule> schedules = new ArrayList<BusSchedule>();
 
@@ -94,9 +88,6 @@ public class ScheduleLoader {
         }
     }
 
-    /**
-     * Assign schedules to bus lines
-     */
     public static List<BusLine> assignSchedulesToLines(List<BusLine> lines,
                                                        List<BusSchedule> schedules) {
         Map<String, List<BusSchedule>> schedulesByLine = new HashMap<String, List<BusSchedule>>();
@@ -144,37 +135,28 @@ public class ScheduleLoader {
         return lineId + "_" + variantId + "_" + direction;
     }
 
-    /**
-     * Generate realistic schedule data
-     * Creates varied schedules based on line type and day
-     */
     public static List<BusSchedule> generateExampleSchedules(List<BusLine> lines) {
         List<BusSchedule> schedules = new ArrayList<BusSchedule>();
         int scheduleIdCounter = 1;
-        Random random = new Random(12345); // Fixed seed for consistency
+        Random random = new Random(12345);
 
         for (BusLine line : lines) {
             if (line.getStops().isEmpty()) continue;
 
-            // Categorize line based on ID (urban vs suburban)
             boolean isUrbanLine = line.lineId < 100;
 
-            // Workdays - frequent service
             if (isUrbanLine) {
-                // Urban lines: 5:00-23:00, peak every 10-15min, off-peak every 20-30min
                 schedules.addAll(generateRealisticSchedule(
                     line, 0, scheduleIdCounter, 5 * 60, 23 * 60,
                     10, 15, 20, 30, random));
                 scheduleIdCounter += 60;
             } else {
-                // Suburban lines: 6:00-21:00, less frequent
                 schedules.addAll(generateRealisticSchedule(
                     line, 0, scheduleIdCounter, 6 * 60, 21 * 60,
                     15, 20, 30, 45, random));
                 scheduleIdCounter += 40;
             }
 
-            // Saturdays - reduced service
             if (isUrbanLine) {
                 schedules.addAll(generateRealisticSchedule(
                     line, 1, scheduleIdCounter, 6 * 60, 22 * 60,
@@ -187,7 +169,6 @@ public class ScheduleLoader {
                 scheduleIdCounter += 25;
             }
 
-            // Sundays - minimal service
             if (isUrbanLine) {
                 schedules.addAll(generateRealisticSchedule(
                     line, 2, scheduleIdCounter, 7 * 60, 21 * 60,
@@ -205,9 +186,6 @@ public class ScheduleLoader {
         return schedules;
     }
 
-    /**
-     * Generate schedule with peak/off-peak variations
-     */
     private static List<BusSchedule> generateRealisticSchedule(
         BusLine line, int dayType, int startScheduleId,
         int startTime, int endTime,
@@ -218,20 +196,17 @@ public class ScheduleLoader {
         List<BusSchedule> schedules = new ArrayList<BusSchedule>();
         int scheduleId = startScheduleId;
 
-        // Define peak hours (only for workdays)
         boolean isPeakHour;
         int currentTime = startTime;
 
         while (currentTime < endTime) {
-            // Determine if current time is peak hour
             int hour = currentTime / 60;
-            if (dayType == 0) { // Workday
+            if (dayType == 0) {
                 isPeakHour = (hour >= 6 && hour < 9) || (hour >= 15 && hour < 18);
             } else {
-                isPeakHour = false; // No peak hours on weekends
+                isPeakHour = false;
             }
 
-            // Calculate travel time through all stops
             List<BusSchedule.StopTime> stopTimes = calculateStopTimes(
                 line.getStops(), currentTime, random);
 
@@ -245,7 +220,6 @@ public class ScheduleLoader {
                 stopTimes
             ));
 
-            // Determine next departure time with some randomness
             int intervalMin, intervalMax;
             if (isPeakHour) {
                 intervalMin = peakIntervalMin;
@@ -262,11 +236,7 @@ public class ScheduleLoader {
         return schedules;
     }
 
-    /**
-     * Calculate realistic stop times based on distance and traffic
-     */
-    private static List<BusSchedule.StopTime> calculateStopTimes(
-        List<BusStop> stops, int departureTime, Random random) {
+    private static List<BusSchedule.StopTime> calculateStopTimes(List<BusStop> stops, int departureTime, Random random) {
 
         List<BusSchedule.StopTime> stopTimes = new ArrayList<BusSchedule.StopTime>();
         int currentTime = departureTime;

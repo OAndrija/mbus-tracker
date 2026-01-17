@@ -42,13 +42,11 @@ public class LoadingScreen implements Screen {
 
     private float progress = 0f;
 
-    // Data loading (background thread)
     private Thread dataLoadingThread;
     private volatile boolean dataLoadingComplete = false;
     private List<BusStop> loadedStops;
     private List<BusLine> loadedLines;
 
-    // Tile loading (main thread + background downloading)
     private ZoomXY beginTile;
     private Texture[] mapTiles;
     private int totalTiles;
@@ -56,7 +54,6 @@ public class LoadingScreen implements Screen {
     private boolean tileLoadingStarted = false;
     private Thread tileDownloadThread;
 
-    // Queue for tile data from background thread
     private static class TileData {
         final int index;
         final byte[] data;
@@ -79,34 +76,27 @@ public class LoadingScreen implements Screen {
 
     @Override
     public void show() {
-        // Get skin from asset manager
         skin = app.getAssetManager().get(AssetDescriptors.SKIN);
 
-        // Create stage
         stage = new Stage(new ScreenViewport());
 
-        // Create root table with maroon-panel background
         rootTable = new Table();
         rootTable.setFillParent(true);
         rootTable.setBackground(skin.getDrawable("panel-maroon"));
         stage.addActor(rootTable);
 
-        // Create UI elements
         titleLabel = new Label("MBus", skin, "title");
         statusLabel = new Label("Initializing...", skin);
         percentLabel = new Label("0%", skin);
 
-        // Create progress bar
         progressBar = new ProgressBar(0f, 1f, 0.01f, false, skin);
         progressBar.setAnimateDuration(0.1f);
 
-        // Layout
         rootTable.add(titleLabel).padBottom(40).row();
         rootTable.add(progressBar).width(400).height(30).padBottom(10).row();
         rootTable.add(percentLabel).padBottom(20).row();
         rootTable.add(statusLabel).row();
 
-        // Start BOTH operations simultaneously
         startTileLoading();
         startDataLoading();
     }
@@ -115,7 +105,6 @@ public class LoadingScreen implements Screen {
         try {
             statusLabel.setText("Preparing map tiles...");
 
-            // Calculate tiles on main thread (fast operation)
             final ZoomXY centerTile = MapRasterTiles.getTileNumber(
                 CENTER_GEOLOCATION.lat,
                 CENTER_GEOLOCATION.lng,
@@ -181,30 +170,24 @@ public class LoadingScreen implements Screen {
             @Override
             public void run() {
                 try {
-                    // Load bus stops
                     Gdx.app.log(TAG, "Loading bus stops...");
                     List<BusStop> rawStops = GeoJSONLoader.loadBusStopsFromFile("data/int_mob_marprom_postaje.json");
                     Gdx.app.log(TAG, "Loaded " + rawStops.size() + " bus stops");
 
-                    // Load bus lines
                     Gdx.app.log(TAG, "Loading bus lines...");
                     List<BusLine> rawLines = GeoJSONLoader.loadBusLinesFromFile("data/int_mob_marprom_linije.json");
                     Gdx.app.log(TAG, "Loaded " + rawLines.size() + " bus lines");
 
-                    // Build relationships
                     Gdx.app.log(TAG, "Building relationships...");
                     double proximityThreshold = 50.0;
                     BusLineStopRelationshipBuilder.RelationshipResult result =
                         BusLineStopRelationshipBuilder.buildRelationships(rawLines, rawStops, proximityThreshold);
 
-                    // Load or generate schedules
                     Gdx.app.log(TAG, "Loading schedules...");
                     List<BusSchedule> schedules;
 
-                    // Try to load from file first
                     schedules = ScheduleLoader.loadSchedulesFromFile("data/schedules.json");
 
-                    // If no schedules file exists, generate example data
                     if (schedules.isEmpty()) {
                         Gdx.app.log(TAG, "No schedule file found, generating example schedules...");
                         schedules = ScheduleLoader.generateExampleSchedules(result.lines);
@@ -212,12 +195,9 @@ public class LoadingScreen implements Screen {
 
                     Gdx.app.log(TAG, "Loaded/generated " + schedules.size() + " schedules");
 
-                    // Assign schedules to lines
                     Gdx.app.log(TAG, "Assigning schedules to lines...");
-                    List<BusLine> linesWithSchedules = ScheduleLoader.assignSchedulesToLines(
-                        result.lines, schedules);
+                    List<BusLine> linesWithSchedules = ScheduleLoader.assignSchedulesToLines(result.lines, schedules);
 
-                    // Log statistics
                     int totalStopsWithLines = 0;
                     int totalLinesWithStops = 0;
                     int totalLinesWithSchedules = 0;
@@ -268,7 +248,6 @@ public class LoadingScreen implements Screen {
         Gdx.gl.glClearColor(1f, 1f, 1f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        // Process tile textures on main thread (2-3 per frame)
         if (tileLoadingStarted) {
             int texturesCreatedThisFrame = 0;
             int maxTexturesPerFrame = 3;
@@ -335,7 +314,6 @@ public class LoadingScreen implements Screen {
 
     @Override
     public void hide() {
-        // Wait for loading threads to complete
         if (dataLoadingThread != null && dataLoadingThread.isAlive()) {
             try {
                 dataLoadingThread.join(1000);

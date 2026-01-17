@@ -18,22 +18,10 @@ public class GeoJSONLoader {
     private static final Logger log = new Logger("GeoJSONLoader", Logger.INFO);
 
     private GeoJSONLoader() {
-        // utility class
     }
 
-    /**
-     * Load Marprom bus stops from a GeoJSON file and convert coordinates
-     * from EPSG:3794 (D96/TM) to WGS84 (lat,lon) using GeoConverter3794.
-     *
-     * NOTE: This loads raw stops WITHOUT line relationships.
-     * Use BusLineStopRelationshipBuilder.buildRelationships() to establish connections.
-     *
-     * @param path path to GeoJSON file (e.g. "data/int_mob_marprom_postaje.json")
-     * @return list of BusStop objects (without line relationships)
-     */
     public static List<BusStop> loadBusStopsFromFile(String path) {
 
-        // 1) Find file via LibGDX (works on all platforms)
         FileHandle file = Gdx.files.internal(path);
         if (!file.exists()) {
             file = Gdx.files.local(path);
@@ -46,10 +34,8 @@ public class GeoJSONLoader {
 
         log.info("Loading bus stops from: " + file.path());
 
-        // 2) Read file as String
         String jsonText = file.readString("UTF-8");
 
-        // 3) Parse JSON
         JSONObject root = new JSONObject(jsonText);
 
         JSONArray features = root.getJSONArray("features");
@@ -58,36 +44,29 @@ public class GeoJSONLoader {
         for (int i = 0; i < features.length(); i++) {
             JSONObject feature = features.getJSONObject(i);
 
-            // geometry
             JSONObject geometry = feature.getJSONObject("geometry");
             String geomType = geometry.getString("type");
 
             if (!"Point".equalsIgnoreCase(geomType)) {
-                // just skip non-point geometries if any
                 continue;
             }
 
             JSONArray coords = geometry.getJSONArray("coordinates");
-            // EPSG:3794 is in meters, x = Easting, y = Northing
             double x = coords.getDouble(0);
             double y = coords.getDouble(1);
 
-            // 4) Convert to WGS84
             double[] latlon = GeoConverter3794.toWGS84(x, y + 5000000);
             double lat = latlon[0];
             double lon = latlon[1];
 
             Geolocation geo = new Geolocation(lat, lon);
 
-            // 5) Properties
             JSONObject props = feature.getJSONObject("properties");
 
             int idAvpost = props.optInt("id_avpost", -1);
             String idMarprom = props.optString("id_marprom", "");
             String name = props.optString("ime_postaj", "");
 
-            // Use backward-compatible constructor (without lineIds)
-            // Line relationships will be established by BusLineStopRelationshipBuilder
             BusStop stop = new BusStop(
                 idAvpost,
                 idMarprom,
@@ -95,7 +74,6 @@ public class GeoJSONLoader {
                 x,
                 y,
                 geo
-                // lineIds parameter omitted - will be added by relationship builder
             );
 
             stops.add(stop);
@@ -105,16 +83,6 @@ public class GeoJSONLoader {
         return stops;
     }
 
-    /**
-     * Load Marprom bus lines from a GeoJSON file and convert coordinates
-     * from EPSG:3794 (D96/TM) to WGS84 (lat,lon) using GeoConverter3794.
-     *
-     * NOTE: This loads raw lines WITHOUT stop relationships.
-     * Use BusLineStopRelationshipBuilder.buildRelationships() to establish connections.
-     *
-     * @param path path to GeoJSON file (e.g. "data/int_mob_marprom_linije.json")
-     * @return list of BusLine objects (without stop relationships)
-     */
     public static List<BusLine> loadBusLinesFromFile(String path) {
 
         // 1) Find file via LibGDX

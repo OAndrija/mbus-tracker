@@ -44,36 +44,29 @@ public class MapRenderer {
 
     private boolean showMarkers = true;
 
-    // Marker state
     private BusStop hoveredStop = null;
     private BusStop selectedStop = null;
 
-    // Bus line state
     private BusLine hoveredLine = null;
     private BusLine selectedLine = null;
 
-    // Animation
     private float pulseTime = 0f;
 
-    // Marker size configuration
     private static final float BASE_MARKER_SIZE = 32f;
     private static final float HOVER_SCALE = 1.4f;
     private static final float SELECT_SCALE = 1.4f;
     private static final float PULSE_SPEED = 2.5f;
 
-    // Zoom-based scaling
     private static final float MIN_ZOOM_SCALE = 0.7f;
     private static final float MAX_ZOOM_SCALE = 4f;
     private static final float ZOOM_SCALE_FACTOR = 6f;
 
-    // BUS LINES
     private static final float BUS_LINE_WIDTH = 10f;
     private static final float HOVER_LINE_WIDTH = 14f;
     private static final float SELECT_LINE_WIDTH = 16f;
 
-    // LINE LABEL STYLING
     private static final float LABEL_BASE_FONT_SCALE = 1.8f;
-    private static final float LABEL_ZOOM_FONT_SCALE = 13.0f;  // Higher = scales more with zoom
+    private static final float LABEL_ZOOM_FONT_SCALE = 13.0f;
     private static final float LABEL_BASE_PADDING_X = 16f;
     private static final float LABEL_BASE_PADDING_Y = 12f;
     private static final float LABEL_CORNER_RADIUS = 8f;
@@ -91,10 +84,6 @@ public class MapRenderer {
         this.font = new BitmapFont();
         this.busAnimationRenderer = new BusAnimationRenderer(spriteBatch);
     }
-
-    // ----------------------------
-    // PUBLIC API
-    // ----------------------------
 
     public void loadBusSprites(TextureRegion north, TextureRegion northeast,
                                TextureRegion east, TextureRegion southeast,
@@ -168,18 +157,15 @@ public class MapRenderer {
         tiledMapRenderer.setView(camera);
         tiledMapRenderer.render();
 
-        // Render bus lines in multiple passes for proper layering
         if (busLines != null && !busLines.isEmpty()) {
             renderBusLines();
         }
 
-        // Only render markers if showMarkers is true
         if (showMarkers) {
             pulseTime += delta;
             renderMarkers();
         }
 
-        // Render animated buses for selected line
         if (selectedLine != null) {
             spriteBatch.setProjectionMatrix(camera.combined);
             spriteBatch.begin();
@@ -188,12 +174,12 @@ public class MapRenderer {
                 currentTimeMinutes,
                 currentDayType,
                 beginTile,
-                camera.zoom
+                camera.zoom,
+                delta
             );
             spriteBatch.end();
         }
 
-        // Render line labels after everything else
         renderLineLabels();
     }
 
@@ -208,7 +194,6 @@ public class MapRenderer {
         float zoomScale = getZoomScale();
         float baseLineWidth = BUS_LINE_WIDTH * Math.min(zoomScale * 0.5f, 2.0f);
 
-        // Pass 1: Render normal lines
         for (BusLine line : busLines) {
             if (!visibleLineIds.contains(line.lineId)) continue;
             if (line == hoveredLine || line == selectedLine) continue;
@@ -217,26 +202,20 @@ public class MapRenderer {
             renderLine(line, baseLineWidth, lineColor);
         }
 
-        // Pass 2: Render hovered line with highlight
         if (hoveredLine != null && visibleLineIds.contains(hoveredLine.lineId)) {
             Color lineColor = BusLineColors.getColor(hoveredLine.lineId);
-            // Draw shadow/glow
             Color glowColor = new Color(lineColor.r, lineColor.g, lineColor.b, 0.3f);
             renderLine(hoveredLine, HOVER_LINE_WIDTH * Math.min(zoomScale * 0.5f, 2.0f) + 4f, glowColor);
-            // Draw main line
             renderLine(hoveredLine, HOVER_LINE_WIDTH * Math.min(zoomScale * 0.5f, 2.0f), lineColor);
         }
 
-        // Pass 3: Render selected line with animation
         if (selectedLine != null && visibleLineIds.contains(selectedLine.lineId)) {
             float breathe = (float) Math.sin(pulseTime * PULSE_SPEED) * 0.5f + 0.5f;
             float animatedWidth = (SELECT_LINE_WIDTH + breathe * 3f) * Math.min(zoomScale * 0.5f, 2.0f);
 
             Color lineColor = BusLineColors.getColor(selectedLine.lineId);
-            // Draw animated glow
             Color glowColor = new Color(lineColor.r, lineColor.g, lineColor.b, 0.4f + breathe * 0.2f);
             renderLine(selectedLine, animatedWidth + 6f, glowColor);
-            // Draw main line
             renderLine(selectedLine, animatedWidth, lineColor);
         }
 
@@ -307,10 +286,6 @@ public class MapRenderer {
         return allStops;
     }
 
-    // ----------------------------
-    // PRIVATE INTERNAL LOGIC
-    // ----------------------------
-
     private void buildTileMap() {
         tiledMap = new TiledMap();
         MapLayers layers = tiledMap.getLayers();
@@ -361,7 +336,6 @@ public class MapRenderer {
             Constants.MAP_HEIGHT
         );
 
-        // Pass 1: Normal individual markers
         spriteBatch.begin();
         for (MarkerCluster cluster : clusters) {
             if (cluster.isCluster) continue;
@@ -374,7 +348,6 @@ public class MapRenderer {
         }
         spriteBatch.end();
 
-        // Pass 2: Cluster markers
         for (MarkerCluster cluster : clusters) {
             if (!cluster.isCluster) continue;
 
@@ -382,7 +355,6 @@ public class MapRenderer {
             drawCluster(pos.x, pos.y, cluster.getCount(), camera.zoom);
         }
 
-        // Pass 3: Hovered marker
         if (hoveredStop != null) {
             for (MarkerCluster cluster : clusters) {
                 if (!cluster.isCluster && cluster.getSingleStop() == hoveredStop) {
@@ -401,7 +373,6 @@ public class MapRenderer {
             }
         }
 
-        // Pass 4: Selected marker with breathing animation
         if (selectedStop != null) {
             for (MarkerCluster cluster : clusters) {
                 if (!cluster.isCluster && cluster.getSingleStop() == selectedStop) {
@@ -520,9 +491,6 @@ public class MapRenderer {
         shapeRenderer.end();
     }
 
-    /**
-     * Render labels for hovered and selected lines
-     */
     private void renderLineLabels() {
         spriteBatch.setProjectionMatrix(camera.combined);
 
@@ -532,10 +500,6 @@ public class MapRenderer {
         }
     }
 
-    /**
-     * Render a label for a specific bus line
-     * @param line The bus line to label
-     */
     private void renderLineLabel(BusLine line) {
         // Create label text - just use the lineId
         String labelText = "Linija " + line.lineId;
@@ -611,9 +575,6 @@ public class MapRenderer {
         font.getData().setScale(1f);
     }
 
-    /**
-     * Get the current mouse position in world coordinates
-     */
     private Vector2 getMouseWorldPosition() {
         com.badlogic.gdx.math.Vector3 worldCoords = camera.unproject(
             new com.badlogic.gdx.math.Vector3(
