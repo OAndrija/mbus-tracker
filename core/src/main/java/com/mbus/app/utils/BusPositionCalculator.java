@@ -65,12 +65,16 @@ public class BusPositionCalculator {
     }
 
     /**
-     * Get active buses using current real-time (with seconds precision)
+     * Get active buses using the provided time with current seconds for smooth animation
      */
     public static List<ActiveBusInfo> getActiveBuses(List<BusLine> lines,
                                                      int currentTime,
                                                      int dayType) {
-        float preciseTime = getCurrentTimeMinutesWithSeconds();
+        // Use the provided currentTime parameter, add current seconds for smooth animation
+        Calendar cal = Calendar.getInstance();
+        int seconds = cal.get(Calendar.SECOND);
+        float preciseTime = currentTime + (seconds / 60.0f);
+
         return getActiveBusesAtTime(lines, preciseTime, dayType);
     }
 

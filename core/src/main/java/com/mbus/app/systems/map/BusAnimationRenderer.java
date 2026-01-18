@@ -11,7 +11,9 @@ import com.mbus.app.model.ZoomXY;
 import com.mbus.app.utils.BusPositionCalculator;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class BusAnimationRenderer {
 
@@ -19,6 +21,10 @@ public class BusAnimationRenderer {
     private static final float MIN_ZOOM_SCALE = 0.8f;
     private static final float MAX_ZOOM_SCALE = 5f;
     private static final float ZOOM_SCALE_FACTOR = 6f;
+
+    // Smoothing constants
+    private static final float INTERPOLATION_SPEED = 8f; // Higher = faster catch-up
+    private static final float POSITION_THRESHOLD = 0.0001f; // Min movement before interpolating
 
     private final SpriteBatch spriteBatch;
     private TextureRegion busNorth;
@@ -29,6 +35,23 @@ public class BusAnimationRenderer {
     private TextureRegion busSouthwest;
     private TextureRegion busWest;
     private TextureRegion busNorthwest;
+
+    // Store interpolated positions for each bus
+    private Map<String, BusRenderState> busStates = new HashMap<String, BusRenderState>();
+
+    private static class BusRenderState {
+        Geolocation currentPosition;
+        Geolocation targetPosition;
+        float currentAngle;
+        float targetAngle;
+
+        BusRenderState(Geolocation position, float angle) {
+            this.currentPosition = position;
+            this.targetPosition = position;
+            this.currentAngle = angle;
+            this.targetAngle = angle;
+        }
+    }
 
     public BusAnimationRenderer(SpriteBatch spriteBatch) {
         this.spriteBatch = spriteBatch;
@@ -52,7 +75,7 @@ public class BusAnimationRenderer {
                                   int dayType, ZoomXY beginTile, float cameraZoom, float delta) {
         if (selectedLine == null || busNorth == null) return;
 
-        // Use precise time with seconds for smooth animation
+        // Get current bus positions based on schedule
         List<BusPositionCalculator.ActiveBusInfo> activeBuses =
             BusPositionCalculator.getActiveBuses(
                 java.util.Collections.singletonList(selectedLine),
@@ -69,70 +92,67 @@ public class BusAnimationRenderer {
         float zoomScale = calculateZoomScale(cameraZoom);
 
         for (BusPositionCalculator.ActiveBusInfo activeBus : activeBuses) {
-            renderBus(activeBus, beginTile, zoomScale);
+            renderBusSmooth(activeBus, beginTile, zoomScale, delta);
         }
     }
 
-    private void renderBus(BusPositionCalculator.ActiveBusInfo activeBus,
-                           ZoomXY beginTile, float zoomScale) {
-        Geolocation position;
+    private void renderBusSmooth(BusPositionCalculator.ActiveBusInfo activeBus,
+                                 ZoomXY beginTile, float zoomScale, float delta) {
+        // Calculate target position
+        Geolocation targetPosition = calculateTargetPosition(activeBus);
+        if (targetPosition == null) return;
 
-        if (activeBus.isWaitingAtStop) {
-            // Bus is at a stop
-            List<BusStop> stops = activeBus.line.getStops();
-            if (activeBus.currentStopIndex >= 0 && activeBus.currentStopIndex < stops.size()) {
-                position = stops.get(activeBus.currentStopIndex).geo;
-            } else {
-                return;
-            }
-        } else {
-            // Bus is traveling between stops - use the progress directly
-            position = calculatePositionAlongPath(
-                activeBus.line,
-                activeBus.currentStopIndex,
-                activeBus.nextStopIndex,
-                activeBus.segmentProgress
-            );
-        }
-
-        if (position == null) return;
-
-        Vector2 pixelPos = MapRasterTiles.getPixelPosition(
-            position.lat,
-            position.lng,
-            beginTile.x,
-            beginTile.y
-        );
-
-        // Calculate direction for sprite
-        Geolocation targetPos;
-        if (activeBus.isWaitingAtStop) {
-            // When waiting, use next stop for direction
-            List<BusStop> stops = activeBus.line.getStops();
-            if (activeBus.nextStopIndex >= 0 && activeBus.nextStopIndex < stops.size()) {
-                targetPos = stops.get(activeBus.nextStopIndex).geo;
-            } else {
-                targetPos = position;
-            }
-        } else {
-            // When traveling, use next stop
-            List<BusStop> stops = activeBus.line.getStops();
-            if (activeBus.nextStopIndex >= 0 && activeBus.nextStopIndex < stops.size()) {
-                targetPos = stops.get(activeBus.nextStopIndex).geo;
-            } else {
-                targetPos = position;
-            }
-        }
-
+        // Calculate target direction
+        Geolocation directionTarget = calculateDirectionTarget(activeBus);
         Vector2 targetPixel = MapRasterTiles.getPixelPosition(
-            targetPos.lat,
-            targetPos.lng,
+            directionTarget.lat, directionTarget.lng, beginTile.x, beginTile.y);
+        Vector2 posPixel = MapRasterTiles.getPixelPosition(
+            targetPosition.lat, targetPosition.lng, beginTile.x, beginTile.y);
+        float targetAngle = calculateAngle(posPixel, targetPixel);
+
+        // Get or create render state for this bus
+        String busKey = getBusKey(activeBus);
+        BusRenderState state = busStates.get(busKey);
+
+        if (state == null) {
+            // First time seeing this bus - initialize at target position
+            state = new BusRenderState(targetPosition, targetAngle);
+            busStates.put(busKey, state);
+        }
+
+        // Smooth interpolation toward target position
+        state.targetPosition = targetPosition;
+        state.targetAngle = targetAngle;
+
+        // Interpolate position using delta time for frame-rate independent movement
+        float lerpFactor = Math.min(1.0f, INTERPOLATION_SPEED * delta);
+
+        double latDiff = state.targetPosition.lat - state.currentPosition.lat;
+        double lngDiff = state.targetPosition.lng - state.currentPosition.lng;
+
+        // Only interpolate if there's meaningful movement
+        if (Math.abs(latDiff) > POSITION_THRESHOLD || Math.abs(lngDiff) > POSITION_THRESHOLD) {
+            state.currentPosition = new Geolocation(
+                state.currentPosition.lat + latDiff * lerpFactor,
+                state.currentPosition.lng + lngDiff * lerpFactor
+            );
+        } else {
+            state.currentPosition = state.targetPosition;
+        }
+
+        // Interpolate angle (handle wrapping)
+        float angleDiff = normalizeAngle(state.targetAngle - state.currentAngle);
+        state.currentAngle = normalizeAngle(state.currentAngle + angleDiff * lerpFactor);
+
+        // Render at interpolated position
+        Vector2 pixelPos = MapRasterTiles.getPixelPosition(
+            state.currentPosition.lat,
+            state.currentPosition.lng,
             beginTile.x,
             beginTile.y
         );
 
-        float angle = calculateAngle(pixelPos, targetPixel);
-        TextureRegion busSprite = getBusSpriteForDirection(angle);
+        TextureRegion busSprite = getBusSpriteForDirection(state.currentAngle);
 
         float size = BUS_SPRITE_SIZE * zoomScale;
         float halfSize = size / 2f;
@@ -144,6 +164,57 @@ public class BusAnimationRenderer {
             size,
             size
         );
+    }
+
+    private Geolocation calculateTargetPosition(BusPositionCalculator.ActiveBusInfo activeBus) {
+        if (activeBus.isWaitingAtStop) {
+            // Bus is at a stop
+            List<BusStop> stops = activeBus.line.getStops();
+            if (activeBus.currentStopIndex >= 0 && activeBus.currentStopIndex < stops.size()) {
+                return stops.get(activeBus.currentStopIndex).geo;
+            } else {
+                return null;
+            }
+        } else {
+            // Bus is traveling between stops
+            return calculatePositionAlongPath(
+                activeBus.line,
+                activeBus.currentStopIndex,
+                activeBus.nextStopIndex,
+                activeBus.segmentProgress
+            );
+        }
+    }
+
+    private Geolocation calculateDirectionTarget(BusPositionCalculator.ActiveBusInfo activeBus) {
+        List<BusStop> stops = activeBus.line.getStops();
+
+        if (activeBus.isWaitingAtStop) {
+            // When waiting, use next stop for direction
+            if (activeBus.nextStopIndex >= 0 && activeBus.nextStopIndex < stops.size()) {
+                return stops.get(activeBus.nextStopIndex).geo;
+            }
+        } else {
+            // When traveling, use next stop
+            if (activeBus.nextStopIndex >= 0 && activeBus.nextStopIndex < stops.size()) {
+                return stops.get(activeBus.nextStopIndex).geo;
+            }
+        }
+
+        // Fallback to current position
+        return calculateTargetPosition(activeBus);
+    }
+
+    private String getBusKey(BusPositionCalculator.ActiveBusInfo activeBus) {
+        return activeBus.line.lineId + "_" +
+            activeBus.schedule.scheduleId + "_" +
+            activeBus.schedule.departureTime;
+    }
+
+    private float normalizeAngle(float angle) {
+        while (angle > 180) angle -= 360;
+        while (angle < -180) angle += 360;
+        return angle;
     }
 
     private Geolocation calculatePositionAlongPath(BusLine line,
@@ -313,6 +384,6 @@ public class BusAnimationRenderer {
     }
 
     public void clearStates() {
-        // No states to clear in this simplified version
+        busStates.clear();
     }
 }

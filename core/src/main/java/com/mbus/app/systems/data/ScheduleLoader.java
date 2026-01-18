@@ -145,7 +145,7 @@ public class ScheduleLoader {
 
             boolean isUrbanLine = line.lineId < 100;
 
-            int routeDuration = estimateRouteDuration(line.getStops().size());
+            int routeDuration = estimateRouteDuration(line, isUrbanLine);
 
             int dayType = 2;
 
@@ -153,13 +153,13 @@ public class ScheduleLoader {
                 schedules.addAll(generateMultiTripSchedule(
                     line, dayType, scheduleIdCounter,
                     0, 24 * 60,
-                    3, 20, routeDuration, random));
-                scheduleIdCounter += 100;
+                    2, 18, routeDuration, random));
+                scheduleIdCounter += 50;
             } else {
                 schedules.addAll(generateMultiTripSchedule(
                     line, dayType, scheduleIdCounter,
                     0, 24 * 60,
-                    2, 60, routeDuration, random));
+                    2, 35, routeDuration, random));
                 scheduleIdCounter += 50;
             }
         }
@@ -206,8 +206,14 @@ public class ScheduleLoader {
         return schedules;
     }
 
-    private static int estimateRouteDuration(int numStops) {
-        return Math.max(10, numStops * 2);
+    private static int estimateRouteDuration(BusLine line, boolean isUrbanLine) {
+        int numStops = line.getStops().size();
+
+        if (isUrbanLine) {
+            return 5 + (int)(numStops * 1.5f);
+        } else {
+            return 8 + (int)(numStops * 2.0f);
+        }
     }
 
     private static List<BusSchedule.StopTime> calculateStopTimes(
@@ -216,7 +222,7 @@ public class ScheduleLoader {
         List<BusSchedule.StopTime> stopTimes = new ArrayList<BusSchedule.StopTime>();
         int currentTime = departureTime;
 
-        int initialTravelMinutes = 2 + random.nextInt(4);
+        int initialTravelMinutes = 2 + random.nextInt(3);
         currentTime += initialTravelMinutes;
 
         for (int i = 0; i < stops.size(); i++) {
@@ -225,10 +231,10 @@ public class ScheduleLoader {
             stopTimes.add(new BusSchedule.StopTime(stop.idAvpost, i, currentTime));
 
             if (i < stops.size() - 1) {
-                int baseTravelTime = 1 + random.nextInt(3);
+                int baseTravelTime = 1;
 
-                if (random.nextFloat() < 0.2f) {
-                    baseTravelTime += 1;
+                if (random.nextFloat() < 0.3f) {
+                    baseTravelTime = 2;
                 }
 
                 currentTime += baseTravelTime;
