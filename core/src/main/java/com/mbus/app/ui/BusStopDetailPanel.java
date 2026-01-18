@@ -58,6 +58,7 @@ public class BusStopDetailPanel {
     public void showBusStop(BusStop busStop) {
         this.currentStop = busStop;
         this.visible = true;
+        this.useCustomTime = false;
 
         rebuildUI();
     }

@@ -147,20 +147,20 @@ public class ScheduleLoader {
 
             int routeDuration = estimateRouteDuration(line.getStops().size());
 
-            for (int dayType = 0; dayType <= 2; dayType++) {
-                if (isUrbanLine) {
-                    schedules.addAll(generateMultiTripSchedule(
-                        line, dayType, scheduleIdCounter,
-                        6 * 60, 24 * 60,
-                        2, 60, routeDuration, random));
-                    scheduleIdCounter += 40;
-                } else {
-                    schedules.addAll(generateMultiTripSchedule(
-                        line, dayType, scheduleIdCounter,
-                        6 * 60, 23 * 60,
-                        2, 90, routeDuration, random));
-                    scheduleIdCounter += 30;
-                }
+            int dayType = 2;
+
+            if (isUrbanLine) {
+                schedules.addAll(generateMultiTripSchedule(
+                    line, dayType, scheduleIdCounter,
+                    0, 24 * 60,
+                    3, 20, routeDuration, random));
+                scheduleIdCounter += 100;
+            } else {
+                schedules.addAll(generateMultiTripSchedule(
+                    line, dayType, scheduleIdCounter,
+                    0, 24 * 60,
+                    2, 60, routeDuration, random));
+                scheduleIdCounter += 50;
             }
         }
 
@@ -207,7 +207,7 @@ public class ScheduleLoader {
     }
 
     private static int estimateRouteDuration(int numStops) {
-        return numStops;
+        return Math.max(10, numStops * 2);
     }
 
     private static List<BusSchedule.StopTime> calculateStopTimes(
@@ -216,43 +216,22 @@ public class ScheduleLoader {
         List<BusSchedule.StopTime> stopTimes = new ArrayList<BusSchedule.StopTime>();
         int currentTime = departureTime;
 
+        int initialTravelMinutes = 2 + random.nextInt(4);
+        currentTime += initialTravelMinutes;
+
         for (int i = 0; i < stops.size(); i++) {
             BusStop stop = stops.get(i);
 
-            // Add travel time BEFORE arriving at each stop (including the first one!)
-            if (i == 0) {
-                // Travel from start of route to first stop
-                int travelSeconds = 30 + random.nextInt(31);
-                int travelMinutes = travelSeconds / 60;
-
-                if (random.nextFloat() < 0.3f) {
-                    travelMinutes += 1;
-                }
-
-                if (travelMinutes == 0) {
-                    travelMinutes = 1;
-                }
-
-                currentTime += travelMinutes;
-            }
-
-            // Add the stop with current arrival time
             stopTimes.add(new BusSchedule.StopTime(stop.idAvpost, i, currentTime));
 
-            // Add travel time to next stop (except for last stop)
             if (i < stops.size() - 1) {
-                int travelSeconds = 30 + random.nextInt(31);
-                int travelMinutes = travelSeconds / 60;
+                int baseTravelTime = 1 + random.nextInt(3);
 
-                if (random.nextFloat() < 0.3f) {
-                    travelMinutes += 1;
+                if (random.nextFloat() < 0.2f) {
+                    baseTravelTime += 1;
                 }
 
-                if (travelMinutes == 0) {
-                    travelMinutes = 1;
-                }
-
-                currentTime += travelMinutes;
+                currentTime += baseTravelTime;
             }
         }
 

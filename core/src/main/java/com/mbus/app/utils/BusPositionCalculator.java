@@ -9,8 +9,7 @@ import java.util.List;
 
 public class BusPositionCalculator {
 
-    // Bus waits at each stop for 5 seconds (converted to minutes)
-    private static final float STOP_WAIT_TIME_MINUTES = 5f / 60f; // 5 seconds
+    private static final float STOP_WAIT_TIME_MINUTES = 0.5f;
 
     public static class ActiveBusInfo {
         public final BusLine line;
@@ -19,22 +18,37 @@ public class BusPositionCalculator {
         public final int nextStopIndex;
         public final float segmentProgress;
         public final int minutesUntilNextStop;
+        public final boolean isWaitingAtStop;
 
         public ActiveBusInfo(BusLine line, BusSchedule schedule,
                              int currentStopIndex, int nextStopIndex,
-                             float segmentProgress, int minutesUntilNextStop) {
+                             float segmentProgress, int minutesUntilNextStop,
+                             boolean isWaitingAtStop) {
             this.line = line;
             this.schedule = schedule;
             this.currentStopIndex = currentStopIndex;
             this.nextStopIndex = nextStopIndex;
             this.segmentProgress = segmentProgress;
             this.minutesUntilNextStop = minutesUntilNextStop;
+            this.isWaitingAtStop = isWaitingAtStop;
         }
     }
 
     public static int getCurrentTimeMinutes() {
         Calendar cal = Calendar.getInstance();
         return cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE);
+    }
+
+    /**
+     * Get current time with sub-minute precision (includes seconds)
+     * @return Time in minutes as a float (e.g., 90.5 for 1:30:30)
+     */
+    public static float getCurrentTimeMinutesWithSeconds() {
+        Calendar cal = Calendar.getInstance();
+        int hours = cal.get(Calendar.HOUR_OF_DAY);
+        int minutes = cal.get(Calendar.MINUTE);
+        int seconds = cal.get(Calendar.SECOND);
+        return hours * 60.0f + minutes + (seconds / 60.0f);
     }
 
     public static int getCurrentDayType() {
@@ -50,9 +64,22 @@ public class BusPositionCalculator {
         }
     }
 
+    /**
+     * Get active buses using current real-time (with seconds precision)
+     */
     public static List<ActiveBusInfo> getActiveBuses(List<BusLine> lines,
                                                      int currentTime,
                                                      int dayType) {
+        float preciseTime = getCurrentTimeMinutesWithSeconds();
+        return getActiveBusesAtTime(lines, preciseTime, dayType);
+    }
+
+    /**
+     * Get active buses at a specific time (with sub-minute precision)
+     */
+    public static List<ActiveBusInfo> getActiveBusesAtTime(List<BusLine> lines,
+                                                           float preciseTime,
+                                                           int dayType) {
         List<ActiveBusInfo> activeBuses = new ArrayList<ActiveBusInfo>();
 
         for (BusLine line : lines) {
@@ -62,12 +89,12 @@ public class BusPositionCalculator {
                 List<BusSchedule.StopTime> stopTimes = schedule.getStopTimes();
                 if (stopTimes.size() < 2) continue;
 
-                int departureTime = schedule.departureTime;
+                float departureTime = (float) schedule.departureTime;
                 int lastStopTime = stopTimes.get(stopTimes.size() - 1).arrivalTime;
+                float finalArrival = lastStopTime + STOP_WAIT_TIME_MINUTES;
 
-                // Bus is active from departure until it reaches the final stop
-                if (currentTime >= departureTime && currentTime <= lastStopTime) {
-                    ActiveBusInfo activeBus = calculateBusSegment(line, schedule, currentTime);
+                if (preciseTime >= departureTime && preciseTime <= finalArrival) {
+                    ActiveBusInfo activeBus = calculateBusSegment(line, schedule, preciseTime);
                     if (activeBus != null) {
                         activeBuses.add(activeBus);
                     }
@@ -80,49 +107,57 @@ public class BusPositionCalculator {
 
     private static ActiveBusInfo calculateBusSegment(BusLine line,
                                                      BusSchedule schedule,
-                                                     int currentTime) {
+                                                     float preciseCurrentTime) {
         List<BusSchedule.StopTime> stopTimes = schedule.getStopTimes();
         if (stopTimes.size() < 2) return null;
 
-        // Check if bus is traveling from departure point to first stop
         BusSchedule.StopTime firstStop = stopTimes.get(0);
         int firstStopArrival = firstStop.arrivalTime;
 
-        if (currentTime < firstStopArrival) {
-            // Bus is en route to first stop
-            int departureTime = schedule.departureTime;
-            int totalTime = firstStopArrival - departureTime;
-            int elapsedTime = currentTime - departureTime;
+        if (preciseCurrentTime < firstStopArrival) {
+            float departureTime = (float) schedule.departureTime;
+            float totalTime = firstStopArrival - departureTime;
+            float elapsedTime = preciseCurrentTime - departureTime;
 
             if (totalTime > 0) {
-                float progress = (float) elapsedTime / totalTime;
+                float progress = elapsedTime / totalTime;
                 progress = Math.max(0f, Math.min(1f, progress));
-                int minutesUntilNext = firstStopArrival - currentTime;
+                int minutesUntilNext = (int) Math.ceil(firstStopArrival - preciseCurrentTime);
 
-                return new ActiveBusInfo(line, schedule, 0, 0,
-                    progress, minutesUntilNext);
+                return new ActiveBusInfo(line, schedule, -1, 0,
+                    progress, minutesUntilNext, false);
             }
         }
 
-        // Check each segment between stops
-        for (int i = 0; i < stopTimes.size() - 1; i++) {
+        for (int i = 0; i < stopTimes.size(); i++) {
             BusSchedule.StopTime currentStop = stopTimes.get(i);
-            BusSchedule.StopTime nextStop = stopTimes.get(i + 1);
+            float currentStopArrival = (float) currentStop.arrivalTime;
+            float currentStopDeparture = currentStopArrival + STOP_WAIT_TIME_MINUTES;
 
-            int currentStopArrival = currentStop.arrivalTime;
-            int nextStopArrival = nextStop.arrivalTime;
+            if (preciseCurrentTime >= currentStopArrival && preciseCurrentTime < currentStopDeparture) {
+                float waitProgress = (preciseCurrentTime - currentStopArrival) / STOP_WAIT_TIME_MINUTES;
+                waitProgress = Math.max(0f, Math.min(1f, waitProgress));
 
-            // Bus travels between stops - NO WAITING, start moving immediately
-            if (currentTime >= currentStopArrival && currentTime <= nextStopArrival) {
-                int travelTime = nextStopArrival - currentStopArrival;
-                int elapsedTravelTime = currentTime - currentStopArrival;
+                return new ActiveBusInfo(line, schedule, i, i,
+                    waitProgress, 0, true);
+            }
 
-                float progress = travelTime > 0 ? (float) elapsedTravelTime / travelTime : 1f;
-                progress = Math.max(0f, Math.min(1f, progress));
+            if (i < stopTimes.size() - 1) {
+                BusSchedule.StopTime nextStop = stopTimes.get(i + 1);
+                float nextStopArrival = (float) nextStop.arrivalTime;
 
-                int minutesUntilNext = nextStopArrival - currentTime;
+                if (preciseCurrentTime >= currentStopDeparture && preciseCurrentTime < nextStopArrival) {
+                    float travelTime = nextStopArrival - currentStopDeparture;
+                    float elapsedTravelTime = preciseCurrentTime - currentStopDeparture;
 
-                return new ActiveBusInfo(line, schedule, i, i + 1, progress, minutesUntilNext);
+                    float progress = travelTime > 0 ? elapsedTravelTime / travelTime : 1f;
+                    progress = Math.max(0f, Math.min(1f, progress));
+
+                    int minutesUntilNext = (int) Math.ceil(nextStopArrival - preciseCurrentTime);
+
+                    return new ActiveBusInfo(line, schedule, i, i + 1,
+                        progress, minutesUntilNext, false);
+                }
             }
         }
 
