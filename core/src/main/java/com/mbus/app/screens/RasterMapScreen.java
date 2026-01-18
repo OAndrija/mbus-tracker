@@ -125,7 +125,7 @@ public class RasterMapScreen implements Screen {
             Gdx.app.error("RasterMapScreen", "Failed to load bus sprites");
         }
 
-        // Set initial time
+        // Set initial time to current real-world time
         mapRenderer.setCurrentTime(
             BusPositionCalculator.getCurrentTimeMinutes(),
             BusPositionCalculator.getCurrentDayType()
@@ -175,41 +175,18 @@ public class RasterMapScreen implements Screen {
                 Gdx.app.log("RasterMapScreen", "HUD clicked bus stop: " + busStop.name);
                 mapRenderer.setSelectedStop(busStop);
                 detailPanel.showBusStop(busStop);
-                detailPanel.setScheduleTime(hudPanel.getCurrentTime(), hudPanel.getCurrentDayOfWeek());
+                // Use current real-world time for schedules
+                int currentTime = BusPositionCalculator.getCurrentTimeMinutes();
+                int dayType = BusPositionCalculator.getCurrentDayType();
+                String timeStr = BusPositionCalculator.formatTime(currentTime);
+                detailPanel.setScheduleTime(timeStr, dayType);
                 zoomToBusStop(busStop);
             }
         });
 
-        hudPanel.setTimeChangedCallback(new HudPanel.TimeChangedCallback() {
-            @Override
-            public void onTimeChanged(String time, int dayOfWeek) {
-                Gdx.app.log("RasterMapScreen", "Time changed to: " + time + " on day " + dayOfWeek);
-
-                // Parse time to minutes
-                int timeMinutes = parseTimeToMinutes(time);
-
-                // Update map renderer
-                mapRenderer.setCurrentTime(timeMinutes, dayOfWeek);
-
-                // Update the detail panel if it's currently showing a bus stop
-                if (detailPanel.isVisible()) {
-                    detailPanel.setScheduleTime(time, dayOfWeek);
-                    detailPanel.refresh();
-                }
-            }
-        });
+        // Remove the time changed callback entirely since we're using real time only
 
         setupInput();
-    }
-
-    private int parseTimeToMinutes(String timeStr) {
-        try {
-            String[] parts = timeStr.split(":");
-            return Integer.parseInt(parts[0]) * 60 + Integer.parseInt(parts[1]);
-        } catch (Exception e) {
-            Gdx.app.error("RasterMapScreen", "Failed to parse time: " + timeStr, e);
-            return BusPositionCalculator.getCurrentTimeMinutes();
-        }
     }
 
     private void zoomToBusStop(BusStop busStop) {
@@ -250,21 +227,23 @@ public class RasterMapScreen implements Screen {
         app.viewport.apply();
         app.camera.update();
 
-        // Update bus positions every frame based on current time
-        mapRenderer.setCurrentTime(
-            BusPositionCalculator.getCurrentTimeMinutes(),
-            BusPositionCalculator.getCurrentDayType()
-        );
+        // Always use current real-world time for bus positions
+        int currentTime = BusPositionCalculator.getCurrentTimeMinutes();
+        int dayType = BusPositionCalculator.getCurrentDayType();
+        mapRenderer.setCurrentTime(currentTime, dayType);
 
         mapRenderer.render(delta);
 
         hudPanel.render();
         detailPanel.render();
 
+        // Refresh detail panel periodically with current time
         timeSinceLastRefresh += delta;
         if (timeSinceLastRefresh >= REFRESH_INTERVAL) {
             timeSinceLastRefresh = 0f;
             if (detailPanel.isVisible()) {
+                String timeStr = BusPositionCalculator.formatTime(currentTime);
+                detailPanel.setScheduleTime(timeStr, dayType);
                 detailPanel.refresh();
             }
         }
@@ -366,27 +345,6 @@ public class RasterMapScreen implements Screen {
         app.camera.position.y = MathUtils.clamp(app.camera.position.y, minY, maxY);
     }
 
-    private void loadTiles() {
-        try {
-            ZoomXY centerTile = MapRasterTiles.getTileNumber(
-                CENTER_GEOLOCATION.lat,
-                CENTER_GEOLOCATION.lng,
-                Constants.ZOOM
-            );
-
-            mapTiles = MapRasterTiles.getRasterTileZone(centerTile, Constants.NUM_TILES);
-
-            beginTile = new ZoomXY(
-                Constants.ZOOM,
-                centerTile.x - ((Constants.NUM_TILES - 1) / 2),
-                centerTile.y - ((Constants.NUM_TILES - 1) / 2)
-            );
-
-        } catch (IOException e) {
-            Gdx.app.error("RasterMapScreen", "Failed to load tiles", e);
-        }
-    }
-
     private void setupInput() {
         mapGestureListener = new MapGestureListener(app.camera);
 
@@ -407,10 +365,12 @@ public class RasterMapScreen implements Screen {
                 if (mapRenderer.isShowingMarkers()) {
                     Gdx.app.log("RasterMapScreen", "Map clicked bus stop: " + busStop.name);
                     mapRenderer.setSelectedStop(busStop);
-                    // Don't deselect the line when clicking a bus stop
-                    // mapRenderer.setSelectedLine(null);
                     detailPanel.showBusStop(busStop);
-                    detailPanel.setScheduleTime(hudPanel.getCurrentTime(), hudPanel.getCurrentDayOfWeek());
+                    // Use current real-world time
+                    int currentTime = BusPositionCalculator.getCurrentTimeMinutes();
+                    int dayType = BusPositionCalculator.getCurrentDayType();
+                    String timeStr = BusPositionCalculator.formatTime(currentTime);
+                    detailPanel.setScheduleTime(timeStr, dayType);
                     updateHudBoundaries();
                 }
             }

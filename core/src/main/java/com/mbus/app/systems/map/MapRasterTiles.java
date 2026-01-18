@@ -25,7 +25,6 @@ public class MapRasterTiles {
 
     private static final Logger log = new Logger("MapRasterTiles", Logger.INFO);
 
-    // Geoapify raster tiles
     static String mapServiceUrl = "https://maps.geoapify.com/v1/tile/";
     static String token = "?&apiKey=" + Keys.GEOAPIFY;
     static String tilesetId = "osm-bright-smooth";
@@ -33,7 +32,6 @@ public class MapRasterTiles {
 
     public static final int TILE_SIZE = 512;
 
-    // Cache folder in LibGDX local storage
     private static final String CACHE_FOLDER = "tile_cache/";
 
     static {
@@ -45,108 +43,9 @@ public class MapRasterTiles {
             log.info("Using existing tile cache: " + cacheDir.path());
         }
 
-        // Enable HTTP connection pooling and keep-alive
         System.setProperty("http.keepAlive", "true");
         System.setProperty("http.maxConnections", "16");
     }
-
-    // ===========================
-    // TILE FETCHING WITH CACHING
-    // ===========================
-
-    public static Texture getRasterTile(int zoom, int x, int y) throws IOException {
-        String fileName = zoom + "_" + x + "_" + y + ".png";
-        FileHandle file = Gdx.files.local(CACHE_FOLDER + fileName);
-
-        // 1) LOAD FROM CACHE
-        if (file.exists()) {
-            byte[] cached = readFileBytes(fileName);
-            if (cached != null) {
-                log.info("Cache hit → " + fileName);
-                return getTexture(cached);
-            } else {
-                log.error("Cache read failed for " + fileName + ", redownloading.");
-            }
-        }
-
-        // 2) DOWNLOAD
-        String urlStr = mapServiceUrl + tilesetId + "/" + zoom + "/" + x + "/" + y + format + token;
-        log.info("Downloading tile: zoom=" + zoom + " x=" + x + " y=" + y);
-        log.debug("URL: " + urlStr);
-
-        URL url = new URL(urlStr);
-        ByteArrayOutputStream bis = fetchTile(url);
-
-        log.info("Tile downloaded (" + bis.size() + " bytes)");
-
-        // 3) SAVE TO CACHE
-        saveFileBytes(fileName, bis.toByteArray());
-
-        return getTexture(bis.toByteArray());
-    }
-
-    public static Texture getRasterTile(String zoomXY) throws IOException {
-        String safeName = zoomXY.replace("/", "_") + ".png";
-        FileHandle file = Gdx.files.local(CACHE_FOLDER + safeName);
-
-        if (file.exists()) {
-            byte[] cached = readFileBytes(safeName);
-            if (cached != null) {
-                log.info("Cache hit → " + safeName);
-                return getTexture(cached);
-            } else {
-                log.error("Cache read failed for " + safeName + ", redownloading.");
-            }
-        }
-
-        String urlStr = mapServiceUrl + tilesetId + "/" + zoomXY + format + token;
-        log.info("Downloading tile: " + zoomXY);
-
-        URL url = new URL(urlStr);
-        ByteArrayOutputStream bis = fetchTile(url);
-
-        log.info("Tile downloaded (" + bis.size() + " bytes)");
-
-        saveFileBytes(safeName, bis.toByteArray());
-
-        return getTexture(bis.toByteArray());
-    }
-
-    public static Texture getRasterTile(ZoomXY zoomXY) throws IOException {
-        return getRasterTile(zoomXY.zoom, zoomXY.x, zoomXY.y);
-    }
-
-    public static Texture[] getRasterTileZone(ZoomXY zoomXY, int size) throws IOException {
-        log.info("Fetching tile zone: center=" + zoomXY + " size=" + size);
-
-        Texture[] array = new Texture[size * size];
-        int[] factorY = new int[size * size];
-        int[] factorX = new int[size * size];
-
-        int value = (size - 1) / -2;
-
-        for (int i = 0; i < size; i++) {
-            for (int j = 0; j < size; j++) {
-                factorY[i * size + j] = value;
-                factorX[i + j * size] = value;
-            }
-            value++;
-        }
-
-        for (int i = 0; i < size * size; i++) {
-            int tx = zoomXY.x + factorX[i];
-            int ty = zoomXY.y + factorY[i];
-
-            log.info("Zone tile: " + zoomXY.zoom + "/" + tx + "/" + ty);
-            array[i] = getRasterTile(zoomXY.zoom, tx, ty);
-        }
-
-        return array;
-    }
-
-    // ===========================
-    // FILE I/O HELPERS (LibGDX)
-    // ===========================
 
     private static void saveFileBytes(String fileName, byte[] data) {
         try {
@@ -180,7 +79,6 @@ public class MapRasterTiles {
         try {
             connection = (HttpURLConnection) url.openConnection();
 
-            // Enable keep-alive and optimize connection
             connection.setRequestProperty("Connection", "keep-alive");
             connection.setConnectTimeout(5000);
             connection.setReadTimeout(10000);
@@ -188,7 +86,7 @@ public class MapRasterTiles {
 
             ByteArrayOutputStream bis = new ByteArrayOutputStream();
             InputStream is = connection.getInputStream();
-            byte[] buffer = new byte[8192]; // Larger buffer for better performance
+            byte[] buffer = new byte[8192];
 
             int n;
             while ((n = is.read(buffer)) > 0) {
@@ -206,10 +104,6 @@ public class MapRasterTiles {
                 connection.getInputStream().close();
             }
         }
-    }
-
-    public static Texture getTexture(byte[] array) {
-        return new Texture(new Pixmap(array, 0, array.length));
     }
 
     public static ZoomXY getTileNumber(final double lat, final double lon, final int zoom) {
@@ -285,86 +179,5 @@ public class MapRasterTiles {
 
     public static Texture createTextureFromData(byte[] data) {
         return new Texture(new Pixmap(data, 0, data.length));
-    }
-
-    public static Geolocation[][] fetchPath(Geolocation[] geolocations) {
-        log.info("Fetching interpolated route for " + geolocations.length + " points");
-
-        double[][] coordinates = new double[geolocations.length][2];
-        for (int i = 0; i < geolocations.length; i++) {
-            coordinates[i] = new double[]{geolocations[i].lat, geolocations[i].lng};
-        }
-
-        try {
-            return getRouteFromCoordinates(coordinates);
-        } catch (Exception e) {
-            log.error("Routing failed", e);
-        }
-        return null;
-    }
-
-    public static Geolocation[][] getRouteFromCoordinates(double[][] coordinates) throws Exception {
-        log.info("Requesting Geoapify route…");
-
-        StringBuilder coordinatesPath = new StringBuilder();
-        for (int i = 0; i < coordinates.length; i++) {
-            coordinatesPath.append(coordinates[i][0]).append(",").append(coordinates[i][1]);
-            if (i < coordinates.length - 1) coordinatesPath.append("|");
-        }
-
-        String urlString = "https://api.geoapify.com/v1/routing?waypoints=" + coordinatesPath +
-            "&mode=drive&apiKey=" + Keys.GEOAPIFY;
-
-        log.debug("Routing URL: " + urlString);
-
-        URL url = new URL(urlString);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-
-        connection.setRequestMethod("GET");
-        connection.setRequestProperty("Connection", "keep-alive");
-        connection.setConnectTimeout(5000);
-        connection.setReadTimeout(10000);
-
-        if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
-            log.error("Routing request failed. HTTP " + connection.getResponseCode());
-            return null;
-        }
-
-        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-        StringBuilder response = new StringBuilder();
-
-        String line;
-        while ((line = in.readLine()) != null) response.append(line);
-
-        in.close();
-
-        JSONObject jsonResponse = new JSONObject(response.toString());
-        JSONArray features = jsonResponse.getJSONArray("features");
-
-        if (features.length() == 0) {
-            log.error("Routing API returned no features.");
-            return null;
-        }
-
-        JSONObject geometry = features.getJSONObject(0).getJSONObject("geometry");
-        JSONArray coordinatesArray = geometry.getJSONArray("coordinates");
-
-        Geolocation[][] geolocations = new Geolocation[coordinatesArray.length()][];
-
-        for (int i = 0; i < coordinatesArray.length(); i++) {
-            JSONArray coord = coordinatesArray.getJSONArray(i);
-            Geolocation[] segment = new Geolocation[coord.length()];
-
-            for (int j = 0; j < coord.length(); j++) {
-                JSONArray c = coord.getJSONArray(j);
-                // GeoJSON: [lon, lat]
-                segment[j] = new Geolocation(c.getDouble(1), c.getDouble(0));
-            }
-
-            geolocations[i] = segment;
-        }
-
-        log.info("Route parsing complete.");
-        return geolocations;
     }
 }

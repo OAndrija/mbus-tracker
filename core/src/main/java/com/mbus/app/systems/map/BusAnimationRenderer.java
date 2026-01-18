@@ -5,7 +5,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
 import com.mbus.app.model.BusLine;
-import com.mbus.app.model.BusSchedule;
+import com.mbus.app.model.BusStop;
 import com.mbus.app.model.Geolocation;
 import com.mbus.app.model.ZoomXY;
 import com.mbus.app.utils.BusPositionCalculator;
@@ -13,15 +13,12 @@ import com.mbus.app.utils.BusPositionCalculator;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Renders animated buses moving smoothly along their routes
- */
 public class BusAnimationRenderer {
 
-    private static final float BUS_SPRITE_SIZE = 48f;
+    private static final float BUS_SPRITE_SIZE = 56f;
     private static final float MIN_ZOOM_SCALE = 0.8f;
-    private static final float MAX_ZOOM_SCALE = 3.5f;
-    private static final float ZOOM_SCALE_FACTOR = 5f;
+    private static final float MAX_ZOOM_SCALE = 5f;
+    private static final float ZOOM_SCALE_FACTOR = 6f;
 
     private final SpriteBatch spriteBatch;
     private TextureRegion busNorth;
@@ -33,26 +30,28 @@ public class BusAnimationRenderer {
     private TextureRegion busWest;
     private TextureRegion busNorthwest;
 
-    // Track previous positions for smooth interpolation
     private static class BusAnimationState {
         Geolocation currentPosition;
         Geolocation targetPosition;
-        float interpolationProgress; // 0.0 to 1.0
+        float interpolationProgress;
         int currentStopIndex;
         int targetStopIndex;
-        float animationSpeed; // How fast to interpolate (based on schedule)
+        float animationSpeed;
+        int currentPathStartIdx;
+        int currentPathEndIdx;
 
         BusAnimationState(Geolocation start) {
             this.currentPosition = start;
             this.targetPosition = start;
-            this.interpolationProgress = 1.0f; // Start at target
+            this.interpolationProgress = 1.0f;
             this.currentStopIndex = 0;
             this.targetStopIndex = 0;
             this.animationSpeed = 1.0f;
+            this.currentPathStartIdx = 0;
+            this.currentPathEndIdx = 0;
         }
     }
 
-    // Store animation state for each active bus (key: line+schedule id)
     private final java.util.Map<String, BusAnimationState> busStates =
         new java.util.HashMap<String, BusAnimationState>();
 
@@ -60,9 +59,6 @@ public class BusAnimationRenderer {
         this.spriteBatch = spriteBatch;
     }
 
-    /**
-     * Load bus sprite regions from texture atlas
-     */
     public void loadBusSprites(TextureRegion north, TextureRegion northeast,
                                TextureRegion east, TextureRegion southeast,
                                TextureRegion south, TextureRegion southwest,
@@ -77,21 +73,17 @@ public class BusAnimationRenderer {
         this.busNorthwest = northwest;
     }
 
-    /**
-     * Render all active buses for a selected line with smooth animation
-     */
     public void renderActiveBuses(BusLine selectedLine, int currentTime,
                                   int dayType, ZoomXY beginTile, float cameraZoom, float delta) {
         if (selectedLine == null || busNorth == null) return;
 
-        List<BusPositionCalculator.ActiveBus> activeBuses =
+        List<BusPositionCalculator.ActiveBusInfo> activeBuses =
             BusPositionCalculator.getActiveBuses(
                 java.util.Collections.singletonList(selectedLine),
                 currentTime,
                 dayType
             );
 
-        // Debug logging
         if (activeBuses.isEmpty()) {
             Gdx.app.log("BusAnimationRenderer",
                 "No active buses found for line " + selectedLine.lineId +
@@ -100,60 +92,57 @@ public class BusAnimationRenderer {
 
         float zoomScale = calculateZoomScale(cameraZoom);
 
-        // Clean up states for buses that are no longer active
         List<String> activeKeys = new ArrayList<String>();
-        for (BusPositionCalculator.ActiveBus activeBus : activeBuses) {
+        for (BusPositionCalculator.ActiveBusInfo activeBus : activeBuses) {
             activeKeys.add(getBusKey(activeBus));
         }
         busStates.keySet().retainAll(activeKeys);
 
-        // Render each active bus
-        for (BusPositionCalculator.ActiveBus activeBus : activeBuses) {
+        for (BusPositionCalculator.ActiveBusInfo activeBus : activeBuses) {
             updateAndRenderBus(activeBus, beginTile, zoomScale, delta);
         }
     }
 
-    /**
-     * Generate a unique key for each bus (line + schedule combination)
-     */
-    private String getBusKey(BusPositionCalculator.ActiveBus bus) {
+    private String getBusKey(BusPositionCalculator.ActiveBusInfo bus) {
         return bus.line.lineId + "_" + bus.schedule.scheduleId;
     }
 
-    /**
-     * Update bus animation state and render it
-     */
-    private void updateAndRenderBus(BusPositionCalculator.ActiveBus activeBus,
+    private void updateAndRenderBus(BusPositionCalculator.ActiveBusInfo activeBus,
                                     ZoomXY beginTile, float zoomScale, float delta) {
         String busKey = getBusKey(activeBus);
         BusAnimationState state = busStates.get(busKey);
 
-        // Initialize state if this is a new bus
+        Geolocation targetPos = calculatePositionAlongPath(
+            activeBus.line,
+            activeBus.currentStopIndex,
+            activeBus.nextStopIndex,
+            activeBus.segmentProgress
+        );
+
+        if (targetPos == null) return;
+
         if (state == null) {
-            state = new BusAnimationState(activeBus.currentPosition);
+            state = new BusAnimationState(targetPos);
             busStates.put(busKey, state);
         }
 
-        // Check if we need to update target (bus moved to next segment)
         if (activeBus.nextStopIndex != state.targetStopIndex) {
             state.currentPosition = state.targetPosition;
-            state.targetPosition = activeBus.currentPosition;
+            state.targetPosition = targetPos;
             state.currentStopIndex = state.targetStopIndex;
             state.targetStopIndex = activeBus.nextStopIndex;
             state.interpolationProgress = 0.0f;
 
-            // Calculate animation speed based on time to next stop
-            // If we have 2 minutes (120 seconds) to reach next stop, we need to interpolate
-            // over that duration at 60fps = 7200 frames
             float secondsToNextStop = activeBus.minutesUntilNextStop * 60f;
-            if (secondsToNextStop > 0) {
-                state.animationSpeed = 1.0f / secondsToNextStop; // Progress per second
+            float animationDuration = Math.max(secondsToNextStop * 0.6f, 3f);
+
+            if (animationDuration > 0) {
+                state.animationSpeed = 1.0f / animationDuration;
             } else {
-                state.animationSpeed = 1.0f; // Move instantly if no time left
+                state.animationSpeed = 1.0f;
             }
         }
 
-        // Update interpolation progress
         if (state.interpolationProgress < 1.0f) {
             state.interpolationProgress += state.animationSpeed * delta;
             if (state.interpolationProgress > 1.0f) {
@@ -161,15 +150,12 @@ public class BusAnimationRenderer {
             }
         }
 
-        // Apply easing for smoother motion
         float easedProgress = easeInOutCubic(state.interpolationProgress);
 
-        // Interpolate current position
         double currentLat = lerp(state.currentPosition.lat, state.targetPosition.lat, easedProgress);
         double currentLng = lerp(state.currentPosition.lng, state.targetPosition.lng, easedProgress);
         Geolocation animatedPosition = new Geolocation(currentLat, currentLng);
 
-        // Get pixel position
         Vector2 pixelPos = MapRasterTiles.getPixelPosition(
             animatedPosition.lat,
             animatedPosition.lng,
@@ -177,7 +163,6 @@ public class BusAnimationRenderer {
             beginTile.y
         );
 
-        // Calculate direction to target
         Vector2 targetPixel = MapRasterTiles.getPixelPosition(
             state.targetPosition.lat,
             state.targetPosition.lng,
@@ -185,11 +170,9 @@ public class BusAnimationRenderer {
             beginTile.y
         );
 
-        // Calculate angle and get appropriate sprite
         float angle = calculateAngle(pixelPos, targetPixel);
         TextureRegion busSprite = getBusSpriteForDirection(angle);
 
-        // Draw the bus
         float size = BUS_SPRITE_SIZE * zoomScale;
         float halfSize = size / 2f;
 
@@ -202,43 +185,127 @@ public class BusAnimationRenderer {
         );
     }
 
-    /**
-     * Linear interpolation
-     */
+    private Geolocation calculatePositionAlongPath(BusLine line,
+                                                   int currentStopIndex,
+                                                   int nextStopIndex,
+                                                   float segmentProgress) {
+        List<BusStop> stops = line.getStops();
+        List<Geolocation> path = line.getPath();
+
+        if (stops.isEmpty() || path.isEmpty()) return null;
+        if (currentStopIndex >= stops.size() || nextStopIndex >= stops.size()) return null;
+
+        BusStop currentStop = stops.get(currentStopIndex);
+        BusStop nextStop = stops.get(nextStopIndex);
+
+        int pathStartIdx = findNearestPathIndex(path, currentStop.geo);
+        int pathEndIdx = findNearestPathIndex(path, nextStop.geo);
+
+        if (pathStartIdx == -1 || pathEndIdx == -1) {
+            double lat = currentStop.geo.lat + (nextStop.geo.lat - currentStop.geo.lat) * segmentProgress;
+            double lng = currentStop.geo.lng + (nextStop.geo.lng - currentStop.geo.lng) * segmentProgress;
+            return new Geolocation(lat, lng);
+        }
+
+        if (pathStartIdx == pathEndIdx) {
+            return path.get(pathStartIdx);
+        }
+
+        if (pathStartIdx > pathEndIdx) {
+            int temp = pathStartIdx;
+            pathStartIdx = pathEndIdx;
+            pathEndIdx = temp;
+        }
+
+        return interpolateAlongPath(path, pathStartIdx, pathEndIdx, segmentProgress);
+    }
+
+    private int findNearestPathIndex(List<Geolocation> path, Geolocation target) {
+        if (path.isEmpty()) return -1;
+
+        int nearestIdx = 0;
+        double minDistance = distance(path.get(0), target);
+
+        for (int i = 1; i < path.size(); i++) {
+            double dist = distance(path.get(i), target);
+            if (dist < minDistance) {
+                minDistance = dist;
+                nearestIdx = i;
+            }
+        }
+
+        return nearestIdx;
+    }
+
+    private double distance(Geolocation a, Geolocation b) {
+        double dLat = a.lat - b.lat;
+        double dLng = a.lng - b.lng;
+        return Math.sqrt(dLat * dLat + dLng * dLng);
+    }
+
+    private Geolocation interpolateAlongPath(List<Geolocation> path,
+                                             int startIdx, int endIdx,
+                                             float progress) {
+        if (startIdx == endIdx) {
+            return path.get(startIdx);
+        }
+
+        float totalDistance = 0f;
+        List<Float> segmentDistances = new ArrayList<Float>();
+
+        for (int i = startIdx; i < endIdx; i++) {
+            float segDist = (float) distance(path.get(i), path.get(i + 1));
+            segmentDistances.add(segDist);
+            totalDistance += segDist;
+        }
+
+        if (totalDistance == 0) {
+            return path.get(startIdx);
+        }
+
+        float targetDistance = totalDistance * progress;
+        float accumulatedDistance = 0f;
+
+        for (int i = 0; i < segmentDistances.size(); i++) {
+            float segDist = segmentDistances.get(i);
+
+            if (accumulatedDistance + segDist >= targetDistance) {
+                float localProgress = (targetDistance - accumulatedDistance) / segDist;
+
+                Geolocation p1 = path.get(startIdx + i);
+                Geolocation p2 = path.get(startIdx + i + 1);
+
+                double lat = p1.lat + (p2.lat - p1.lat) * localProgress;
+                double lng = p1.lng + (p2.lng - p1.lng) * localProgress;
+
+                return new Geolocation(lat, lng);
+            }
+
+            accumulatedDistance += segDist;
+        }
+
+        return path.get(endIdx);
+    }
+
     private double lerp(double start, double end, float t) {
         return start + (end - start) * t;
     }
 
-    /**
-     * Easing function for smoother animation
-     */
     private float easeInOutCubic(float t) {
-        if (t < 0.5f) {
-            return 4f * t * t * t;
-        } else {
-            float f = t - 1f;
-            return 1f + 4f * f * f * f;
-        }
+        return t * t * (3f - 2f * t);
     }
 
-    /**
-     * Calculate angle from current position to next position
-     * Returns angle in degrees (0 = East, 90 = North, etc.)
-     */
     private float calculateAngle(Vector2 from, Vector2 to) {
         float dx = to.x - from.x;
         float dy = to.y - from.y;
 
-        // Avoid division by zero
         if (Math.abs(dx) < 0.01f && Math.abs(dy) < 0.01f) {
-            return 0; // Default to east if no movement
+            return 0;
         }
 
-        // atan2 returns angle in radians, convert to degrees
         float angleRad = (float) Math.atan2(dy, dx);
         float angleDeg = (float) Math.toDegrees(angleRad);
 
-        // Normalize to 0-360
         if (angleDeg < 0) {
             angleDeg += 360;
         }
@@ -246,16 +313,10 @@ public class BusAnimationRenderer {
         return angleDeg;
     }
 
-    /**
-     * Get the appropriate bus sprite based on direction angle
-     * Angles: 0=East, 45=NE, 90=North, 135=NW, 180=West, 225=SW, 270=South, 315=SE
-     */
     private TextureRegion getBusSpriteForDirection(float angleDeg) {
-        // Normalize angle to 0-360
         angleDeg = angleDeg % 360;
         if (angleDeg < 0) angleDeg += 360;
 
-        // Determine which sprite to use based on 8 directions (45-degree segments)
         if (angleDeg >= 337.5f || angleDeg < 22.5f) {
             return busEast;
         } else if (angleDeg >= 22.5f && angleDeg < 67.5f) {
@@ -270,22 +331,16 @@ public class BusAnimationRenderer {
             return busSouthwest;
         } else if (angleDeg >= 247.5f && angleDeg < 292.5f) {
             return busSouth;
-        } else { // 292.5f to 337.5f
+        } else {
             return busSoutheast;
         }
     }
 
-    /**
-     * Calculate zoom-based scale factor
-     */
     private float calculateZoomScale(float zoom) {
         float scale = MIN_ZOOM_SCALE + (zoom * ZOOM_SCALE_FACTOR);
         return Math.min(Math.max(scale, MIN_ZOOM_SCALE), MAX_ZOOM_SCALE);
     }
 
-    /**
-     * Clear all animation states (useful when switching lines or resetting)
-     */
     public void clearStates() {
         busStates.clear();
     }

@@ -19,23 +19,16 @@ public class CameraController implements InputProcessor {
     public float zoomSpeed     = 0.02f;
     public float dragSpeed     = 1.6f;
 
-    // HUD boundary (width of HUD panel from left)
     private float hudWidth = 0f;
 
     public CameraController(OrthographicCamera camera) {
         this.camera = camera;
     }
 
-    /**
-     * Set the HUD width to exclude from camera controls
-     */
     public void setHudWidth(float width) {
         this.hudWidth = width;
     }
 
-    /**
-     * Check if mouse position is over the HUD area
-     */
     private boolean isMouseOverHud() {
         return Gdx.input.getX() < hudWidth;
     }
@@ -47,7 +40,6 @@ public class CameraController implements InputProcessor {
     }
 
     private void handleMouseDrag() {
-        // Don't drag if mouse is over HUD
         if (isMouseOverHud()) {
             dragging = false;
             return;
@@ -93,10 +85,8 @@ public class CameraController implements InputProcessor {
     }
 
     private void clampCamera() {
-        // Prevent zooming too far in or out
         camera.zoom = Math.max(minZoom, camera.zoom);
 
-        // Compute max zoom so entire map stays visible
         float maxZoomX = Constants.MAP_WIDTH  / camera.viewportWidth;
         float maxZoomY = Constants.MAP_HEIGHT / camera.viewportHeight;
 
@@ -105,13 +95,8 @@ public class CameraController implements InputProcessor {
         camera.zoom = Math.min(camera.zoom, maxAllowedZoom);
     }
 
-    // ===================
-    // INPUT PROCESSOR PART
-    // ===================
-
     @Override
     public boolean scrolled(float amountX, float amountY) {
-        // Don't scroll if mouse is over HUD
         if (isMouseOverHud()) {
             return false;
         }

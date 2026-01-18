@@ -494,32 +494,25 @@ public class MapRenderer {
     private void renderLineLabels() {
         spriteBatch.setProjectionMatrix(camera.combined);
 
-        // Only render hovered line label - not selected
         if (hoveredLine != null && visibleLineIds != null && visibleLineIds.contains(hoveredLine.lineId)) {
             renderLineLabel(hoveredLine);
         }
     }
 
     private void renderLineLabel(BusLine line) {
-        // Create label text - just use the lineId
         String labelText = "Linija " + line.lineId;
 
-        // Label follows the mouse cursor
         Vector2 labelPos = getMouseWorldPosition();
-        // Offset slightly so it doesn't cover the cursor
         labelPos.x += 40 * camera.zoom;
         labelPos.y += 40 * camera.zoom;
 
-        // Set font scale - scales significantly with zoom using constant
         float fontScale = Math.max(LABEL_BASE_FONT_SCALE, LABEL_ZOOM_FONT_SCALE * camera.zoom);
         font.getData().setScale(fontScale);
 
-        // Measure text
         GlyphLayout layout = new GlyphLayout(font, labelText);
         float textWidth = layout.width;
         float textHeight = layout.height;
 
-        // Background padding - scales with zoom using constants
         float zoomMultiplier = Math.max(1f, camera.zoom * 15f);
         float paddingX = LABEL_BASE_PADDING_X * zoomMultiplier;
         float paddingY = LABEL_BASE_PADDING_Y * zoomMultiplier;
@@ -527,37 +520,30 @@ public class MapRenderer {
         float bgHeight = textHeight + paddingY * 2;
         float cornerRadius = LABEL_CORNER_RADIUS * zoomMultiplier;
 
-        // Calculate position
         float x = labelPos.x;
         float y = labelPos.y - textHeight * 0.5f - paddingY * 0.5f;
 
-        // Draw shadow first for depth
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
         float shadowOffset = LABEL_SHADOW_OFFSET * zoomMultiplier;
         shapeRenderer.setColor(0f, 0f, 0f, 0.2f);
 
-        // Shadow body
         shapeRenderer.rect(x + cornerRadius + shadowOffset, y - shadowOffset,
             bgWidth - cornerRadius * 2, bgHeight);
         shapeRenderer.rect(x + shadowOffset, y + cornerRadius - shadowOffset,
             bgWidth, bgHeight - cornerRadius * 2);
 
-        // Shadow corners
         shapeRenderer.circle(x + cornerRadius + shadowOffset, y + cornerRadius - shadowOffset, cornerRadius, 16);
         shapeRenderer.circle(x + bgWidth - cornerRadius + shadowOffset, y + cornerRadius - shadowOffset, cornerRadius, 16);
         shapeRenderer.circle(x + cornerRadius + shadowOffset, y + bgHeight - cornerRadius - shadowOffset, cornerRadius, 16);
         shapeRenderer.circle(x + bgWidth - cornerRadius + shadowOffset, y + bgHeight - cornerRadius - shadowOffset, cornerRadius, 16);
 
-        // White background - clean rounded rectangle
         shapeRenderer.setColor(1f, 1f, 1f, 0.97f);
 
-        // Main body
         shapeRenderer.rect(x + cornerRadius, y, bgWidth - cornerRadius * 2, bgHeight);
         shapeRenderer.rect(x, y + cornerRadius, bgWidth, bgHeight - cornerRadius * 2);
 
-        // Rounded corners - more segments for smoother curves
         shapeRenderer.circle(x + cornerRadius, y + cornerRadius, cornerRadius, 16);
         shapeRenderer.circle(x + bgWidth - cornerRadius, y + cornerRadius, cornerRadius, 16);
         shapeRenderer.circle(x + cornerRadius, y + bgHeight - cornerRadius, cornerRadius, 16);
@@ -565,7 +551,6 @@ public class MapRenderer {
 
         shapeRenderer.end();
 
-        // Draw text - dark gray for good contrast
         spriteBatch.begin();
         font.setColor(0.25f, 0.25f, 0.25f, 1f);
         font.draw(spriteBatch, labelText, x + paddingX, y + bgHeight * 0.5f + textHeight * 0.35f);

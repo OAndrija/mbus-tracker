@@ -9,8 +9,6 @@ public class BusLineColors {
     private static final Map<Integer, Color> lineColors = new HashMap<Integer, Color>();
 
     static {
-        // Define colors for each bus line ID
-        // You can adjust these or add more as needed
         lineColors.put(1, new Color(0.2f, 0.6f, 1f, 0.7f));      // Light Blue
         lineColors.put(2, new Color(0.4f, 0.8f, 0.4f, 0.7f));     // Green
         lineColors.put(3, new Color(1f, 0.5f, 0.8f, 0.7f));       // Pink
@@ -32,33 +30,22 @@ public class BusLineColors {
         lineColors.put(151, new Color(0.6f, 0.6f, 0.2f, 0.7f));   // Olive
     }
 
-    /**
-     * Get the color for a specific bus line
-     */
     public static Color getColor(int lineId) {
         Color color = lineColors.get(lineId);
         if (color == null) {
-            // Default color if line ID not found
             return new Color(0.5f, 0.5f, 0.5f, 0.7f); // Gray
         }
-        return new Color(color); // Return a copy to avoid modification
+        return new Color(color);
     }
 
-    /**
-     * Get the color for a specific bus line with custom alpha
-     */
     public static Color getColor(int lineId, float alpha) {
         Color color = getColor(lineId);
         color.a = alpha;
         return color;
     }
 
-    /**
-     * Get a brighter version of the line color (for UI buttons)
-     */
     public static Color getButtonColor(int lineId) {
         Color color = getColor(lineId);
-        // Make it more opaque and slightly brighter for UI
         return new Color(
             Math.min(color.r * 1.2f, 1f),
             Math.min(color.g * 1.2f, 1f),

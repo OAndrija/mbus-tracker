@@ -9,14 +9,10 @@ import java.util.List;
 
 public class MarkerClusterer {
 
-    // Base distance threshold for clustering (in pixels)
     private static final float BASE_CLUSTER_DISTANCE = 80f;
 
-    // Define discrete zoom levels - clusters only change at these thresholds
-    // Added 0.25f for fully zoomed in (no clustering)
     private static final float[] ZOOM_LEVELS = {0.0f, 0.15f, 0.3f, 0.5f, 0.8f};
     private static final float[] CLUSTER_MULTIPLIERS = {0f, 1.5f, 3.0f, 8.0f, 20.0f};
-    //                                                   ^ No clustering when zoomed in!
 
     public static List<MarkerCluster> clusterMarkers(
         List<BusStop> stops,
@@ -29,11 +25,9 @@ public class MarkerClusterer {
             return new ArrayList<MarkerCluster>();
         }
 
-        // Map camera zoom to discrete level
         int zoomLevel = getDiscreteZoomLevel(cameraZoom);
         float clusterDistance = BASE_CLUSTER_DISTANCE * CLUSTER_MULTIPLIERS[zoomLevel];
 
-        // Convert all stops to positions
         List<StopWithPosition> stopsWithPos = new ArrayList<StopWithPosition>();
         for (BusStop stop : stops) {
             Vector2 pos = MapRasterTiles.getPixelPosition(
@@ -43,14 +37,12 @@ public class MarkerClusterer {
                 beginTile.y
             );
 
-            // Skip stops outside map bounds
             if (pos.x >= 0 && pos.y >= 0 &&
                 pos.x <= mapWidth && pos.y <= mapHeight) {
                 stopsWithPos.add(new StopWithPosition(stop, pos));
             }
         }
 
-        // If cluster distance is 0, return individual markers (no clustering)
         if (clusterDistance == 0f) {
             List<MarkerCluster> individualMarkers = new ArrayList<MarkerCluster>();
             for (StopWithPosition swp : stopsWithPos) {
@@ -59,21 +51,15 @@ public class MarkerClusterer {
             return individualMarkers;
         }
 
-        // Perform clustering at the current discrete level
         List<MarkerCluster> clusters = initialClustering(stopsWithPos, clusterDistance);
 
-        // For the most zoomed out levels, do a second clustering pass
-        if (zoomLevel >= 3) {  // Changed from >= 2 since we added a level
+        if (zoomLevel >= 3) {
             clusters = reclusterClusters(clusters, clusterDistance * 1.5f);
         }
 
         return clusters;
     }
 
-    /**
-     * Map continuous zoom value to discrete zoom level (0-4)
-     * This ensures clusters only merge/split at specific zoom thresholds
-     */
     private static int getDiscreteZoomLevel(float cameraZoom) {
         for (int i = ZOOM_LEVELS.length - 1; i >= 0; i--) {
             if (cameraZoom >= ZOOM_LEVELS[i]) {
@@ -83,9 +69,6 @@ public class MarkerClusterer {
         return 0;
     }
 
-    /**
-     * Initial clustering pass - group nearby stops
-     */
     private static List<MarkerCluster> initialClustering(
         List<StopWithPosition> stopsWithPos,
         float clusterDistance
@@ -109,12 +92,10 @@ public class MarkerClusterer {
 
                 StopWithPosition other = stopsWithPos.get(j);
 
-                // Check distance to current cluster center
                 float distance = clusterPos.dst(other.position);
 
                 if (distance < clusterDistance) {
                     clusterStops.add(other.stop);
-                    // Update cluster center to average position
                     clusterPos.x = (clusterPos.x * (clusterStops.size() - 1) + other.position.x) / clusterStops.size();
                     clusterPos.y = (clusterPos.y * (clusterStops.size() - 1) + other.position.y) / clusterStops.size();
                     clustered[j] = true;
@@ -127,10 +108,6 @@ public class MarkerClusterer {
         return clusters;
     }
 
-    /**
-     * Second clustering pass - group nearby clusters together
-     * This creates super-clusters when zoomed out
-     */
     private static List<MarkerCluster> reclusterClusters(
         List<MarkerCluster> existingClusters,
         float superClusterDistance
@@ -150,7 +127,6 @@ public class MarkerClusterer {
             Vector2 superClusterPos = new Vector2(current.getPosition());
             clustered[i] = true;
 
-            // Find nearby clusters to merge
             for (int j = i + 1; j < existingClusters.size(); j++) {
                 if (clustered[j]) continue;
 
@@ -158,11 +134,9 @@ public class MarkerClusterer {
                 float distance = superClusterPos.dst(other.getPosition());
 
                 if (distance < superClusterDistance) {
-                    // Merge this cluster into the super cluster
                     int currentCount = allStops.size();
                     allStops.addAll(other.getStops());
 
-                    // Weighted average for position
                     superClusterPos.x = (superClusterPos.x * currentCount + other.getPosition().x * other.getCount()) / allStops.size();
                     superClusterPos.y = (superClusterPos.y * currentCount + other.getPosition().y * other.getCount()) / allStops.size();
 
