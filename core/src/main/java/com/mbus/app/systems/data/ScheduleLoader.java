@@ -17,6 +17,7 @@ import java.util.Random;
 public class ScheduleLoader {
 
     private static final String TAG = "ScheduleLoader";
+    private static final double MIN_STOP_DISTANCE = 0.003;
 
     public static List<BusSchedule> loadSchedulesFromFile(String filePath) {
         List<BusSchedule> schedules = new ArrayList<BusSchedule>();
@@ -151,36 +152,33 @@ public class ScheduleLoader {
 
             boolean isUrbanLine = line.lineId < 100;
 
-            int routeDuration = estimateRouteDuration(line, isUrbanLine);
+            List<BusStop> scheduledStops = filterNearbyStops(line.getStops());
+
+            int routeDuration = estimateRouteDuration(scheduledStops, isUrbanLine);
 
             int dayType = 2;
 
             Gdx.app.log(TAG, "Processing line " + line.lineId + " (variant=" + line.variantId +
                 ", dir=" + line.direction + ", stops=" + line.getStops().size() +
+                ", scheduled=" + scheduledStops.size() +
                 ", duration=" + routeDuration + " min)");
 
             int beforeCount = schedules.size();
 
-            // Generate schedules with only 2 buses per line
-            // Each bus will alternate on the route, so the interval between departures
-            // should be roughly half the route duration for continuous service with 2 buses
             if (isUrbanLine) {
-                // For urban lines: 2 buses, 24-hour service
-                // Trip interval = route duration (so when bus 1 finishes, bus 2 has started)
                 schedules.addAll(generateMultiTripSchedule(
-                    line, dayType, scheduleIdCounter,
-                    0, 24 * 60,  // 24-hour service
-                    2,  // Only 2 buses
-                    routeDuration, // Interval = route duration for continuous coverage
+                    line, scheduledStops, dayType, scheduleIdCounter,
+                    0, 24 * 60,
+                    2,
+                    routeDuration,
                     routeDuration, random));
                 scheduleIdCounter += 50;
             } else {
-                // For suburban lines: 2 buses, 24-hour service with less frequency
                 schedules.addAll(generateMultiTripSchedule(
-                    line, dayType, scheduleIdCounter,
-                    0, 24 * 60,  // 24-hour service
-                    2,  // Only 2 buses
-                    routeDuration * 2, // Less frequent service
+                    line, scheduledStops, dayType, scheduleIdCounter,
+                    0, 24 * 60,
+                    2,
+                    routeDuration * 2,
                     routeDuration, random));
                 scheduleIdCounter += 50;
             }
@@ -194,8 +192,41 @@ public class ScheduleLoader {
         return schedules;
     }
 
+    private static List<BusStop> filterNearbyStops(List<BusStop> stops) {
+        if (stops.isEmpty()) return stops;
+
+        List<BusStop> filtered = new ArrayList<BusStop>();
+
+        for (int i = 0; i < stops.size(); i++) {
+            BusStop current = stops.get(i);
+            boolean shouldSkip = false;
+
+            for (BusStop existing : filtered) {
+                double distance = calculateDistance(existing.geo.lat, existing.geo.lng,
+                    current.geo.lat, current.geo.lng);
+
+                if (distance < MIN_STOP_DISTANCE) {
+                    shouldSkip = true;
+                    break;
+                }
+            }
+
+            if (!shouldSkip) {
+                filtered.add(current);
+            }
+        }
+
+        return filtered;
+    }
+
+    private static double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+        double dLat = lat2 - lat1;
+        double dLng = lng2 - lng1;
+        return Math.sqrt(dLat * dLat + dLng * dLng);
+    }
+
     private static List<BusSchedule> generateMultiTripSchedule(
-        BusLine line, int dayType, int startScheduleId,
+        BusLine line, List<BusStop> scheduledStops, int dayType, int startScheduleId,
         int serviceStartTime, int serviceEndTime,
         int numBuses, int tripInterval, int routeDuration,
         Random random) {
@@ -203,18 +234,15 @@ public class ScheduleLoader {
         List<BusSchedule> schedules = new ArrayList<BusSchedule>();
         int scheduleId = startScheduleId;
 
-        // Calculate total service time and trips per bus to ensure exactly 2 buses max
         int totalServiceTime = serviceEndTime - serviceStartTime;
         int maxTripsPerBus = (totalServiceTime - routeDuration) / tripInterval + 1;
 
-        // Limit to exactly numBuses (should be 2)
         int actualBuses = Math.min(numBuses, 2);
 
         Gdx.app.log(TAG, "  generateMultiTripSchedule - actualBuses=" + actualBuses +
             ", tripInterval=" + tripInterval + ", routeDuration=" + routeDuration);
 
         for (int busNum = 0; busNum < actualBuses; busNum++) {
-            // Stagger the initial departure for each bus
             int initialDeparture = serviceStartTime + (busNum * (tripInterval / actualBuses));
 
             int currentDeparture = initialDeparture;
@@ -225,7 +253,7 @@ public class ScheduleLoader {
 
             while (currentDeparture + routeDuration <= serviceEndTime && tripsForThisBus < maxTripsPerBus) {
                 List<BusSchedule.StopTime> stopTimes = calculateStopTimes(
-                    line.getStops(), currentDeparture, random);
+                    scheduledStops, currentDeparture, random);
 
                 schedules.add(new BusSchedule(
                     scheduleId++,
@@ -249,8 +277,8 @@ public class ScheduleLoader {
         return schedules;
     }
 
-    private static int estimateRouteDuration(BusLine line, boolean isUrbanLine) {
-        int numStops = line.getStops().size();
+    private static int estimateRouteDuration(List<BusStop> stops, boolean isUrbanLine) {
+        int numStops = stops.size();
 
         if (isUrbanLine) {
             return 5 + (int)(numStops * 1.5f);
@@ -265,22 +293,26 @@ public class ScheduleLoader {
         List<BusSchedule.StopTime> stopTimes = new ArrayList<BusSchedule.StopTime>();
         int currentTime = departureTime;
 
-        int initialTravelMinutes = 2 + random.nextInt(3);
-        currentTime += initialTravelMinutes;
-
         for (int i = 0; i < stops.size(); i++) {
             BusStop stop = stops.get(i);
 
             stopTimes.add(new BusSchedule.StopTime(stop.idAvpost, i, currentTime));
 
             if (i < stops.size() - 1) {
-                int baseTravelTime = 1;
+                BusStop nextStop = stops.get(i + 1);
+                double distanceInDegrees = calculateDistance(
+                    stop.geo.lat, stop.geo.lng,
+                    nextStop.geo.lat, nextStop.geo.lng
+                );
 
-                if (random.nextFloat() < 0.3f) {
-                    baseTravelTime = 2;
-                }
+                double distanceInKm = distanceInDegrees * 111.0;
 
-                currentTime += baseTravelTime;
+                double travelTimeHours = distanceInKm / 50.0;
+                int travelTimeMinutes = (int) Math.ceil(travelTimeHours * 60.0);
+
+                travelTimeMinutes = Math.max(1, Math.min(travelTimeMinutes, 3));
+
+                currentTime += travelTimeMinutes;
             }
         }
 

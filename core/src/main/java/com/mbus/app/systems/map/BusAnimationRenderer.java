@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
 import com.mbus.app.model.BusLine;
+import com.mbus.app.model.BusSchedule;
 import com.mbus.app.model.BusStop;
 import com.mbus.app.model.Geolocation;
 import com.mbus.app.model.ZoomXY;
@@ -22,9 +23,13 @@ public class BusAnimationRenderer {
     private static final float MAX_ZOOM_SCALE = 5f;
     private static final float ZOOM_SCALE_FACTOR = 6f;
 
-    // Reduced smoothing for more direct positioning
-    private static final float INTERPOLATION_SPEED = 20f; // Very fast catch-up
-    private static final float POSITION_THRESHOLD = 0.000001f;
+    private static final float POSITION_INTERPOLATION_SPEED = 15f;
+    private static final float ANGLE_INTERPOLATION_SPEED = 8f;
+    private static final float POSITION_THRESHOLD = 0.0000001f;
+
+    private static final float DIRECTION_LOOKAHEAD = 0.25f;
+    private static final float SPRITE_CHANGE_THRESHOLD = 15f;
+    private static final float ANGLE_SMOOTHING_WINDOW = 5;
 
     private final SpriteBatch spriteBatch;
     private TextureRegion busNorth;
@@ -36,16 +41,28 @@ public class BusAnimationRenderer {
     private TextureRegion busWest;
     private TextureRegion busNorthwest;
 
-    // Store interpolated positions for each bus
     private Map<String, BusRenderState> busStates = new HashMap<String, BusRenderState>();
 
     private static class BusRenderState {
         Geolocation currentPosition;
+        Geolocation targetPosition;
         float currentAngle;
+        float targetAngle;
+        float displayAngle;
+        boolean isWaiting;
+        long lastUpdateTime;
+        List<Float> recentAngles;
 
-        BusRenderState(Geolocation position, float angle) {
+        BusRenderState(Geolocation position, float angle, boolean waiting) {
             this.currentPosition = position;
+            this.targetPosition = position;
             this.currentAngle = angle;
+            this.targetAngle = angle;
+            this.displayAngle = angle;
+            this.isWaiting = waiting;
+            this.lastUpdateTime = System.currentTimeMillis();
+            this.recentAngles = new ArrayList<Float>();
+            this.recentAngles.add(angle);
         }
     }
 
@@ -71,7 +88,6 @@ public class BusAnimationRenderer {
                                   int dayType, ZoomXY beginTile, float cameraZoom, float delta) {
         if (selectedLine == null || busNorth == null) return;
 
-        // Get current bus positions based on schedule with precise time
         List<BusPositionCalculator.ActiveBusInfo> activeBuses =
             BusPositionCalculator.getActiveBusesAtTime(
                 java.util.Collections.singletonList(selectedLine),
@@ -94,49 +110,58 @@ public class BusAnimationRenderer {
 
     private void renderBusSmooth(BusPositionCalculator.ActiveBusInfo activeBus,
                                  ZoomXY beginTile, float zoomScale, float delta) {
-        // Calculate target position
         Geolocation targetPosition = calculateTargetPosition(activeBus);
         if (targetPosition == null) return;
 
-        // Calculate target direction
-        Geolocation directionTarget = calculateDirectionTarget(activeBus);
-        Vector2 targetPixel = MapRasterTiles.getPixelPosition(
-            directionTarget.lat, directionTarget.lng, beginTile.x, beginTile.y);
-        Vector2 posPixel = MapRasterTiles.getPixelPosition(
-            targetPosition.lat, targetPosition.lng, beginTile.x, beginTile.y);
-        float targetAngle = calculateAngle(posPixel, targetPixel);
-
-        // Get or create render state for this bus
         String busKey = getBusKey(activeBus);
         BusRenderState state = busStates.get(busKey);
 
+        float targetAngle = calculateSmoothDirection(activeBus, targetPosition, beginTile);
+
         if (state == null) {
-            // First time seeing this bus - initialize at target position
-            state = new BusRenderState(targetPosition, targetAngle);
+            state = new BusRenderState(targetPosition, targetAngle, activeBus.isWaitingAtStop);
             busStates.put(busKey, state);
         }
 
-        // Interpolate position using delta time for frame-rate independent movement
-        float lerpFactor = Math.min(1.0f, INTERPOLATION_SPEED * delta);
+        state.targetPosition = targetPosition;
+        state.targetAngle = targetAngle;
 
-        double latDiff = targetPosition.lat - state.currentPosition.lat;
-        double lngDiff = targetPosition.lng - state.currentPosition.lng;
+        float posLerpFactor = Math.min(1.0f, POSITION_INTERPOLATION_SPEED * delta);
 
-        // Only interpolate if there's meaningful movement
+        double latDiff = state.targetPosition.lat - state.currentPosition.lat;
+        double lngDiff = state.targetPosition.lng - state.currentPosition.lng;
+
         if (Math.abs(latDiff) > POSITION_THRESHOLD || Math.abs(lngDiff) > POSITION_THRESHOLD) {
             state.currentPosition = new Geolocation(
-                state.currentPosition.lat + latDiff * lerpFactor,
-                state.currentPosition.lng + lngDiff * lerpFactor
+                state.currentPosition.lat + latDiff * posLerpFactor,
+                state.currentPosition.lng + lngDiff * posLerpFactor
             );
         } else {
-            state.currentPosition = targetPosition;
+            state.currentPosition = state.targetPosition;
         }
 
-        // Interpolate angle (handle wrapping)
-        float angleDiff = normalizeAngle(targetAngle - state.currentAngle);
-        state.currentAngle = normalizeAngle(state.currentAngle + angleDiff * lerpFactor);
+        if (!activeBus.isWaitingAtStop) {
+            float angleLerpFactor = Math.min(1.0f, ANGLE_INTERPOLATION_SPEED * delta);
+            float angleDiff = getShortestAngleDifference(state.currentAngle, state.targetAngle);
 
-        // Render at interpolated position
+            if (Math.abs(angleDiff) > 0.5f) {
+                state.currentAngle = normalizeAngle(state.currentAngle + angleDiff * angleLerpFactor);
+            } else {
+                state.currentAngle = state.targetAngle;
+            }
+
+            state.recentAngles.add(state.currentAngle);
+            if (state.recentAngles.size() > ANGLE_SMOOTHING_WINDOW) {
+                state.recentAngles.remove(0);
+            }
+
+            state.displayAngle = calculateSmoothedAngle(state.recentAngles);
+
+            state.isWaiting = false;
+        } else {
+            state.isWaiting = true;
+        }
+
         Vector2 pixelPos = MapRasterTiles.getPixelPosition(
             state.currentPosition.lat,
             state.currentPosition.lng,
@@ -144,7 +169,9 @@ public class BusAnimationRenderer {
             beginTile.y
         );
 
-        TextureRegion busSprite = getBusSpriteForDirection(state.currentAngle);
+        TextureRegion busSprite = getBusSpriteForDirection(state.displayAngle);
+        float spriteBaseAngle = getBaseAngleForSprite(state.displayAngle);
+        float rotationOffset = normalizeAngle(state.currentAngle - spriteBaseAngle);
 
         float size = BUS_SPRITE_SIZE * zoomScale;
         float halfSize = size / 2f;
@@ -153,48 +180,137 @@ public class BusAnimationRenderer {
             busSprite,
             pixelPos.x - halfSize,
             pixelPos.y - halfSize,
+            halfSize,
+            halfSize,
             size,
-            size
+            size,
+            1f,
+            1f,
+            rotationOffset
         );
     }
 
-    private Geolocation calculateTargetPosition(BusPositionCalculator.ActiveBusInfo activeBus) {
-        if (activeBus.isWaitingAtStop) {
-            // Bus is at a stop
-            List<BusStop> stops = activeBus.line.getStops();
-            if (activeBus.currentStopIndex >= 0 && activeBus.currentStopIndex < stops.size()) {
-                return stops.get(activeBus.currentStopIndex).geo;
-            } else {
-                return null;
-            }
-        } else {
-            // Bus is traveling between stops
-            return calculatePositionAlongPath(
-                activeBus.line,
-                activeBus.currentStopIndex,
-                activeBus.nextStopIndex,
-                activeBus.segmentProgress
-            );
+    private float calculateSmoothedAngle(List<Float> angles) {
+        if (angles.isEmpty()) return 0;
+        if (angles.size() == 1) return angles.get(0);
+
+        float sumX = 0;
+        float sumY = 0;
+
+        for (float angle : angles) {
+            sumX += Math.cos(Math.toRadians(angle));
+            sumY += Math.sin(Math.toRadians(angle));
         }
+
+        float avgX = sumX / angles.size();
+        float avgY = sumY / angles.size();
+
+        float avgAngle = (float) Math.toDegrees(Math.atan2(avgY, avgX));
+
+        while (avgAngle < 0) avgAngle += 360;
+        while (avgAngle >= 360) avgAngle -= 360;
+
+        return avgAngle;
     }
 
-    private Geolocation calculateDirectionTarget(BusPositionCalculator.ActiveBusInfo activeBus) {
-        List<BusStop> stops = activeBus.line.getStops();
-
+    private float calculateSmoothDirection(BusPositionCalculator.ActiveBusInfo activeBus,
+                                           Geolocation currentPos,
+                                           ZoomXY beginTile) {
         if (activeBus.isWaitingAtStop) {
-            // When waiting, use next stop for direction
-            if (activeBus.nextStopIndex >= 0 && activeBus.nextStopIndex < stops.size()) {
-                return stops.get(activeBus.nextStopIndex).geo;
+            String busKey = getBusKey(activeBus);
+            BusRenderState state = busStates.get(busKey);
+
+            if (state != null) {
+                return state.currentAngle;
             }
-        } else {
-            // When traveling, use next stop
-            if (activeBus.nextStopIndex >= 0 && activeBus.nextStopIndex < stops.size()) {
-                return stops.get(activeBus.nextStopIndex).geo;
+
+            List<BusSchedule.StopTime> stopTimes = activeBus.schedule.getStopTimes();
+            List<BusStop> allStops = activeBus.line.getStops();
+
+            if (activeBus.currentStopIndex >= 0 && activeBus.currentStopIndex < stopTimes.size() &&
+                activeBus.nextStopIndex >= 0 && activeBus.nextStopIndex < stopTimes.size()) {
+                int currentStopId = stopTimes.get(activeBus.currentStopIndex).stopId;
+                int nextStopId = stopTimes.get(activeBus.nextStopIndex).stopId;
+
+                BusStop currentStop = findStopById(allStops, currentStopId);
+                BusStop nextStop = findStopById(allStops, nextStopId);
+
+                if (currentStop != null && nextStop != null) {
+                    return calculateAngleBetweenGeolocations(currentStop.geo, nextStop.geo, beginTile);
+                }
             }
         }
 
-        // Fallback to current position
-        return calculateTargetPosition(activeBus);
+        float lookaheadProgress = Math.min(1.0f, activeBus.segmentProgress + DIRECTION_LOOKAHEAD);
+
+        Geolocation lookaheadPos = calculatePositionAlongPath(
+            activeBus.line,
+            activeBus.schedule,
+            activeBus.currentStopIndex,
+            activeBus.nextStopIndex,
+            lookaheadProgress
+        );
+
+        if (lookaheadPos != null) {
+            return calculateAngleBetweenGeolocations(currentPos, lookaheadPos, beginTile);
+        }
+
+        List<BusSchedule.StopTime> stopTimes = activeBus.schedule.getStopTimes();
+        List<BusStop> allStops = activeBus.line.getStops();
+
+        if (activeBus.nextStopIndex >= 0 && activeBus.nextStopIndex < stopTimes.size()) {
+            int stopId = stopTimes.get(activeBus.nextStopIndex).stopId;
+            BusStop nextStop = findStopById(allStops, stopId);
+            if (nextStop != null) {
+                return calculateAngleBetweenGeolocations(currentPos, nextStop.geo, beginTile);
+            }
+        }
+
+        return 0;
+    }
+
+    private float calculateAngleBetweenGeolocations(Geolocation from, Geolocation to, ZoomXY beginTile) {
+        Vector2 fromPixel = MapRasterTiles.getPixelPosition(from.lat, from.lng, beginTile.x, beginTile.y);
+        Vector2 toPixel = MapRasterTiles.getPixelPosition(to.lat, to.lng, beginTile.x, beginTile.y);
+
+        float dx = toPixel.x - fromPixel.x;
+        float dy = toPixel.y - fromPixel.y;
+
+        if (Math.abs(dx) < 0.1f && Math.abs(dy) < 0.1f) {
+            return 0;
+        }
+
+        float angleRad = (float) Math.atan2(dy, dx);
+        float angleDeg = (float) Math.toDegrees(angleRad);
+
+        while (angleDeg < 0) angleDeg += 360;
+        while (angleDeg >= 360) angleDeg -= 360;
+
+        return angleDeg;
+    }
+
+    private float getShortestAngleDifference(float currentAngle, float targetAngle) {
+        float diff = normalizeAngle(targetAngle - currentAngle);
+        return diff;
+    }
+
+    private Geolocation calculateTargetPosition(BusPositionCalculator.ActiveBusInfo activeBus) {
+        return calculatePositionAlongPath(
+            activeBus.line,
+            activeBus.schedule,
+            activeBus.currentStopIndex,
+            activeBus.nextStopIndex,
+            activeBus.segmentProgress
+        );
+    }
+
+    private BusStop findStopById(List<BusStop> stops, int stopId) {
+        for (BusStop stop : stops) {
+            if (stop.idAvpost == stopId) {
+                return stop;
+            }
+        }
+        return null;
     }
 
     private String getBusKey(BusPositionCalculator.ActiveBusInfo activeBus) {
@@ -210,40 +326,53 @@ public class BusAnimationRenderer {
     }
 
     private Geolocation calculatePositionAlongPath(BusLine line,
+                                                   BusSchedule schedule,
                                                    int currentStopIndex,
                                                    int nextStopIndex,
                                                    float segmentProgress) {
-        List<BusStop> stops = line.getStops();
+        List<BusStop> allStops = line.getStops();
         List<Geolocation> path = line.getPath();
+        List<BusSchedule.StopTime> stopTimes = schedule.getStopTimes();
 
-        if (stops.isEmpty() || path.isEmpty()) return null;
+        if (allStops.isEmpty() || path.isEmpty() || stopTimes.isEmpty()) return null;
 
         Geolocation startGeo;
         Geolocation endGeo;
 
         if (currentStopIndex == -1) {
-            // Before first stop - use path start to first stop
             if (path.isEmpty()) return null;
             startGeo = path.get(0);
-            if (nextStopIndex >= 0 && nextStopIndex < stops.size()) {
-                endGeo = stops.get(nextStopIndex).geo;
+            if (nextStopIndex >= 0 && nextStopIndex < stopTimes.size()) {
+                int stopId = stopTimes.get(nextStopIndex).stopId;
+                BusStop stop = findStopById(allStops, stopId);
+                if (stop != null) {
+                    endGeo = stop.geo;
+                } else {
+                    return startGeo;
+                }
             } else {
                 return startGeo;
             }
         } else {
-            // Between stops
-            if (currentStopIndex >= stops.size() || nextStopIndex >= stops.size()) return null;
+            if (currentStopIndex >= stopTimes.size() || nextStopIndex >= stopTimes.size()) return null;
             if (currentStopIndex < 0 || nextStopIndex < 0) return null;
 
-            startGeo = stops.get(currentStopIndex).geo;
-            endGeo = stops.get(nextStopIndex).geo;
+            int currentStopId = stopTimes.get(currentStopIndex).stopId;
+            int nextStopId = stopTimes.get(nextStopIndex).stopId;
+
+            BusStop currentStop = findStopById(allStops, currentStopId);
+            BusStop nextStop = findStopById(allStops, nextStopId);
+
+            if (currentStop == null || nextStop == null) return null;
+
+            startGeo = currentStop.geo;
+            endGeo = nextStop.geo;
         }
 
         int pathStartIdx = findNearestPathIndex(path, startGeo);
         int pathEndIdx = findNearestPathIndex(path, endGeo);
 
         if (pathStartIdx == -1 || pathEndIdx == -1) {
-            // Fallback to direct interpolation
             double lat = startGeo.lat + (endGeo.lat - startGeo.lat) * segmentProgress;
             double lng = startGeo.lng + (endGeo.lng - startGeo.lng) * segmentProgress;
             return new Geolocation(lat, lng);
@@ -329,44 +458,49 @@ public class BusAnimationRenderer {
         return path.get(endIdx);
     }
 
-    private float calculateAngle(Vector2 from, Vector2 to) {
-        float dx = to.x - from.x;
-        float dy = to.y - from.y;
-
-        if (Math.abs(dx) < 0.01f && Math.abs(dy) < 0.01f) {
-            return 0;
-        }
-
-        float angleRad = (float) Math.atan2(dy, dx);
-        float angleDeg = (float) Math.toDegrees(angleRad);
-
-        if (angleDeg < 0) {
-            angleDeg += 360;
-        }
-
-        return angleDeg;
-    }
-
     private TextureRegion getBusSpriteForDirection(float angleDeg) {
         angleDeg = angleDeg % 360;
         if (angleDeg < 0) angleDeg += 360;
 
-        if (angleDeg >= 337.5f || angleDeg < 22.5f) {
+        if (angleDeg >= 345f || angleDeg < 15f) {
             return busEast;
-        } else if (angleDeg >= 22.5f && angleDeg < 67.5f) {
+        } else if (angleDeg >= 15f && angleDeg < 75f) {
             return busNortheast;
-        } else if (angleDeg >= 67.5f && angleDeg < 112.5f) {
+        } else if (angleDeg >= 75f && angleDeg < 105f) {
             return busNorth;
-        } else if (angleDeg >= 112.5f && angleDeg < 157.5f) {
+        } else if (angleDeg >= 105f && angleDeg < 165f) {
             return busNorthwest;
-        } else if (angleDeg >= 157.5f && angleDeg < 202.5f) {
+        } else if (angleDeg >= 165f && angleDeg < 195f) {
             return busWest;
-        } else if (angleDeg >= 202.5f && angleDeg < 247.5f) {
+        } else if (angleDeg >= 195f && angleDeg < 255f) {
             return busSouthwest;
-        } else if (angleDeg >= 247.5f && angleDeg < 292.5f) {
+        } else if (angleDeg >= 255f && angleDeg < 285f) {
             return busSouth;
         } else {
             return busSoutheast;
+        }
+    }
+
+    private float getBaseAngleForSprite(float angleDeg) {
+        angleDeg = angleDeg % 360;
+        if (angleDeg < 0) angleDeg += 360;
+
+        if (angleDeg >= 345f || angleDeg < 15f) {
+            return 0f;
+        } else if (angleDeg >= 15f && angleDeg < 75f) {
+            return 45f;
+        } else if (angleDeg >= 75f && angleDeg < 105f) {
+            return 90f;
+        } else if (angleDeg >= 105f && angleDeg < 165f) {
+            return 135f;
+        } else if (angleDeg >= 165f && angleDeg < 195f) {
+            return 180f;
+        } else if (angleDeg >= 195f && angleDeg < 255f) {
+            return 225f;
+        } else if (angleDeg >= 255f && angleDeg < 285f) {
+            return 270f;
+        } else {
+            return 315f;
         }
     }
 
