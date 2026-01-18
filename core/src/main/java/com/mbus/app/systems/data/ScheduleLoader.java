@@ -140,8 +140,14 @@ public class ScheduleLoader {
         int scheduleIdCounter = 1;
         Random random = new Random(12345);
 
+        Gdx.app.log(TAG, "=== STARTING SCHEDULE GENERATION ===");
+        Gdx.app.log(TAG, "Total lines to process: " + lines.size());
+
         for (BusLine line : lines) {
-            if (line.getStops().isEmpty()) continue;
+            if (line.getStops().isEmpty()) {
+                Gdx.app.log(TAG, "SKIPPING line " + line.lineId + " - no stops");
+                continue;
+            }
 
             boolean isUrbanLine = line.lineId < 100;
 
@@ -149,22 +155,42 @@ public class ScheduleLoader {
 
             int dayType = 2;
 
+            Gdx.app.log(TAG, "Processing line " + line.lineId + " (variant=" + line.variantId +
+                ", dir=" + line.direction + ", stops=" + line.getStops().size() +
+                ", duration=" + routeDuration + " min)");
+
+            int beforeCount = schedules.size();
+
+            // Generate schedules with only 2 buses per line
+            // Each bus will alternate on the route, so the interval between departures
+            // should be roughly half the route duration for continuous service with 2 buses
             if (isUrbanLine) {
+                // For urban lines: 2 buses, 24-hour service
+                // Trip interval = route duration (so when bus 1 finishes, bus 2 has started)
                 schedules.addAll(generateMultiTripSchedule(
                     line, dayType, scheduleIdCounter,
-                    0, 24 * 60,
-                    2, 18, routeDuration, random));
+                    0, 24 * 60,  // 24-hour service
+                    2,  // Only 2 buses
+                    routeDuration, // Interval = route duration for continuous coverage
+                    routeDuration, random));
                 scheduleIdCounter += 50;
             } else {
+                // For suburban lines: 2 buses, 24-hour service with less frequency
                 schedules.addAll(generateMultiTripSchedule(
                     line, dayType, scheduleIdCounter,
-                    0, 24 * 60,
-                    2, 35, routeDuration, random));
+                    0, 24 * 60,  // 24-hour service
+                    2,  // Only 2 buses
+                    routeDuration * 2, // Less frequent service
+                    routeDuration, random));
                 scheduleIdCounter += 50;
             }
+
+            int afterCount = schedules.size();
+            Gdx.app.log(TAG, "Line " + line.lineId + " generated " + (afterCount - beforeCount) + " schedules");
         }
 
-        Gdx.app.log(TAG, "Generated " + schedules.size() + " realistic schedules");
+        Gdx.app.log(TAG, "=== SCHEDULE GENERATION COMPLETE ===");
+        Gdx.app.log(TAG, "Total schedules generated: " + schedules.size());
         return schedules;
     }
 
@@ -177,12 +203,27 @@ public class ScheduleLoader {
         List<BusSchedule> schedules = new ArrayList<BusSchedule>();
         int scheduleId = startScheduleId;
 
-        for (int busNum = 0; busNum < numBuses; busNum++) {
-            int initialDeparture = serviceStartTime + (busNum * (tripInterval / numBuses));
+        // Calculate total service time and trips per bus to ensure exactly 2 buses max
+        int totalServiceTime = serviceEndTime - serviceStartTime;
+        int maxTripsPerBus = (totalServiceTime - routeDuration) / tripInterval + 1;
+
+        // Limit to exactly numBuses (should be 2)
+        int actualBuses = Math.min(numBuses, 2);
+
+        Gdx.app.log(TAG, "  generateMultiTripSchedule - actualBuses=" + actualBuses +
+            ", tripInterval=" + tripInterval + ", routeDuration=" + routeDuration);
+
+        for (int busNum = 0; busNum < actualBuses; busNum++) {
+            // Stagger the initial departure for each bus
+            int initialDeparture = serviceStartTime + (busNum * (tripInterval / actualBuses));
 
             int currentDeparture = initialDeparture;
+            int tripsForThisBus = 0;
 
-            while (currentDeparture + routeDuration <= serviceEndTime) {
+            Gdx.app.log(TAG, "    Bus #" + (busNum + 1) + " starting at " +
+                BusSchedule.formatTime(initialDeparture));
+
+            while (currentDeparture + routeDuration <= serviceEndTime && tripsForThisBus < maxTripsPerBus) {
                 List<BusSchedule.StopTime> stopTimes = calculateStopTimes(
                     line.getStops(), currentDeparture, random);
 
@@ -197,11 +238,13 @@ public class ScheduleLoader {
                 ));
 
                 currentDeparture += tripInterval;
+                tripsForThisBus++;
             }
+
+            Gdx.app.log(TAG, "    Bus #" + (busNum + 1) + " completed " + tripsForThisBus + " trips");
         }
 
-        Gdx.app.log(TAG, "Generated " + schedules.size() + " trips for line " +
-            line.lineId + " on day type " + dayType);
+        Gdx.app.log(TAG, "  Total schedules created for this line: " + schedules.size());
 
         return schedules;
     }

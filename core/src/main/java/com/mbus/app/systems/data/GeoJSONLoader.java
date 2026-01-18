@@ -11,7 +11,9 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class GeoJSONLoader {
 
@@ -105,7 +107,9 @@ public class GeoJSONLoader {
         JSONObject root = new JSONObject(jsonText);
 
         JSONArray features = root.getJSONArray("features");
-        List<BusLine> lines = new ArrayList<BusLine>(features.length());
+
+        // Map to track the best variant for each lineId
+        Map<Integer, BusLine> bestVariantPerLine = new HashMap<Integer, BusLine>();
 
         for (int i = 0; i < features.length(); i++) {
             JSONObject feature = features.getJSONObject(i);
@@ -115,7 +119,6 @@ public class GeoJSONLoader {
             String geomType = geometry.getString("type");
 
             if (!"LineString".equalsIgnoreCase(geomType)) {
-                // Skip non-LineString geometries
                 log.debug("Skipping non-LineString geometry: " + geomType);
                 continue;
             }
@@ -154,8 +157,6 @@ public class GeoJSONLoader {
             String providerName = props.optString("naziv_ponudnik", "");
             String providerLink = props.optString("povezava_ponudnik", "");
 
-            // UPDATED: Pass null for stops parameter (11th parameter)
-            // Stop relationships will be established by BusLineStopRelationshipBuilder
             BusLine line = new BusLine(
                 lineId,
                 variantId,
@@ -170,8 +171,19 @@ public class GeoJSONLoader {
                 null  // stops - will be added by relationship builder
             );
 
-            lines.add(line);
+            // Keep only the variant with the most geolocations for each lineId
+            BusLine existing = bestVariantPerLine.get(lineId);
+            if (existing == null || paths.size() > existing.getPointCount()) {
+                bestVariantPerLine.put(lineId, line);
+                if (existing != null) {
+                    log.debug("Replacing lineId " + lineId + " variant (had " +
+                        existing.getPointCount() + " points, new has " + paths.size() + " points)");
+                }
+            }
         }
+
+        // Convert map values to list
+        List<BusLine> lines = new ArrayList<BusLine>(bestVariantPerLine.values());
 
         // Collect unique line IDs and log them
         java.util.Set<Integer> uniqueLineIds = new java.util.TreeSet<Integer>();
@@ -190,7 +202,7 @@ public class GeoJSONLoader {
             count++;
         }
 
-        log.info("Loaded " + lines.size() + " bus lines from " + path);
+        log.info("Loaded " + lines.size() + " unique bus lines from " + path);
         log.info("Unique bus line IDs (" + uniqueLineIds.size() + "): " + lineIdsStr.toString());
 
         return lines;

@@ -127,7 +127,7 @@ public class RasterMapScreen implements Screen {
 
         // Set initial time to current real-world time
         mapRenderer.setCurrentTime(
-            BusPositionCalculator.getCurrentTimeMinutes(),
+            BusPositionCalculator.getCurrentTimeMinutesWithSeconds(),
             BusPositionCalculator.getCurrentDayType()
         );
 
@@ -184,8 +184,6 @@ public class RasterMapScreen implements Screen {
             }
         });
 
-        // Remove the time changed callback entirely since we're using real time only
-
         setupInput();
     }
 
@@ -227,8 +225,8 @@ public class RasterMapScreen implements Screen {
         app.viewport.apply();
         app.camera.update();
 
-        // Always use current real-world time for bus positions
-        int currentTime = BusPositionCalculator.getCurrentTimeMinutes();
+        // Always use current real-world time with sub-second precision for bus positions
+        float currentTime = BusPositionCalculator.getCurrentTimeMinutesWithSeconds();
         int dayType = BusPositionCalculator.getCurrentDayType();
         mapRenderer.setCurrentTime(currentTime, dayType);
 
@@ -242,7 +240,8 @@ public class RasterMapScreen implements Screen {
         if (timeSinceLastRefresh >= REFRESH_INTERVAL) {
             timeSinceLastRefresh = 0f;
             if (detailPanel.isVisible()) {
-                String timeStr = BusPositionCalculator.formatTime(currentTime);
+                int currentTimeInt = (int) currentTime;
+                String timeStr = BusPositionCalculator.formatTime(currentTimeInt);
                 detailPanel.setScheduleTime(timeStr, dayType);
                 detailPanel.refresh();
             }

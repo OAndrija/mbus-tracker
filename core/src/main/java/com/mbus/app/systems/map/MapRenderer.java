@@ -74,7 +74,7 @@ public class MapRenderer {
 
     private Set<Integer> visibleLineIds;
     private BusAnimationRenderer busAnimationRenderer;
-    private int currentTimeMinutes = 0;
+    private float currentTimeMinutes = 0f;
     private int currentDayType = 0;
 
     public MapRenderer(OrthographicCamera camera) {
@@ -93,7 +93,7 @@ public class MapRenderer {
             south, southwest, west, northwest);
     }
 
-    public void setCurrentTime(int timeMinutes, int dayType) {
+    public void setCurrentTime(float timeMinutes, int dayType) {
         this.currentTimeMinutes = timeMinutes;
         this.currentDayType = dayType;
     }

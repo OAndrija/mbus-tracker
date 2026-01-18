@@ -22,9 +22,9 @@ public class BusAnimationRenderer {
     private static final float MAX_ZOOM_SCALE = 5f;
     private static final float ZOOM_SCALE_FACTOR = 6f;
 
-    // Smoothing constants
-    private static final float INTERPOLATION_SPEED = 8f; // Higher = faster catch-up
-    private static final float POSITION_THRESHOLD = 0.0001f; // Min movement before interpolating
+    // Reduced smoothing for more direct positioning
+    private static final float INTERPOLATION_SPEED = 20f; // Very fast catch-up
+    private static final float POSITION_THRESHOLD = 0.000001f;
 
     private final SpriteBatch spriteBatch;
     private TextureRegion busNorth;
@@ -41,15 +41,11 @@ public class BusAnimationRenderer {
 
     private static class BusRenderState {
         Geolocation currentPosition;
-        Geolocation targetPosition;
         float currentAngle;
-        float targetAngle;
 
         BusRenderState(Geolocation position, float angle) {
             this.currentPosition = position;
-            this.targetPosition = position;
             this.currentAngle = angle;
-            this.targetAngle = angle;
         }
     }
 
@@ -71,13 +67,13 @@ public class BusAnimationRenderer {
         this.busNorthwest = northwest;
     }
 
-    public void renderActiveBuses(BusLine selectedLine, int currentTime,
+    public void renderActiveBuses(BusLine selectedLine, float currentTime,
                                   int dayType, ZoomXY beginTile, float cameraZoom, float delta) {
         if (selectedLine == null || busNorth == null) return;
 
-        // Get current bus positions based on schedule
+        // Get current bus positions based on schedule with precise time
         List<BusPositionCalculator.ActiveBusInfo> activeBuses =
-            BusPositionCalculator.getActiveBuses(
+            BusPositionCalculator.getActiveBusesAtTime(
                 java.util.Collections.singletonList(selectedLine),
                 currentTime,
                 dayType
@@ -120,15 +116,11 @@ public class BusAnimationRenderer {
             busStates.put(busKey, state);
         }
 
-        // Smooth interpolation toward target position
-        state.targetPosition = targetPosition;
-        state.targetAngle = targetAngle;
-
         // Interpolate position using delta time for frame-rate independent movement
         float lerpFactor = Math.min(1.0f, INTERPOLATION_SPEED * delta);
 
-        double latDiff = state.targetPosition.lat - state.currentPosition.lat;
-        double lngDiff = state.targetPosition.lng - state.currentPosition.lng;
+        double latDiff = targetPosition.lat - state.currentPosition.lat;
+        double lngDiff = targetPosition.lng - state.currentPosition.lng;
 
         // Only interpolate if there's meaningful movement
         if (Math.abs(latDiff) > POSITION_THRESHOLD || Math.abs(lngDiff) > POSITION_THRESHOLD) {
@@ -137,11 +129,11 @@ public class BusAnimationRenderer {
                 state.currentPosition.lng + lngDiff * lerpFactor
             );
         } else {
-            state.currentPosition = state.targetPosition;
+            state.currentPosition = targetPosition;
         }
 
         // Interpolate angle (handle wrapping)
-        float angleDiff = normalizeAngle(state.targetAngle - state.currentAngle);
+        float angleDiff = normalizeAngle(targetAngle - state.currentAngle);
         state.currentAngle = normalizeAngle(state.currentAngle + angleDiff * lerpFactor);
 
         // Render at interpolated position
