@@ -106,26 +106,6 @@ public class BusStop {
         return arrivals;
     }
 
-    public StopArrival getNextArrivalForLine(BusLine line, int currentTime, int dayType) {
-        StopArrival nextArrival = null;
-        int minTimeDiff = Integer.MAX_VALUE;
-
-        for (BusSchedule schedule : line.getSchedules()) {
-            if (schedule.dayType != dayType) continue;
-
-            int arrivalTime = schedule.getArrivalTimeAtStop(idAvpost);
-            if (arrivalTime >= currentTime) {
-                int timeDiff = arrivalTime - currentTime;
-                if (timeDiff < minTimeDiff) {
-                    minTimeDiff = timeDiff;
-                    nextArrival = new StopArrival(line, schedule, arrivalTime);
-                }
-            }
-        }
-
-        return nextArrival;
-    }
-
     @Override
     public String toString() {
         return "BusStop{" +
@@ -142,7 +122,7 @@ public class BusStop {
     public static class StopArrival {
         public final BusLine line;
         public final BusSchedule schedule;
-        public final int arrivalTime;  // Minutes from midnight
+        public final int arrivalTime;
 
         public StopArrival(BusLine line, BusSchedule schedule, int arrivalTime) {
             this.line = line;

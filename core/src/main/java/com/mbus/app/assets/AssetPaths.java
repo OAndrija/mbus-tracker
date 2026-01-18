@@ -5,6 +5,7 @@ public class AssetPaths {
     public static final String BUS_ICON = "icons/icon-bus.png";
     public static final String BUS = "sprites/bus.atlas";
     public static final String TITLE_ICON = "icons/icon-title.png";
+    public static final String TIME_ICON = "icons/icon-time.png";
 
     private AssetPaths() {}
 }

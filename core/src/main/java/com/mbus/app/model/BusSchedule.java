@@ -100,8 +100,8 @@ public class BusSchedule {
 
     public static class StopTime {
         public final int stopId;
-        public final int sequenceNumber;  // Order in the route (0-based)
-        public final int arrivalTime;     // Minutes from midnight
+        public final int sequenceNumber;
+        public final int arrivalTime;
 
         public StopTime(int stopId, int sequenceNumber, int arrivalTime) {
             this.stopId = stopId;

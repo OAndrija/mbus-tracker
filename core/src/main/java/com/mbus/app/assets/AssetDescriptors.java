@@ -15,6 +15,9 @@ public class AssetDescriptors {
     public static final AssetDescriptor<Texture> TITLE_ICON =
         new AssetDescriptor<Texture>(AssetPaths.TITLE_ICON, Texture.class);
 
+    public static final AssetDescriptor<Texture> TIME_ICON =
+        new AssetDescriptor<Texture>(AssetPaths.TIME_ICON, Texture.class);
+
     public static final AssetDescriptor<TextureAtlas> BUS =
         new AssetDescriptor<TextureAtlas>(AssetPaths.BUS, TextureAtlas.class);
 

@@ -23,24 +23,20 @@ public class HudPanel {
     private Table mainPanel;
     private Texture titleIcon;
 
-    // UI Components
     private TextField searchField;
     private TextField timeField;
     private ScrollPane busStopsScrollPane;
     private TextButton allStopsBtn;
     private Label currentTimeLabel;
 
-    // Data
     private List<BusStop> allBusStops;
     private List<BusLine> busLines;
     private Set<Integer> visibleLineIds;
     private boolean showingAllStops = true;
 
-    // Time management
     private String currentTime = "";
     private int currentDayOfWeek = 1; // 1=Monday, 7=Sunday
 
-    // Callback interfaces
     public interface ShowAllStopsCallback {
         void onShowAllStopsChanged(boolean showAll);
     }
@@ -75,32 +71,26 @@ public class HudPanel {
         this.busLines = new ArrayList<BusLine>();
         this.visibleLineIds = new HashSet<Integer>();
 
-        // Initialize with current time
         java.util.Calendar calendar = java.util.Calendar.getInstance();
         int hour = calendar.get(java.util.Calendar.HOUR_OF_DAY);
         int minute = calendar.get(java.util.Calendar.MINUTE);
         this.currentTime = String.format("%02d:%02d", hour, minute);
         this.currentDayOfWeek = calendar.get(java.util.Calendar.DAY_OF_WEEK);
-        // Convert from Sunday=1 to Monday=1
         this.currentDayOfWeek = (this.currentDayOfWeek == 1) ? 7 : this.currentDayOfWeek - 1;
 
         createUI();
     }
 
     private void createUI() {
-        // Main container table
         mainPanel = new Table();
         mainPanel.setFillParent(false);
 
-        // Calculate panel width (1/6th of screen)
         float panelWidth = Gdx.graphics.getWidth() / Constants.HUD_WIDTH;
         mainPanel.setSize(panelWidth, Gdx.graphics.getHeight());
         mainPanel.setPosition(0, 0);
 
-        // Set background
         mainPanel.setBackground(skin.getDrawable("panel-maroon"));
 
-        // Create header with icon and title
         Table headerTable = new Table();
 
         if (titleIcon != null) {
@@ -575,16 +565,6 @@ public class HudPanel {
             case 7: return "Ned";
             default: return "Pon";
         }
-    }
-
-    private void updateDayLabel() {
-        if (currentTimeLabel != null) {
-            currentTimeLabel.setText(getDayName(currentDayOfWeek));
-        }
-    }
-
-    public boolean isShowingAllStops() {
-        return showingAllStops;
     }
 
     public Set<Integer> getVisibleLineIds() {

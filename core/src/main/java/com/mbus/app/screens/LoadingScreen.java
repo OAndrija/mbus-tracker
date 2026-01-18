@@ -125,7 +125,6 @@ public class LoadingScreen implements Screen {
 
             Gdx.app.log(TAG, "Starting tile downloads in background...");
 
-            // Calculate tile indices
             final int[] factorY = new int[totalTiles];
             final int[] factorX = new int[totalTiles];
 
@@ -138,7 +137,6 @@ public class LoadingScreen implements Screen {
                 value++;
             }
 
-            // Start background thread to download tiles
             tileDownloadThread = new Thread(new Runnable() {
                 @Override
                 public void run() {
@@ -266,17 +264,14 @@ public class LoadingScreen implements Screen {
             }
         }
 
-        // Calculate progress (40% tiles, 60% data because data loading includes schedules now)
         float tileProgress = totalTiles > 0 ? (float) tilesLoaded / totalTiles : 0f;
         float dataProgress = dataLoadingComplete ? 1f : 0f;
 
         progress = (tileProgress * 0.4f) + (dataProgress * 0.6f);
 
-        // Update UI
         progressBar.setValue(progress);
         percentLabel.setText(String.format("%.0f%%", progress * 100));
 
-        // Update status text
         if (!dataLoadingComplete && tilesLoaded < totalTiles) {
             statusLabel.setText("Loading data and map... (" + tilesLoaded + "/" + totalTiles + " tiles)");
         } else if (!dataLoadingComplete) {
@@ -287,11 +282,9 @@ public class LoadingScreen implements Screen {
             statusLabel.setText("Complete!");
         }
 
-        // Update and draw stage
         stage.act(delta);
         stage.draw();
 
-        // When complete, transition to main screen
         if (dataLoadingComplete && tilesLoaded >= totalTiles &&
             tilesDownloadComplete.get() && tileDataQueue.isEmpty()) {
 

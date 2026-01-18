@@ -39,6 +39,7 @@ public class RasterMapScreen implements Screen {
     private Texture[] mapTiles;
     private Texture markerTexture;
     private Texture titleIcon;
+    private Texture  timeIcon;
     private TextureAtlas uiAtlas;
     private ZoomXY beginTile;
     private List<BusStop> stops;
@@ -54,14 +55,12 @@ public class RasterMapScreen implements Screen {
     private MarkerClickHandler markerClickHandler;
     private BusLineClickHandler lineClickHandler;
 
-    // Camera animation
     private boolean animatingCamera = false;
     private float animationProgress = 0f;
     private float animationDuration = 1.5f;
     private float startX, startY, startZoom;
     private float targetX, targetY, targetZoom;
 
-    // Timetable refresh
     private float timeSinceLastRefresh = 0f;
     private static final float REFRESH_INTERVAL = 30f;
 
@@ -79,6 +78,7 @@ public class RasterMapScreen implements Screen {
         skin = app.getAssetManager().get(AssetDescriptors.SKIN);
         markerTexture = app.getAssetManager().get(AssetDescriptors.BUS_ICON);
         titleIcon = app.getAssetManager().get(AssetDescriptors.TITLE_ICON);
+        timeIcon = app.getAssetManager().get(AssetDescriptors.TIME_ICON);
         uiAtlas = app.getAssetManager().get(AssetDescriptors.BUS);
 
         stops = app.getBusStops();
@@ -93,7 +93,7 @@ public class RasterMapScreen implements Screen {
             busLines.size() + " lines from pre-loaded data");
 
         hudPanel = new HudPanel(skin, titleIcon);
-        detailPanel = new BusStopDetailPanel(skin);
+        detailPanel = new BusStopDetailPanel(skin, timeIcon);
 
         hudPanel.setBusLines(busLines);
         hudPanel.setBusStops(stops);
@@ -106,7 +106,6 @@ public class RasterMapScreen implements Screen {
         mapRenderer.setBusLines(busLines);
         mapRenderer.setVisibleLineIds(hudPanel.getVisibleLineIds());
 
-        // Load bus sprites from atlas
         TextureAtlas.AtlasRegion busNorth = uiAtlas.findRegion(RegionNames.BUS_NORTH);
         TextureAtlas.AtlasRegion busNortheast = uiAtlas.findRegion(RegionNames.BUS_NORTH_EAST);
         TextureAtlas.AtlasRegion busEast = uiAtlas.findRegion(RegionNames.BUS_EAST);
@@ -125,7 +124,6 @@ public class RasterMapScreen implements Screen {
             Gdx.app.error("RasterMapScreen", "Failed to load bus sprites");
         }
 
-        // Set initial time to current real-world time
         mapRenderer.setCurrentTime(
             BusPositionCalculator.getCurrentTimeMinutesWithSeconds(),
             BusPositionCalculator.getCurrentDayType()
@@ -175,11 +173,11 @@ public class RasterMapScreen implements Screen {
                 Gdx.app.log("RasterMapScreen", "HUD clicked bus stop: " + busStop.name);
                 mapRenderer.setSelectedStop(busStop);
                 detailPanel.showBusStop(busStop);
-                // Use current real-world time for schedules
                 int currentTime = BusPositionCalculator.getCurrentTimeMinutes();
                 int dayType = BusPositionCalculator.getCurrentDayType();
                 String timeStr = BusPositionCalculator.formatTime(currentTime);
-                detailPanel.setScheduleTime(timeStr, dayType);
+                int dayOfWeek = convertDayTypeToDayOfWeek(dayType);
+                detailPanel.updateCurrentTime(timeStr, dayOfWeek);
                 zoomToBusStop(busStop);
             }
         });
@@ -225,7 +223,6 @@ public class RasterMapScreen implements Screen {
         app.viewport.apply();
         app.camera.update();
 
-        // Always use current real-world time with sub-second precision for bus positions
         float currentTime = BusPositionCalculator.getCurrentTimeMinutesWithSeconds();
         int dayType = BusPositionCalculator.getCurrentDayType();
         mapRenderer.setCurrentTime(currentTime, dayType);
@@ -233,16 +230,20 @@ public class RasterMapScreen implements Screen {
         mapRenderer.render(delta);
 
         hudPanel.render();
+
+        if (detailPanel.isVisible()) {
+            int currentTimeInt = (int) currentTime;
+            String timeStr = BusPositionCalculator.formatTime(currentTimeInt);
+            int dayOfWeek = convertDayTypeToDayOfWeek(dayType);
+            detailPanel.updateCurrentTime(timeStr, dayOfWeek);
+        }
+
         detailPanel.render();
 
-        // Refresh detail panel periodically with current time
         timeSinceLastRefresh += delta;
         if (timeSinceLastRefresh >= REFRESH_INTERVAL) {
             timeSinceLastRefresh = 0f;
             if (detailPanel.isVisible()) {
-                int currentTimeInt = (int) currentTime;
-                String timeStr = BusPositionCalculator.formatTime(currentTimeInt);
-                detailPanel.setScheduleTime(timeStr, dayType);
                 detailPanel.refresh();
             }
         }
@@ -365,11 +366,11 @@ public class RasterMapScreen implements Screen {
                     Gdx.app.log("RasterMapScreen", "Map clicked bus stop: " + busStop.name);
                     mapRenderer.setSelectedStop(busStop);
                     detailPanel.showBusStop(busStop);
-                    // Use current real-world time
                     int currentTime = BusPositionCalculator.getCurrentTimeMinutes();
                     int dayType = BusPositionCalculator.getCurrentDayType();
                     String timeStr = BusPositionCalculator.formatTime(currentTime);
-                    detailPanel.setScheduleTime(timeStr, dayType);
+                    int dayOfWeek = convertDayTypeToDayOfWeek(dayType);
+                    detailPanel.updateCurrentTime(timeStr, dayOfWeek);
                     updateHudBoundaries();
                 }
             }
@@ -382,7 +383,6 @@ public class RasterMapScreen implements Screen {
                     Gdx.app.log("RasterMapScreen", "Deselecting bus line: " + busLine.lineId);
                     mapRenderer.setSelectedLine(null);
 
-                    // When deselecting, show all lines and all stops
                     hudPanel.selectAllLines();
                     hudPanel.setShowAllStops(true);
                 } else {
@@ -390,10 +390,8 @@ public class RasterMapScreen implements Screen {
                     mapRenderer.setSelectedLine(busLine);
                     mapRenderer.setSelectedStop(null);
 
-                    // Update HUD to show only this line
                     hudPanel.selectOnlyLine(busLine.lineId);
 
-                    // Show stops for the selected line
                     hudPanel.setShowAllStops(true);
                 }
             }
@@ -424,6 +422,15 @@ public class RasterMapScreen implements Screen {
 
         app.cameraController.setHudWidth(totalHudWidth);
         mapGestureListener.setHudWidth(totalHudWidth);
+    }
+
+    private int convertDayTypeToDayOfWeek(int dayType) {
+        switch (dayType) {
+            case 0: return 1;
+            case 1: return 6;
+            case 2: return 7;
+            default: return 1;
+        }
     }
 
     @Override

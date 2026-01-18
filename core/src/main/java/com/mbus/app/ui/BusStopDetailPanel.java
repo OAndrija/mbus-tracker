@@ -2,6 +2,7 @@ package com.mbus.app.ui;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.Actor;
@@ -27,14 +28,14 @@ public class BusStopDetailPanel {
     private BusStop currentStop;
     private List<BusLine> allLines;
     private VisibilityChangeCallback visibilityCallback;
+    private Texture timeIcon;
 
-    // Schedule time control
     private String scheduleTime;
     private int scheduleDayOfWeek;
-    private boolean useCustomTime = false;
 
-    public BusStopDetailPanel(Skin skin) {
+    public BusStopDetailPanel(Skin skin, Texture timeIcon) {
         this.skin = skin;
+        this.timeIcon = timeIcon;
         this.stage = new Stage(new ScreenViewport());
         this.visible = false;
 
@@ -45,7 +46,6 @@ public class BusStopDetailPanel {
         mainPanel = new Table();
         mainPanel.setFillParent(false);
 
-        // Thinner panel - 1/8th of screen width
         float panelWidth = Gdx.graphics.getWidth() / 7f;
         mainPanel.setSize(panelWidth, Gdx.graphics.getHeight());
         mainPanel.setPosition(Gdx.graphics.getWidth() / Constants.HUD_WIDTH, 0);
@@ -58,34 +58,31 @@ public class BusStopDetailPanel {
     public void showBusStop(BusStop busStop) {
         this.currentStop = busStop;
         this.visible = true;
-        this.useCustomTime = false;
 
         rebuildUI();
     }
 
-    /**
-     * Set the time and day to use for schedule display
-     * @param time Time in HH:MM format
-     * @param dayOfWeek Day of week (1=Monday, 7=Sunday)
-     */
+    public void updateCurrentTime(String time, int dayOfWeek) {
+        this.scheduleTime = time;
+        this.scheduleDayOfWeek = dayOfWeek;
+    }
+
     public void setScheduleTime(String time, int dayOfWeek) {
         this.scheduleTime = time;
         this.scheduleDayOfWeek = dayOfWeek;
-        this.useCustomTime = true;
     }
 
     private void rebuildUI() {
         mainPanel.clear();
         float panelWidth = mainPanel.getWidth();
 
-        // Header with close button
         Table headerTable = new Table();
 
-        Label titleLabel = new Label("Postajališče", skin, "title-black");
+        Label titleLabel = new Label("Postajalisce", skin, "title-black");
         titleLabel.setFontScale(0.8f);
         titleLabel.setAlignment(Align.left);
 
-        TextButton closeBtn = new TextButton("X", skin, "maroon-small");
+        TextButton closeBtn = new TextButton("<", skin, "maroon-small");
         closeBtn.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -94,32 +91,47 @@ public class BusStopDetailPanel {
         });
 
         headerTable.add(titleLabel).expandX().left().padLeft(10);
-        headerTable.add(closeBtn).size(35, 35).padRight(5);
+        headerTable.add(closeBtn).size(25, 25).padRight(10);
 
-        mainPanel.add(headerTable).width(panelWidth).padTop(10).padBottom(5).row();
+        mainPanel.add(headerTable).width(panelWidth).padTop(20).padBottom(15).row();
 
-        // Bus stop name
+        Table stopInfoTable = new Table();
+
+        TextButton idBtn = new TextButton(String.valueOf(currentStop.idAvpost), skin, "maroon-small");
+
         Label stopNameLabel = new Label(currentStop.name, skin, "black");
         stopNameLabel.setWrap(true);
         stopNameLabel.setAlignment(Align.left);
-        stopNameLabel.setFontScale(0.95f);
-        mainPanel.add(stopNameLabel).width(panelWidth - 20).padLeft(10).padRight(10).padTop(5).padBottom(8).row();
 
-        // Separator
+        stopInfoTable.add(idBtn).width(35).height(40).padRight(8).left();
+        stopInfoTable.add(stopNameLabel).expandX().fillX().left();
+
+        mainPanel.add(stopInfoTable).width(panelWidth - 20).padLeft(10).padRight(10).padTop(10).padBottom(30).row();
+
         Image separator1 = new Image(skin.getDrawable("white"));
         separator1.setColor(0.8f, 0.8f, 0.8f, 0.3f);
-        mainPanel.add(separator1).width(panelWidth - 20).height(1).padLeft(10).padRight(10).padBottom(10).row();
+        mainPanel.add(separator1).width(panelWidth - 20).height(1).padLeft(10).padRight(10).padBottom(20).row();
 
-        // Arrivals section
+        Table arrivalsHeaderTable = new Table();
+
         Label arrivalsHeaderLabel = new Label("Prihodi", skin, "title-black");
-        arrivalsHeaderLabel.setFontScale(0.75f);
-        mainPanel.add(arrivalsHeaderLabel).left().padLeft(10).padTop(5).padBottom(10).row();
+        arrivalsHeaderLabel.setFontScale(0.8f);
 
-        // Arrivals list
+        arrivalsHeaderTable.add(arrivalsHeaderLabel).expandX().left().padLeft(10);
+
+        if (timeIcon != null) {
+            Image timeIconImage = new Image(timeIcon);
+            timeIconImage.getColor().a = 1f;
+            arrivalsHeaderTable.add(timeIconImage).size(25, 25).padRight(40);
+        }
+
+        mainPanel.add(arrivalsHeaderTable).width(panelWidth).padTop(5).padBottom(10).row();
+
         Table arrivalsTable = createUpcomingArrivalsTable(panelWidth);
         ScrollPane arrivalsScrollPane = new ScrollPane(arrivalsTable, skin, "no-bg");
-        arrivalsScrollPane.setFadeScrollBars(false);
+        arrivalsScrollPane.setFadeScrollBars(true);
         arrivalsScrollPane.setScrollingDisabled(true, false);
+        arrivalsScrollPane.setOverscroll(false, false);
 
         mainPanel.add(arrivalsScrollPane).width(panelWidth - 10).expand().fill().padLeft(5).padRight(5).padBottom(10).row();
 
@@ -142,11 +154,10 @@ public class BusStopDetailPanel {
             return table;
         }
 
-        // Use custom time if set, otherwise use current system time
         int currentTime;
         int dayType;
 
-        if (useCustomTime && scheduleTime != null) {
+        if (scheduleTime != null) {
             currentTime = parseTimeToMinutes(scheduleTime);
             dayType = convertDayOfWeekToDayType(scheduleDayOfWeek);
         } else {
@@ -158,63 +169,56 @@ public class BusStopDetailPanel {
             currentStop.getUpcomingArrivals(allLines, currentTime, dayType, 20);
 
         if (upcomingArrivals.isEmpty()) {
-            Label emptyLabel = new Label("Ni več prihodov danes", skin, "black");
-            emptyLabel.setFontScale(0.75f);
+            Label emptyLabel = new Label("Ni vec prihodov danes", skin, "black");
             emptyLabel.setColor(Color.GRAY);
             table.add(emptyLabel).pad(10);
             return table;
         }
 
-        // Display arrivals
         for (int i = 0; i < upcomingArrivals.size(); i++) {
             BusStop.StopArrival arrival = upcomingArrivals.get(i);
             BusLine line = arrival.line;
 
-            // Line number button
             TextButton lineBtn = new TextButton(String.valueOf(line.lineId), skin, "orange-small");
             Color lineColor = BusLineColors.getButtonColor(line.lineId);
             lineBtn.setColor(lineColor);
             lineBtn.setChecked(false);
 
-            // Time display
             int minutesUntil = arrival.getMinutesUntilArrival(currentTime);
             String timeText;
             Color timeColor;
 
             if (minutesUntil == 0) {
                 timeText = "Zdaj";
-                timeColor = new Color(1f, 0.3f, 0.3f, 1f); // Red
+                timeColor = new Color(1f, 0.3f, 0.3f, 1f);
             } else if (minutesUntil <= 5) {
                 timeText = minutesUntil + " min";
-                timeColor = new Color(1f, 0.6f, 0.2f, 1f); // Orange
+                timeColor = new Color(1f, 0.6f, 0.2f, 1f);
             } else if (minutesUntil <= 15) {
                 timeText = minutesUntil + " min";
-                timeColor = new Color(0.8f, 0.8f, 0.8f, 1f); // Light gray
+                timeColor = new Color(0.8f, 0.8f, 0.8f, 1f);
             } else {
                 timeText = arrival.getArrivalTimeFormatted();
                 timeColor = Color.GRAY;
             }
 
             Label timeLabel = new Label(timeText, skin, "black");
-            timeLabel.setFontScale(0.8f);
+            timeLabel.setFontScale(0.9f);
             timeLabel.setColor(timeColor);
             timeLabel.setAlignment(Align.right);
 
-            // Layout
-            table.add(lineBtn).size(40, 32).padRight(14).padLeft(14).padTop(5).padBottom(5).left();
-            table.add(timeLabel).width(55).right().padRight(10);
-            table.row().padTop(6).padBottom(6);
+            table.add(lineBtn).size(38, 38).padRight(14).padLeft(14).padTop(10).padBottom(10).left();
+            table.add(timeLabel).width(55).right().padRight(20);
+            table.row().padTop(10).padBottom(10);
 
-            // Separator between items
             if (i < upcomingArrivals.size() - 1) {
                 Image separator = new Image(skin.getDrawable("white"));
                 separator.setColor(0.8f, 0.8f, 0.8f, 0.3f);
-                table.add(separator).colspan(2).height(1).fillX().padTop(6).padBottom(6).expandX();
+                table.add(separator).colspan(2).height(1).fillX().padTop(10).padBottom(10).expandX();
                 table.row();
             }
         }
 
-        // Footer with day type and time
         String dayTypeStr;
         switch (dayType) {
             case 0: dayTypeStr = "Delovnik"; break;
@@ -238,9 +242,6 @@ public class BusStopDetailPanel {
         return table;
     }
 
-    /**
-     * Parse time string (HH:MM) to minutes since midnight
-     */
     private int parseTimeToMinutes(String time) {
         try {
             String[] parts = time.split(":");
@@ -253,18 +254,15 @@ public class BusStopDetailPanel {
         }
     }
 
-    /**
-     * Convert day of week (1=Monday, 7=Sunday) to day type (0=Weekday, 1=Saturday, 2=Sunday)
-     */
     private int convertDayOfWeekToDayType(int dayOfWeek) {
         if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-            return 0; // Weekday
+            return 0;
         } else if (dayOfWeek == 6) {
-            return 1; // Saturday
+            return 1;
         } else if (dayOfWeek == 7) {
-            return 2; // Sunday
+            return 2;
         }
-        return 0; // Default to weekday
+        return 0;
     }
 
     public void setBusLines(List<BusLine> lines) {

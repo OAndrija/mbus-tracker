@@ -86,7 +86,6 @@ public class MarkerClusterer {
             Vector2 clusterPos = new Vector2(current.position);
             clustered[i] = true;
 
-            // Find all nearby stops within cluster distance
             for (int j = i + 1; j < stopsWithPos.size(); j++) {
                 if (clustered[j]) continue;
 

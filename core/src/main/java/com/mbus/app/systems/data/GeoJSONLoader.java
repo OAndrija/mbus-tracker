@@ -69,6 +69,11 @@ public class GeoJSONLoader {
             String idMarprom = props.optString("id_marprom", "");
             String name = props.optString("ime_postaj", "");
 
+            name = name.replace('Š', 'S').replace('š', 's')
+                .replace('Č', 'C').replace('č', 'c')
+                .replace('Ć', 'C').replace('ć', 'c')
+                .replace('Ž', 'Z').replace('ž', 'z');
+
             BusStop stop = new BusStop(
                 idAvpost,
                 idMarprom,
@@ -87,7 +92,6 @@ public class GeoJSONLoader {
 
     public static List<BusLine> loadBusLinesFromFile(String path) {
 
-        // 1) Find file via LibGDX
         FileHandle file = Gdx.files.internal(path);
         if (!file.exists()) {
             file = Gdx.files.local(path);
@@ -100,21 +104,17 @@ public class GeoJSONLoader {
 
         log.info("Loading bus lines from: " + file.path());
 
-        // 2) Read file as String
         String jsonText = file.readString("UTF-8");
 
-        // 3) Parse JSON
         JSONObject root = new JSONObject(jsonText);
 
         JSONArray features = root.getJSONArray("features");
 
-        // Map to track the best variant for each lineId
         Map<Integer, BusLine> bestVariantPerLine = new HashMap<Integer, BusLine>();
 
         for (int i = 0; i < features.length(); i++) {
             JSONObject feature = features.getJSONObject(i);
 
-            // geometry
             JSONObject geometry = feature.getJSONObject("geometry");
             String geomType = geometry.getString("type");
 
@@ -125,7 +125,6 @@ public class GeoJSONLoader {
 
             JSONArray coordinates = geometry.getJSONArray("coordinates");
 
-            // Convert each coordinate pair to WGS84
             List<Geolocation> paths = new ArrayList<Geolocation>(coordinates.length());
             List<double[]> originalCoords = new ArrayList<double[]>(coordinates.length());
 
@@ -134,10 +133,8 @@ public class GeoJSONLoader {
                 double x = coord.getDouble(0);
                 double y = coord.getDouble(1);
 
-                // Store original coordinates
                 originalCoords.add(new double[]{x, y});
 
-                // Convert to WGS84
                 double[] latlon = GeoConverter3794.toWGS84(x, y + 5000000);
                 double lat = latlon[0];
                 double lon = latlon[1];
@@ -145,7 +142,6 @@ public class GeoJSONLoader {
                 paths.add(new Geolocation(lat, lon));
             }
 
-            // 5) Properties
             JSONObject props = feature.getJSONObject("properties");
 
             int lineId = props.optInt("linije_id", -1);
@@ -168,10 +164,9 @@ public class GeoJSONLoader {
                 providerLink,
                 paths,
                 originalCoords,
-                null  // stops - will be added by relationship builder
+                null
             );
 
-            // Keep only the variant with the most geolocations for each lineId
             BusLine existing = bestVariantPerLine.get(lineId);
             if (existing == null || paths.size() > existing.getPointCount()) {
                 bestVariantPerLine.put(lineId, line);
@@ -182,16 +177,13 @@ public class GeoJSONLoader {
             }
         }
 
-        // Convert map values to list
         List<BusLine> lines = new ArrayList<BusLine>(bestVariantPerLine.values());
 
-        // Collect unique line IDs and log them
         java.util.Set<Integer> uniqueLineIds = new java.util.TreeSet<Integer>();
         for (BusLine line : lines) {
             uniqueLineIds.add(line.lineId);
         }
 
-        // Convert to comma-separated string
         StringBuilder lineIdsStr = new StringBuilder();
         int count = 0;
         for (Integer id : uniqueLineIds) {
