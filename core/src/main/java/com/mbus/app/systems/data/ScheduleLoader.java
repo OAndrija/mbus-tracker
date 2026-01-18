@@ -308,11 +308,19 @@ public class ScheduleLoader {
                 double distanceInKm = distanceInDegrees * 111.0;
 
                 double travelTimeHours = distanceInKm / 50.0;
-                int travelTimeMinutes = (int) Math.ceil(travelTimeHours * 60.0);
+                double travelTimeMinutes = travelTimeHours * 60.0;
 
-                travelTimeMinutes = Math.max(1, Math.min(travelTimeMinutes, 3));
+                if (distanceInKm < 1) {
+                    travelTimeMinutes = 0.5 + (random.nextDouble() * 0.2);
+                } else if (distanceInKm < 1.5) {
+                    travelTimeMinutes = Math.max(0.5, travelTimeMinutes);
+                } else {
+                    travelTimeMinutes = Math.max(1.0, travelTimeMinutes);
+                }
 
-                currentTime += travelTimeMinutes;
+                int travelTimeMinutesInt = (int) Math.max(1, Math.round(travelTimeMinutes));
+
+                currentTime += travelTimeMinutesInt;
             }
         }
 

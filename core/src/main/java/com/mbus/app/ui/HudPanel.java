@@ -305,8 +305,26 @@ public class HudPanel {
             uniqueLineIds.add(line.lineId);
         }
 
-        float buttonSize = 45f;
-        int buttonsPerRow = 6;
+        float panelWidth = Gdx.graphics.getWidth() / Constants.HUD_WIDTH;
+        float availableWidth = panelWidth - 20;
+        float padding = 4f;
+
+        int buttonsPerRow;
+        float buttonSize;
+
+        if (availableWidth > 300) {
+            buttonsPerRow = 6;
+        } else if (availableWidth > 240) {
+            buttonsPerRow = 5;
+        } else if (availableWidth > 180) {
+            buttonsPerRow = 4;
+        } else {
+            buttonsPerRow = 3;
+        }
+
+        buttonSize = (availableWidth - (padding * 2 * buttonsPerRow)) / buttonsPerRow;
+        buttonSize = Math.max(30f, Math.min(buttonSize, 50f));
+
         int count = 0;
 
         for (final Integer lineId : uniqueLineIds) {
@@ -332,7 +350,7 @@ public class HudPanel {
                 }
             });
 
-            table.add(btn).size(buttonSize).pad(4);
+            table.add(btn).size(buttonSize).pad(padding);
             count++;
 
             if (count % buttonsPerRow == 0) {
@@ -559,7 +577,7 @@ public class HudPanel {
             case 1: return "Pon";
             case 2: return "Tor";
             case 3: return "Sre";
-            case 4: return "Čet";
+            case 4: return "Cet";
             case 5: return "Pet";
             case 6: return "Sob";
             case 7: return "Ned";

@@ -18,17 +18,16 @@ import java.util.Map;
 
 public class BusAnimationRenderer {
 
-    private static final float BUS_SPRITE_SIZE = 56f;
+    private static final float BUS_SPRITE_SIZE = 60f;
     private static final float MIN_ZOOM_SCALE = 0.8f;
     private static final float MAX_ZOOM_SCALE = 5f;
-    private static final float ZOOM_SCALE_FACTOR = 6f;
+    private static final float ZOOM_SCALE_FACTOR = 7f;
 
     private static final float POSITION_INTERPOLATION_SPEED = 15f;
     private static final float ANGLE_INTERPOLATION_SPEED = 8f;
     private static final float POSITION_THRESHOLD = 0.0000001f;
 
     private static final float DIRECTION_LOOKAHEAD = 0.25f;
-    private static final float SPRITE_CHANGE_THRESHOLD = 15f;
     private static final float ANGLE_SMOOTHING_WINDOW = 5;
 
     private final SpriteBatch spriteBatch;

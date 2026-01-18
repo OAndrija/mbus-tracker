@@ -40,12 +40,4 @@ public class MarkerCluster {
     public List<BusStop> getStops() {
         return stops;
     }
-
-    public void addStop(BusStop stop, Vector2 stopPos) {
-        stops.add(stop);
-        // Update cluster position to average
-        position.x = (position.x * (stops.size() - 1) + stopPos.x) / stops.size();
-        position.y = (position.y * (stops.size() - 1) + stopPos.y) / stops.size();
-        isCluster = stops.size() > 1;
-    }
 }

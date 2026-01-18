@@ -425,7 +425,7 @@ public class MapRenderer {
     }
 
     private void drawCluster(float x, float y, int count, float zoom) {
-        float zoomScale = 1.0f + (zoom * 2.5f);
+        float zoomScale = 1.0f + (zoom * 4f);
         float countScale = 1.0f + Math.min(count / 8f, 1.2f);
         float clusterSize = BASE_MARKER_SIZE * countScale * zoomScale;
 
@@ -447,7 +447,7 @@ public class MapRenderer {
         spriteBatch.begin();
 
         String countText = String.valueOf(count);
-        float fontScale = 0.5f + (zoom * 13f);
+        float fontScale = 0.5f + (zoom * 14f);
         font.getData().setScale(fontScale);
 
         GlyphLayout layout = new GlyphLayout(font, countText);
