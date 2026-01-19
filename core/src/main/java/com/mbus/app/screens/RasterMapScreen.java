@@ -1,6 +1,5 @@
 package com.mbus.app.screens;
 
-import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.Screen;
@@ -17,7 +16,6 @@ import com.mbus.app.assets.AssetDescriptors;
 import com.mbus.app.assets.RegionNames;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
-import com.mbus.app.model.Geolocation;
 import com.mbus.app.model.ZoomXY;
 import com.mbus.app.systems.input.BusLineClickHandler;
 import com.mbus.app.systems.input.MapGestureListener;
@@ -29,19 +27,18 @@ import com.mbus.app.ui.BusStopDetailPanel;
 import com.mbus.app.utils.BusPositionCalculator;
 import com.mbus.app.utils.Constants;
 
-import java.io.IOException;
 import java.util.*;
 
 public class RasterMapScreen implements Screen {
 
     private final MBusTracker app;
 
-    private Texture[] mapTiles;
+    private final Texture[] mapTiles;
     private Texture markerTexture;
     private Texture titleIcon;
     private Texture  timeIcon;
     private TextureAtlas uiAtlas;
-    private ZoomXY beginTile;
+    private final ZoomXY beginTile;
     private List<BusStop> stops;
     private List<BusLine> busLines;
 
@@ -57,15 +54,12 @@ public class RasterMapScreen implements Screen {
 
     private boolean animatingCamera = false;
     private float animationProgress = 0f;
-    private float animationDuration = 1.5f;
+    private final float animationDuration = 1.5f;
     private float startX, startY, startZoom;
     private float targetX, targetY, targetZoom;
 
     private float timeSinceLastRefresh = 0f;
     private static final float REFRESH_INTERVAL = 30f;
-
-    private final Geolocation CENTER_GEOLOCATION =
-        new Geolocation(46.557314, 15.637771);
 
     public RasterMapScreen(MBusTracker app, Texture[] preloadedTiles, ZoomXY preloadedBeginTile) {
         this.app = app;

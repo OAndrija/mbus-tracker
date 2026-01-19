@@ -242,6 +242,12 @@ public class MapRenderer {
             if (!isLineVisible(pos1, pos2)) continue;
 
             shapeRenderer.rectLine(pos1.x, pos1.y, pos2.x, pos2.y, lineWidth);
+
+            // Add circles at joints to smooth corners
+            shapeRenderer.circle(pos1.x, pos1.y, lineWidth / 2, 16);
+            if (i == path.size() - 2) {
+                shapeRenderer.circle(pos2.x, pos2.y, lineWidth / 2, 16);
+            }
         }
     }
 
