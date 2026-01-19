@@ -220,7 +220,6 @@ public class LoadingScreen implements Screen {
                     Gdx.app.log(TAG, totalLinesWithStops + "/" + linesWithSchedules.size() + " lines have stops");
                     Gdx.app.log(TAG, totalLinesWithSchedules + "/" + linesWithSchedules.size() + " lines have schedules");
 
-                    // Store results
                     loadedStops = result.stops;
                     loadedLines = linesWithSchedules;
                     dataLoadingComplete = true;

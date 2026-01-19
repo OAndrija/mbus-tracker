@@ -156,7 +156,7 @@ public class ScheduleLoader {
 
             int routeDuration = estimateRouteDuration(scheduledStops, isUrbanLine);
 
-            int dayType = 2;
+            int dayType = 0;
 
             Gdx.app.log(TAG, "Processing line " + line.lineId + " (variant=" + line.variantId +
                 ", dir=" + line.direction + ", stops=" + line.getStops().size() +

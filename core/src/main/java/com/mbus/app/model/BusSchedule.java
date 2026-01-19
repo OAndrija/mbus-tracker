@@ -50,15 +50,6 @@ public class BusSchedule {
         return -1;
     }
 
-    public StopTime getStopTime(int stopId) {
-        for (StopTime st : stopTimes) {
-            if (st.stopId == stopId) {
-                return st;
-            }
-        }
-        return null;
-    }
-
     public static String formatTime(int minutes) {
         int hours = minutes / 60;
         int mins = minutes % 60;
@@ -81,10 +72,6 @@ public class BusSchedule {
             case 2: return "Sunday/Holiday";
             default: return "Unknown";
         }
-    }
-
-    public boolean runsOnDayType(int dayType) {
-        return this.dayType == dayType;
     }
 
     @Override
