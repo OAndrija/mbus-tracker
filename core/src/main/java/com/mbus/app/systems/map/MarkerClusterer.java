@@ -5,7 +5,9 @@ import com.mbus.app.model.BusStop;
 import com.mbus.app.model.ZoomXY;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MarkerClusterer {
 
@@ -14,12 +16,15 @@ public class MarkerClusterer {
     private static final float[] ZOOM_LEVELS = {0.0f, 0.15f, 0.3f, 0.5f, 0.8f};
     private static final float[] CLUSTER_MULTIPLIERS = {0f, 1.5f, 3.0f, 8.0f, 20.0f};
 
+    private static Map<String, MarkerCluster> previousClusters = new HashMap<String, MarkerCluster>();
+
     public static List<MarkerCluster> clusterMarkers(
         List<BusStop> stops,
         ZoomXY beginTile,
         float cameraZoom,
         int mapWidth,
-        int mapHeight
+        int mapHeight,
+        float delta
     ) {
         if (stops == null || stops.isEmpty()) {
             return new ArrayList<MarkerCluster>();
@@ -48,7 +53,7 @@ public class MarkerClusterer {
             for (StopWithPosition swp : stopsWithPos) {
                 individualMarkers.add(new MarkerCluster(swp.position, swp.stop));
             }
-            return individualMarkers;
+            return animateTransition(individualMarkers, delta);
         }
 
         List<MarkerCluster> clusters = initialClustering(stopsWithPos, clusterDistance);
@@ -57,7 +62,117 @@ public class MarkerClusterer {
             clusters = reclusterClusters(clusters, clusterDistance * 1.5f);
         }
 
-        return clusters;
+        return animateTransition(clusters, delta);
+    }
+
+    private static List<MarkerCluster> animateTransition(List<MarkerCluster> newClusters, float delta) {
+        Map<String, MarkerCluster> newClusterMap = new HashMap<String, MarkerCluster>();
+
+        for (MarkerCluster cluster : newClusters) {
+            newClusterMap.put(cluster.getClusterId(), cluster);
+        }
+
+        List<MarkerCluster> animatedClusters = new ArrayList<MarkerCluster>();
+
+        for (MarkerCluster newCluster : newClusters) {
+            String id = newCluster.getClusterId();
+
+            if (previousClusters.containsKey(id)) {
+                MarkerCluster existing = previousClusters.get(id);
+                existing.setTarget(newCluster.position, newCluster.getCount());
+                existing.stops = newCluster.stops;
+                existing.isCluster = newCluster.isCluster;
+                existing.updateAnimation(delta);
+                animatedClusters.add(existing);
+            } else {
+                MarkerCluster parent = findParentCluster(newCluster);
+                if (parent != null) {
+                    newCluster.animatedPosition.set(parent.getPosition());
+                    newCluster.targetPosition.set(newCluster.position);
+                    newCluster.currentScale = parent.currentScale;
+                    newCluster.targetScale = 1.0f;
+                    newCluster.alpha = 0.8f;
+                } else {
+                    newCluster.isNew = true;
+                }
+                newCluster.updateAnimation(delta);
+                animatedClusters.add(newCluster);
+            }
+        }
+
+        for (Map.Entry<String, MarkerCluster> entry : previousClusters.entrySet()) {
+            String id = entry.getKey();
+            MarkerCluster oldCluster = entry.getValue();
+
+            if (!newClusterMap.containsKey(id)) {
+                MarkerCluster mergeTarget = findMergeTarget(oldCluster, newClusters);
+
+                if (mergeTarget != null) {
+                    oldCluster.setTarget(mergeTarget.position, mergeTarget.getCount());
+                    oldCluster.targetScale = mergeTarget.currentScale > 0 ? mergeTarget.currentScale : 1.0f;
+                    oldCluster.alpha = Math.max(oldCluster.alpha, 0.8f);
+                }
+
+                oldCluster.markForDeath();
+                oldCluster.updateAnimation(delta);
+
+                if (!oldCluster.shouldRemove()) {
+                    animatedClusters.add(oldCluster);
+                }
+            }
+        }
+
+        previousClusters.clear();
+        for (MarkerCluster cluster : animatedClusters) {
+            if (!cluster.isDying) {
+                previousClusters.put(cluster.getClusterId(), cluster);
+            }
+        }
+
+        return animatedClusters;
+    }
+
+    private static MarkerCluster findParentCluster(MarkerCluster newCluster) {
+        for (MarkerCluster oldCluster : previousClusters.values()) {
+            if (oldCluster.getStops().containsAll(newCluster.getStops())) {
+                return oldCluster;
+            }
+        }
+        return null;
+    }
+
+    private static MarkerCluster findMergeTarget(MarkerCluster oldCluster, List<MarkerCluster> newClusters) {
+        MarkerCluster bestTarget = null;
+        int maxOverlap = 0;
+
+        for (MarkerCluster newCluster : newClusters) {
+            int overlap = 0;
+            for (BusStop stop : oldCluster.getStops()) {
+                if (newCluster.getStops().contains(stop)) {
+                    overlap++;
+                }
+            }
+
+            if (overlap > maxOverlap) {
+                maxOverlap = overlap;
+                bestTarget = newCluster;
+            }
+        }
+
+        if (bestTarget != null && maxOverlap > 0) {
+            return bestTarget;
+        }
+
+        float minDistance = Float.MAX_VALUE;
+        for (MarkerCluster newCluster : newClusters) {
+            float distance = oldCluster.getPosition().dst(newCluster.getPosition());
+            if (distance < minDistance) {
+                minDistance = distance;
+                bestTarget = newCluster;
+            }
+        }
+
+        return bestTarget;
     }
 
     private static int getDiscreteZoomLevel(float cameraZoom) {

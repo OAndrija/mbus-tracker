@@ -166,9 +166,10 @@ public class MapRenderer {
             renderMarkers();
         }
 
+        spriteBatch.setProjectionMatrix(camera.combined);
+        spriteBatch.begin();
+
         if (selectedLine != null) {
-            spriteBatch.setProjectionMatrix(camera.combined);
-            spriteBatch.begin();
             busAnimationRenderer.renderActiveBuses(
                 selectedLine,
                 currentTimeMinutes,
@@ -177,8 +178,18 @@ public class MapRenderer {
                 camera.zoom,
                 delta
             );
-            spriteBatch.end();
+        } else if (hoveredLine != null) {
+            busAnimationRenderer.renderActiveBuses(
+                hoveredLine,
+                currentTimeMinutes,
+                currentDayType,
+                beginTile,
+                camera.zoom,
+                delta
+            );
         }
+
+        spriteBatch.end();
 
         renderLineLabels();
     }
@@ -334,66 +345,119 @@ public class MapRenderer {
 
         float zoomScale = getZoomScale();
 
+        // Pass delta to clustering algorithm
         List<MarkerCluster> clusters = MarkerClusterer.clusterMarkers(
             filteredStops,
             beginTile,
             camera.zoom,
             Constants.MAP_WIDTH,
-            Constants.MAP_HEIGHT
+            Constants.MAP_HEIGHT,
+            com.badlogic.gdx.Gdx.graphics.getDeltaTime()  // Add delta time
         );
 
+        // Render normal markers first
         spriteBatch.begin();
         for (MarkerCluster cluster : clusters) {
             if (cluster.isCluster) continue;
+            if (cluster.isDying) continue;
 
             BusStop stop = cluster.getSingleStop();
             if (stop == selectedStop || stop == hoveredStop) continue;
 
             Vector2 pos = cluster.getPosition();
-            drawMarker(pos.x, pos.y, 1.0f * zoomScale, new Color(1, 1, 1, 0.9f), false);
+            float scale = cluster.currentScale * zoomScale;
+            Color tint = new Color(1, 1, 1, 0.9f * cluster.alpha);
+            drawMarker(pos.x, pos.y, scale, tint, false);
         }
         spriteBatch.end();
 
+        // Render clusters
         for (MarkerCluster cluster : clusters) {
             if (!cluster.isCluster) continue;
 
             Vector2 pos = cluster.getPosition();
-            drawCluster(pos.x, pos.y, cluster.getCount(), camera.zoom);
+            float scale = cluster.currentScale;
+            float alpha = cluster.alpha;
+
+            drawCluster(pos.x, pos.y, cluster.getCount(), camera.zoom, scale, alpha);
         }
 
+        // Render hovered stop with glow
         if (hoveredStop != null) {
             for (MarkerCluster cluster : clusters) {
                 if (!cluster.isCluster && cluster.getSingleStop() == hoveredStop) {
                     Vector2 pos = cluster.getPosition();
+                    float scale = cluster.currentScale * zoomScale;
 
                     shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-                    shapeRenderer.setColor(0.2f, 0.6f, 1.0f, 0.25f);
-                    shapeRenderer.circle(pos.x, pos.y, BASE_MARKER_SIZE * 0.6f * zoomScale);
+                    shapeRenderer.setColor(0.2f, 0.6f, 1.0f, 0.25f * cluster.alpha);
+                    shapeRenderer.circle(pos.x, pos.y, BASE_MARKER_SIZE * 0.6f * scale);
                     shapeRenderer.end();
 
                     spriteBatch.begin();
-                    drawMarker(pos.x, pos.y, HOVER_SCALE * zoomScale, new Color(0.5f, 0.8f, 1.0f, 1f), false);
+                    drawMarker(pos.x, pos.y, HOVER_SCALE * scale,
+                        new Color(0.5f, 0.8f, 1.0f, cluster.alpha), false);
                     spriteBatch.end();
                     break;
                 }
             }
         }
 
+        // Render selected stop with pulse
         if (selectedStop != null) {
             for (MarkerCluster cluster : clusters) {
                 if (!cluster.isCluster && cluster.getSingleStop() == selectedStop) {
                     Vector2 pos = cluster.getPosition();
 
                     float breathe = (float) Math.sin(pulseTime * PULSE_SPEED) * 0.5f + 0.5f;
-                    float currentScale = (SELECT_SCALE + breathe * 0.15f) * zoomScale;
+                    float currentScale = (SELECT_SCALE + breathe * 0.15f) *
+                        cluster.currentScale * zoomScale;
 
                     spriteBatch.begin();
-                    drawMarker(pos.x, pos.y, currentScale, new Color(0.3f, 0.8f, 1.0f, 1f), false);
+                    drawMarker(pos.x, pos.y, currentScale,
+                        new Color(0.3f, 0.8f, 1.0f, cluster.alpha), false);
                     spriteBatch.end();
                     break;
                 }
             }
         }
+    }
+
+    // Update the drawCluster method signature to accept scale and alpha:
+    private void drawCluster(float x, float y, int count, float zoom, float scale, float alpha) {
+        float zoomScale = 1.0f + (zoom * 4f);
+        float countScale = 1.0f + Math.min(count / 8f, 1.2f);
+        float clusterSize = BASE_MARKER_SIZE * countScale * zoomScale * scale;
+
+        Color clusterColor = getClusterColor(count);
+
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+
+        shapeRenderer.setColor(clusterColor.r, clusterColor.g, clusterColor.b, 0.25f * alpha);
+        shapeRenderer.circle(x, y, clusterSize * 0.7f);
+
+        shapeRenderer.setColor(clusterColor.r, clusterColor.g, clusterColor.b, 0.5f * alpha);
+        shapeRenderer.circle(x, y, clusterSize * 0.55f);
+
+        shapeRenderer.setColor(clusterColor.r, clusterColor.g, clusterColor.b, 0.85f * alpha);
+        shapeRenderer.circle(x, y, clusterSize * 0.4f);
+
+        shapeRenderer.end();
+
+        spriteBatch.begin();
+
+        String countText = String.valueOf(count);
+        float fontScale = (0.5f + (zoom * 14f)) * scale;
+        font.getData().setScale(fontScale);
+
+        GlyphLayout layout = new GlyphLayout(font, countText);
+        float textWidth = layout.width;
+        float textHeight = layout.height;
+
+        font.setColor(1, 1, 1, alpha);
+        font.draw(spriteBatch, countText, x - textWidth / 2, y + textHeight / 2);
+
+        spriteBatch.end();
     }
 
     private void drawMarker(float x, float y, float scale, Color tint, boolean addHighlight) {
@@ -428,42 +492,6 @@ public class MapRenderer {
         } else {
             return new Color(1.0f, 0.5f, 0.1f, 1f);
         }
-    }
-
-    private void drawCluster(float x, float y, int count, float zoom) {
-        float zoomScale = 1.0f + (zoom * 4f);
-        float countScale = 1.0f + Math.min(count / 8f, 1.2f);
-        float clusterSize = BASE_MARKER_SIZE * countScale * zoomScale;
-
-        Color clusterColor = getClusterColor(count);
-
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-
-        shapeRenderer.setColor(clusterColor.r, clusterColor.g, clusterColor.b, 0.25f);
-        shapeRenderer.circle(x, y, clusterSize * 0.7f);
-
-        shapeRenderer.setColor(clusterColor.r, clusterColor.g, clusterColor.b, 0.5f);
-        shapeRenderer.circle(x, y, clusterSize * 0.55f);
-
-        shapeRenderer.setColor(clusterColor.r, clusterColor.g, clusterColor.b, 0.85f);
-        shapeRenderer.circle(x, y, clusterSize * 0.4f);
-
-        shapeRenderer.end();
-
-        spriteBatch.begin();
-
-        String countText = String.valueOf(count);
-        float fontScale = 0.5f + (zoom * 14f);
-        font.getData().setScale(fontScale);
-
-        GlyphLayout layout = new GlyphLayout(font, countText);
-        float textWidth = layout.width;
-        float textHeight = layout.height;
-
-        font.setColor(1, 1, 1, 1);
-        font.draw(spriteBatch, countText, x - textWidth / 2, y + textHeight / 2);
-
-        spriteBatch.end();
     }
 
     private void renderFallbackMarkers() {
