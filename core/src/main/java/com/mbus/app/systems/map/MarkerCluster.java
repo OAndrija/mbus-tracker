@@ -46,7 +46,7 @@ public class MarkerCluster {
         this.animatedPosition = new Vector2(position);
         this.currentScale = 0.3f;
         this.targetScale = 1.0f;
-        this.alpha = 0.0f;
+        this.alpha = 0.6f;
         this.isNew = true;
         this.isDying = false;
     }
@@ -93,9 +93,20 @@ public class MarkerCluster {
     }
 
     public void updateAnimation(float delta) {
-        float POSITION_LERP_SPEED = 3.0f;
-        float SCALE_LERP_SPEED = 4.0f;
-        float ALPHA_FADE_SPEED = 2.5f;
+        float POSITION_LERP_SPEED = 5.0f;
+        float SCALE_LERP_SPEED = 6.0f;
+        float ALPHA_FADE_SPEED = 8.0f;
+
+        if (isDying) {
+            float distanceToTarget = animatedPosition.dst(targetPosition);
+            if (distanceToTarget > 300f) {
+                POSITION_LERP_SPEED = 2.5f;
+                ALPHA_FADE_SPEED = 3.0f;
+            } else if (distanceToTarget > 150f) {
+                POSITION_LERP_SPEED = 3.5f;
+                ALPHA_FADE_SPEED = 4.0f;
+            }
+        }
 
         float posLerpFactor = 1.0f - (float)Math.pow(0.001f, delta * POSITION_LERP_SPEED);
         animatedPosition.x += (targetPosition.x - animatedPosition.x) * posLerpFactor;
@@ -131,6 +142,12 @@ public class MarkerCluster {
     }
 
     public boolean shouldRemove() {
-        return isDying && alpha <= 0.05f;
+        float distanceToTarget = animatedPosition.dst(targetPosition);
+
+        if (distanceToTarget < 20f && alpha <= 0.05f) {
+            return true;
+        }
+
+        return false;
     }
 }

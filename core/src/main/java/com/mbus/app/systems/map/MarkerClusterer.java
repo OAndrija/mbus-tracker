@@ -14,9 +14,10 @@ public class MarkerClusterer {
     private static final float BASE_CLUSTER_DISTANCE = 80f;
 
     private static final float[] ZOOM_LEVELS = {0.0f, 0.15f, 0.3f, 0.5f, 0.8f};
-    private static final float[] CLUSTER_MULTIPLIERS = {0f, 1.5f, 3.0f, 8.0f, 20.0f};
+    private static final float[] CLUSTER_MULTIPLIERS = {0f, 1.5f, 3.0f, 5.0f, 10.0f};
 
     private static Map<String, MarkerCluster> previousClusters = new HashMap<String, MarkerCluster>();
+    private static int previousZoomLevel = -1;
 
     public static List<MarkerCluster> clusterMarkers(
         List<BusStop> stops,
@@ -32,6 +33,17 @@ public class MarkerClusterer {
 
         int zoomLevel = getDiscreteZoomLevel(cameraZoom);
         float clusterDistance = BASE_CLUSTER_DISTANCE * CLUSTER_MULTIPLIERS[zoomLevel];
+
+        boolean zoomChanged = (zoomLevel != previousZoomLevel);
+
+        if (zoomChanged) {
+            System.out.println("=== CLUSTERING DEBUG ===");
+            System.out.println("Camera Zoom: " + cameraZoom);
+            System.out.println("Zoom Level: " + zoomLevel + " (changed from " + previousZoomLevel + ")");
+            System.out.println("Cluster Distance: " + clusterDistance);
+            System.out.println("Previous Clusters Count: " + previousClusters.size());
+            previousZoomLevel = zoomLevel;
+        }
 
         List<StopWithPosition> stopsWithPos = new ArrayList<StopWithPosition>();
         for (BusStop stop : stops) {
@@ -53,19 +65,26 @@ public class MarkerClusterer {
             for (StopWithPosition swp : stopsWithPos) {
                 individualMarkers.add(new MarkerCluster(swp.position, swp.stop));
             }
-            return animateTransition(individualMarkers, delta);
+            return animateTransition(individualMarkers, delta, zoomLevel, zoomChanged);
         }
 
         List<MarkerCluster> clusters = initialClustering(stopsWithPos, clusterDistance);
 
         if (zoomLevel >= 3) {
+            if (zoomChanged) {
+                System.out.println("Applying super-clustering...");
+            }
             clusters = reclusterClusters(clusters, clusterDistance * 1.5f);
         }
 
-        return animateTransition(clusters, delta);
+        if (zoomChanged) {
+            System.out.println("New Clusters Count: " + clusters.size());
+        }
+
+        return animateTransition(clusters, delta, zoomLevel, zoomChanged);
     }
 
-    private static List<MarkerCluster> animateTransition(List<MarkerCluster> newClusters, float delta) {
+    private static List<MarkerCluster> animateTransition(List<MarkerCluster> newClusters, float delta, int zoomLevel, boolean zoomChanged) {
         Map<String, MarkerCluster> newClusterMap = new HashMap<String, MarkerCluster>();
 
         for (MarkerCluster cluster : newClusters) {
@@ -74,10 +93,15 @@ public class MarkerClusterer {
 
         List<MarkerCluster> animatedClusters = new ArrayList<MarkerCluster>();
 
+        int existingCount = 0;
+        int newCount = 0;
+        int dyingCount = 0;
+
         for (MarkerCluster newCluster : newClusters) {
             String id = newCluster.getClusterId();
 
             if (previousClusters.containsKey(id)) {
+                existingCount++;
                 MarkerCluster existing = previousClusters.get(id);
                 existing.setTarget(newCluster.position, newCluster.getCount());
                 existing.stops = newCluster.stops;
@@ -87,12 +111,20 @@ public class MarkerClusterer {
             } else {
                 MarkerCluster parent = findParentCluster(newCluster);
                 if (parent != null) {
+                    newCount++;
+                    if (zoomChanged) {
+                        System.out.println("SPLIT: New cluster with " + newCluster.getCount() + " stops from parent with " + parent.getCount() + " stops");
+                    }
                     newCluster.animatedPosition.set(parent.getPosition());
                     newCluster.targetPosition.set(newCluster.position);
                     newCluster.currentScale = parent.currentScale;
                     newCluster.targetScale = 1.0f;
                     newCluster.alpha = 0.8f;
                 } else {
+                    newCount++;
+                    if (zoomChanged) {
+                        System.out.println("NEW: Brand new cluster with " + newCluster.getCount() + " stops");
+                    }
                     newCluster.isNew = true;
                 }
                 newCluster.updateAnimation(delta);
@@ -105,12 +137,20 @@ public class MarkerClusterer {
             MarkerCluster oldCluster = entry.getValue();
 
             if (!newClusterMap.containsKey(id)) {
+                dyingCount++;
                 MarkerCluster mergeTarget = findMergeTarget(oldCluster, newClusters);
 
                 if (mergeTarget != null) {
+                    if (zoomChanged) {
+                        System.out.println("MERGE: Cluster with " + oldCluster.getCount() + " stops merging into cluster with " + mergeTarget.getCount() + " stops (distance: " + oldCluster.getPosition().dst(mergeTarget.getPosition()) + ")");
+                    }
                     oldCluster.setTarget(mergeTarget.position, mergeTarget.getCount());
                     oldCluster.targetScale = mergeTarget.currentScale > 0 ? mergeTarget.currentScale : 1.0f;
                     oldCluster.alpha = Math.max(oldCluster.alpha, 0.8f);
+                } else {
+                    if (zoomChanged) {
+                        System.out.println("DYING: Cluster with " + oldCluster.getCount() + " stops has no merge target");
+                    }
                 }
 
                 oldCluster.markForDeath();
@@ -120,6 +160,12 @@ public class MarkerClusterer {
                     animatedClusters.add(oldCluster);
                 }
             }
+        }
+
+        if (zoomChanged) {
+            System.out.println("Animation Stats - Existing: " + existingCount + ", New: " + newCount + ", Dying: " + dyingCount);
+            System.out.println("Total Animated Clusters: " + animatedClusters.size());
+            System.out.println("========================");
         }
 
         previousClusters.clear();
