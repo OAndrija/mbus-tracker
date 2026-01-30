@@ -37,11 +37,6 @@ public class MarkerClusterer {
         boolean zoomChanged = (zoomLevel != previousZoomLevel);
 
         if (zoomChanged) {
-            System.out.println("=== CLUSTERING DEBUG ===");
-            System.out.println("Camera Zoom: " + cameraZoom);
-            System.out.println("Zoom Level: " + zoomLevel + " (changed from " + previousZoomLevel + ")");
-            System.out.println("Cluster Distance: " + clusterDistance);
-            System.out.println("Previous Clusters Count: " + previousClusters.size());
             previousZoomLevel = zoomLevel;
         }
 
@@ -71,14 +66,7 @@ public class MarkerClusterer {
         List<MarkerCluster> clusters = initialClustering(stopsWithPos, clusterDistance);
 
         if (zoomLevel >= 3) {
-            if (zoomChanged) {
-                System.out.println("Applying super-clustering...");
-            }
             clusters = reclusterClusters(clusters, clusterDistance * 1.5f);
-        }
-
-        if (zoomChanged) {
-            System.out.println("New Clusters Count: " + clusters.size());
         }
 
         return animateTransition(clusters, delta, zoomLevel, zoomChanged);
@@ -112,9 +100,6 @@ public class MarkerClusterer {
                 MarkerCluster parent = findParentCluster(newCluster);
                 if (parent != null) {
                     newCount++;
-                    if (zoomChanged) {
-                        System.out.println("SPLIT: New cluster with " + newCluster.getCount() + " stops from parent with " + parent.getCount() + " stops");
-                    }
                     newCluster.animatedPosition.set(parent.getPosition());
                     newCluster.targetPosition.set(newCluster.position);
                     newCluster.currentScale = parent.currentScale;
@@ -122,9 +107,6 @@ public class MarkerClusterer {
                     newCluster.alpha = 0.8f;
                 } else {
                     newCount++;
-                    if (zoomChanged) {
-                        System.out.println("NEW: Brand new cluster with " + newCluster.getCount() + " stops");
-                    }
                     newCluster.isNew = true;
                 }
                 newCluster.updateAnimation(delta);
@@ -141,16 +123,9 @@ public class MarkerClusterer {
                 MarkerCluster mergeTarget = findMergeTarget(oldCluster, newClusters);
 
                 if (mergeTarget != null) {
-                    if (zoomChanged) {
-                        System.out.println("MERGE: Cluster with " + oldCluster.getCount() + " stops merging into cluster with " + mergeTarget.getCount() + " stops (distance: " + oldCluster.getPosition().dst(mergeTarget.getPosition()) + ")");
-                    }
                     oldCluster.setTarget(mergeTarget.position, mergeTarget.getCount());
                     oldCluster.targetScale = mergeTarget.currentScale > 0 ? mergeTarget.currentScale : 1.0f;
                     oldCluster.alpha = Math.max(oldCluster.alpha, 0.8f);
-                } else {
-                    if (zoomChanged) {
-                        System.out.println("DYING: Cluster with " + oldCluster.getCount() + " stops has no merge target");
-                    }
                 }
 
                 oldCluster.markForDeath();
@@ -160,12 +135,6 @@ public class MarkerClusterer {
                     animatedClusters.add(oldCluster);
                 }
             }
-        }
-
-        if (zoomChanged) {
-            System.out.println("Animation Stats - Existing: " + existingCount + ", New: " + newCount + ", Dying: " + dyingCount);
-            System.out.println("Total Animated Clusters: " + animatedClusters.size());
-            System.out.println("========================");
         }
 
         previousClusters.clear();
