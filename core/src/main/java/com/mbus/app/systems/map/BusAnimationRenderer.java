@@ -7,8 +7,8 @@ import com.badlogic.gdx.math.Vector2;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusSchedule;
 import com.mbus.app.model.BusStop;
-import com.mbus.app.model.Geolocation;
-import com.mbus.app.model.ZoomXY;
+import com.mbus.app.utils.Geolocation;
+import com.mbus.app.utils.ZoomXY;
 import com.mbus.app.utils.BusPositionCalculator;
 
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ public class BusAnimationRenderer {
     private TextureRegion busWest;
     private TextureRegion busNorthwest;
 
-    private Map<String, BusRenderState> busStates = new HashMap<String, BusRenderState>();
+    private final Map<String, BusRenderState> busStates = new HashMap<>();
 
     private static class BusRenderState {
         Geolocation currentPosition;
@@ -60,7 +60,7 @@ public class BusAnimationRenderer {
             this.displayAngle = angle;
             this.isWaiting = waiting;
             this.lastUpdateTime = System.currentTimeMillis();
-            this.recentAngles = new ArrayList<Float>();
+            this.recentAngles = new ArrayList<>();
             this.recentAngles.add(angle);
         }
     }
@@ -197,8 +197,8 @@ public class BusAnimationRenderer {
         float sumY = 0;
 
         for (float angle : angles) {
-            sumX += Math.cos(Math.toRadians(angle));
-            sumY += Math.sin(Math.toRadians(angle));
+            sumX += (float) Math.cos(Math.toRadians(angle));
+            sumY += (float) Math.sin(Math.toRadians(angle));
         }
 
         float avgX = sumX / angles.size();
@@ -289,8 +289,7 @@ public class BusAnimationRenderer {
     }
 
     private float getShortestAngleDifference(float currentAngle, float targetAngle) {
-        float diff = normalizeAngle(targetAngle - currentAngle);
-        return diff;
+        return normalizeAngle(targetAngle - currentAngle);
     }
 
     private Geolocation calculateTargetPosition(BusPositionCalculator.ActiveBusInfo activeBus) {
@@ -421,7 +420,7 @@ public class BusAnimationRenderer {
         }
 
         float totalDistance = 0f;
-        List<Float> segmentDistances = new ArrayList<Float>();
+        List<Float> segmentDistances = new ArrayList<>();
 
         for (int i = startIdx; i < endIdx; i++) {
             float segDist = (float) distance(path.get(i), path.get(i + 1));
@@ -506,9 +505,5 @@ public class BusAnimationRenderer {
     private float calculateZoomScale(float zoom) {
         float scale = MIN_ZOOM_SCALE + (zoom * ZOOM_SCALE_FACTOR);
         return Math.min(Math.max(scale, MIN_ZOOM_SCALE), MAX_ZOOM_SCALE);
-    }
-
-    public void clearStates() {
-        busStates.clear();
     }
 }

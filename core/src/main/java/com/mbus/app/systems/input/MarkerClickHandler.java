@@ -4,7 +4,7 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 import com.mbus.app.model.BusStop;
-import com.mbus.app.model.ZoomXY;
+import com.mbus.app.utils.ZoomXY;
 import com.mbus.app.systems.map.MapRasterTiles;
 import com.mbus.app.utils.Constants;
 
@@ -15,7 +15,7 @@ public class MarkerClickHandler {
     private static final float BASE_MARKER_SIZE = 32f;
     private static final float CLICK_TOLERANCE = 1.2f;
 
-    private OrthographicCamera camera;
+    private final OrthographicCamera camera;
     private List<BusStop> stops;
     private ZoomXY beginTile;
 

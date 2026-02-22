@@ -2,7 +2,6 @@ package com.mbus.app.utils;
 
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
-import com.mbus.app.model.Geolocation;
 
 import java.util.*;
 
@@ -13,21 +12,21 @@ public class BusLineStopRelationshipBuilder {
         List<BusStop> originalStops,
         double proximityThreshold) {
 
-        Map<Integer, Set<Integer>> stopToLinesMap = new HashMap<Integer, Set<Integer>>();
-        Map<String, List<BusStop>> lineToStopsMap = new HashMap<String, List<BusStop>>();
+        Map<Integer, Set<Integer>> stopToLinesMap = new HashMap<>();
+        Map<String, List<BusStop>> lineToStopsMap = new HashMap<>();
 
         for (BusStop stop : originalStops) {
-            stopToLinesMap.put(stop.idAvpost, new TreeSet<Integer>());
+            stopToLinesMap.put(stop.idAvpost, new TreeSet<>());
         }
 
         for (BusLine line : originalLines) {
             String lineKey = getLineKey(line);
-            lineToStopsMap.put(lineKey, new ArrayList<BusStop>());
+            lineToStopsMap.put(lineKey, new ArrayList<>());
         }
 
         for (BusLine line : originalLines) {
             String lineKey = getLineKey(line);
-            List<BusStop> stopsForLine = new ArrayList<BusStop>();
+            List<BusStop> stopsForLine = new ArrayList<>();
 
             for (BusStop stop : originalStops) {
                 if (isStopOnLine(stop, line, proximityThreshold)) {
@@ -40,7 +39,7 @@ public class BusLineStopRelationshipBuilder {
             lineToStopsMap.put(lineKey, stopsForLine);
         }
 
-        List<BusLine> updatedLines = new ArrayList<BusLine>();
+        List<BusLine> updatedLines = new ArrayList<>();
         for (BusLine line : originalLines) {
             String lineKey = getLineKey(line);
             List<BusStop> stops = lineToStopsMap.get(lineKey);
@@ -61,10 +60,10 @@ public class BusLineStopRelationshipBuilder {
             updatedLines.add(updatedLine);
         }
 
-        List<BusStop> updatedStops = new ArrayList<BusStop>();
+        List<BusStop> updatedStops = new ArrayList<>();
         for (BusStop stop : originalStops) {
             Set<Integer> lineIds = stopToLinesMap.get(stop.idAvpost);
-            List<Integer> sortedLineIds = new ArrayList<Integer>(lineIds);
+            List<Integer> sortedLineIds = new ArrayList<>(lineIds);
             Collections.sort(sortedLineIds);
 
             BusStop updatedStop = new BusStop(
@@ -115,14 +114,14 @@ public class BusLineStopRelationshipBuilder {
     private static List<BusStop> sortStopsByLineOrder(List<BusStop> stops, BusLine line) {
         final List<Geolocation> path = line.getPath();
 
-        final Map<BusStop, Integer> stopToPathIndex = new HashMap<BusStop, Integer>();
+        final Map<BusStop, Integer> stopToPathIndex = new HashMap<>();
 
         for (BusStop stop : stops) {
             int closestIndex = findClosestPathIndex(stop, path);
             stopToPathIndex.put(stop, closestIndex);
         }
 
-        List<BusStop> sortedStops = new ArrayList<BusStop>(stops);
+        List<BusStop> sortedStops = new ArrayList<>(stops);
         Collections.sort(sortedStops, new Comparator<BusStop>() {
             @Override
             public int compare(BusStop s1, BusStop s2) {

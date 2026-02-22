@@ -14,7 +14,6 @@ public class CameraController implements InputProcessor {
     private int lastX, lastY;
 
     public float minZoom      = 0.05f;
-    public float maxZoom      = 2.5f;
     public float keyboardSpeed = 20f;
     public float zoomSpeed     = 0.02f;
     public float dragSpeed     = 1.6f;

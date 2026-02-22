@@ -7,7 +7,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Logger;
 import com.mbus.app.utils.Constants;
-import com.mbus.app.model.ZoomXY;
+import com.mbus.app.utils.ZoomXY;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -45,9 +45,6 @@ public class MapRasterTiles {
         FileHandle cacheDir = Gdx.files.local(CACHE_FOLDER);
         if (!cacheDir.exists()) {
             cacheDir.mkdirs();
-            log.info("Created tile cache at: " + cacheDir.path());
-        } else {
-            log.info("Using existing tile cache: " + cacheDir.path());
         }
 
         System.setProperty("http.keepAlive", "true");
@@ -58,7 +55,6 @@ public class MapRasterTiles {
         try {
             FileHandle file = Gdx.files.local(CACHE_FOLDER + fileName);
             file.writeBytes(data, false);
-            log.info("Saved cached tile: " + fileName);
         } catch (Exception e) {
             log.error("Failed to save cached tile: " + fileName, e);
         }
@@ -66,11 +62,13 @@ public class MapRasterTiles {
 
     private static byte[] readFileBytes(String fileName) {
         try {
-            FileHandle file = Gdx.files.local(CACHE_FOLDER + fileName);
-            if (!file.exists()) {
-                return null;
-            }
-            return file.readBytes();
+            FileHandle local = Gdx.files.local(CACHE_FOLDER + fileName);
+            if (local.exists()) return local.readBytes();
+
+            FileHandle internal = Gdx.files.internal(CACHE_FOLDER + fileName);
+            if (internal.exists()) return internal.readBytes();
+
+            return null;
         } catch (Exception e) {
             log.error("Failed to read cached tile: " + fileName, e);
             return null;
@@ -78,14 +76,9 @@ public class MapRasterTiles {
     }
 
     public static ByteArrayOutputStream fetchTile(URL url) throws IOException {
-        log.debug("Connecting…");
-
-        long start = System.currentTimeMillis();
-
         HttpURLConnection connection = null;
         try {
             connection = (HttpURLConnection) url.openConnection();
-
             connection.setRequestProperty("Connection", "keep-alive");
             connection.setConnectTimeout(5000);
             connection.setReadTimeout(10000);
@@ -101,10 +94,6 @@ public class MapRasterTiles {
             }
 
             is.close();
-            long time = System.currentTimeMillis() - start;
-
-            log.info("Tile fetched in " + time + " ms");
-
             return bis;
         } finally {
             if (connection != null) {
@@ -121,25 +110,19 @@ public class MapRasterTiles {
         xtile = Math.max(0, Math.min(xtile, (1 << zoom) - 1));
         ytile = Math.max(0, Math.min(ytile, (1 << zoom) - 1));
 
-        ZoomXY tile = new ZoomXY(zoom, xtile, ytile);
-        log.info("Tile number result: " + tile);
-
-        return tile;
+        return new ZoomXY(zoom, xtile, ytile);
     }
 
     public static Vector2 getPixelPosition(double lat, double lng, int beginTileX, int beginTileY) {
         double[] worldCoordinate = project(lat, lng, TILE_SIZE);
         double scale = Math.pow(2, Constants.ZOOM);
 
-        Vector2 result = new Vector2(
+        return new Vector2(
             (float) (Math.floor(worldCoordinate[0] * scale) - (beginTileX * TILE_SIZE)),
             (float) (Constants.MAP_HEIGHT -
                 (Math.floor(worldCoordinate[1] * scale) -
                     (beginTileY * TILE_SIZE) - 1))
         );
-
-        log.debug("Pixel position: " + result);
-        return result;
     }
 
     public static double[] project(double lat, double lng, int tileSize) {
@@ -148,23 +131,16 @@ public class MapRasterTiles {
 
         return new double[]{
             tileSize * (0.5 + lng / 360),
-            tileSize * (0.5 -
-                Math.log((1 + siny) / (1 - siny)) / (4 * Math.PI))
+            tileSize * (0.5 - Math.log((1 + siny) / (1 - siny)) / (4 * Math.PI))
         };
     }
 
     public static byte[] getTileData(int zoom, int x, int y) throws IOException {
         String fileName = zoom + "_" + x + "_" + y + ".png";
-        FileHandle file = Gdx.files.local(CACHE_FOLDER + fileName);
 
-        if (file.exists()) {
-            byte[] cached = readFileBytes(fileName);
-            if (cached != null) {
-                log.info("Cache hit → " + fileName);
-                return cached;
-            } else {
-                log.error("Cache read failed for " + fileName + ", redownloading.");
-            }
+        byte[] cached = readFileBytes(fileName);
+        if (cached != null) {
+            return cached;
         }
 
         if (token.isEmpty()) {
@@ -172,13 +148,8 @@ public class MapRasterTiles {
         }
 
         String urlStr = mapServiceUrl + tilesetId + "/" + zoom + "/" + x + "/" + y + format + token;
-        log.info("Downloading tile: zoom=" + zoom + " x=" + x + " y=" + y);
-
         URL url = new URL(urlStr);
-        ByteArrayOutputStream bis = fetchTile(url);
-
-        byte[] data = bis.toByteArray();
-        log.info("Tile downloaded (" + data.length + " bytes)");
+        byte[] data = fetchTile(url).toByteArray();
 
         saveFileBytes(fileName, data);
 

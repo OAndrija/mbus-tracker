@@ -33,8 +33,8 @@ public class BusSchedule {
         this.dayType = dayType;
         this.departureTime = departureTime;
         this.stopTimes = stopTimes != null
-            ? Collections.unmodifiableList(new ArrayList<StopTime>(stopTimes))
-            : Collections.unmodifiableList(new ArrayList<StopTime>());
+            ? Collections.unmodifiableList(new ArrayList<>(stopTimes))
+            : Collections.unmodifiableList(new ArrayList<>());
     }
 
     public List<StopTime> getStopTimes() {

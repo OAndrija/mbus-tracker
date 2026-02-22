@@ -1,4 +1,4 @@
-package com.mbus.app.model;
+package com.mbus.app.utils;
 
 public class ZoomXY {
     public int zoom;

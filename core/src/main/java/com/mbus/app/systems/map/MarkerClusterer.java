@@ -2,7 +2,7 @@ package com.mbus.app.systems.map;
 
 import com.badlogic.gdx.math.Vector2;
 import com.mbus.app.model.BusStop;
-import com.mbus.app.model.ZoomXY;
+import com.mbus.app.utils.ZoomXY;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,7 +16,7 @@ public class MarkerClusterer {
     private static final float[] ZOOM_LEVELS = {0.0f, 0.15f, 0.3f, 0.5f, 0.8f};
     private static final float[] CLUSTER_MULTIPLIERS = {0f, 1.5f, 3.0f, 5.0f, 10.0f};
 
-    private static Map<String, MarkerCluster> previousClusters = new HashMap<String, MarkerCluster>();
+    private static final Map<String, MarkerCluster> previousClusters = new HashMap<>();
     private static int previousZoomLevel = -1;
 
     public static List<MarkerCluster> clusterMarkers(
@@ -40,7 +40,7 @@ public class MarkerClusterer {
             previousZoomLevel = zoomLevel;
         }
 
-        List<StopWithPosition> stopsWithPos = new ArrayList<StopWithPosition>();
+        List<StopWithPosition> stopsWithPos = new ArrayList<>();
         for (BusStop stop : stops) {
             Vector2 pos = MapRasterTiles.getPixelPosition(
                 stop.geo.lat,
@@ -56,7 +56,7 @@ public class MarkerClusterer {
         }
 
         if (clusterDistance == 0f) {
-            List<MarkerCluster> individualMarkers = new ArrayList<MarkerCluster>();
+            List<MarkerCluster> individualMarkers = new ArrayList<>();
             for (StopWithPosition swp : stopsWithPos) {
                 individualMarkers.add(new MarkerCluster(swp.position, swp.stop));
             }
@@ -73,13 +73,13 @@ public class MarkerClusterer {
     }
 
     private static List<MarkerCluster> animateTransition(List<MarkerCluster> newClusters, float delta, int zoomLevel, boolean zoomChanged) {
-        Map<String, MarkerCluster> newClusterMap = new HashMap<String, MarkerCluster>();
+        Map<String, MarkerCluster> newClusterMap = new HashMap<>();
 
         for (MarkerCluster cluster : newClusters) {
             newClusterMap.put(cluster.getClusterId(), cluster);
         }
 
-        List<MarkerCluster> animatedClusters = new ArrayList<MarkerCluster>();
+        List<MarkerCluster> animatedClusters = new ArrayList<>();
 
         int existingCount = 0;
         int newCount = 0;
@@ -203,14 +203,14 @@ public class MarkerClusterer {
         List<StopWithPosition> stopsWithPos,
         float clusterDistance
     ) {
-        List<MarkerCluster> clusters = new ArrayList<MarkerCluster>();
+        List<MarkerCluster> clusters = new ArrayList<>();
         boolean[] clustered = new boolean[stopsWithPos.size()];
 
         for (int i = 0; i < stopsWithPos.size(); i++) {
             if (clustered[i]) continue;
 
             StopWithPosition current = stopsWithPos.get(i);
-            List<BusStop> clusterStops = new ArrayList<BusStop>();
+            List<BusStop> clusterStops = new ArrayList<>();
             clusterStops.add(current.stop);
 
             Vector2 clusterPos = new Vector2(current.position);
@@ -245,14 +245,14 @@ public class MarkerClusterer {
             return existingClusters;
         }
 
-        List<MarkerCluster> superClusters = new ArrayList<MarkerCluster>();
+        List<MarkerCluster> superClusters = new ArrayList<>();
         boolean[] clustered = new boolean[existingClusters.size()];
 
         for (int i = 0; i < existingClusters.size(); i++) {
             if (clustered[i]) continue;
 
             MarkerCluster current = existingClusters.get(i);
-            List<BusStop> allStops = new ArrayList<BusStop>(current.getStops());
+            List<BusStop> allStops = new ArrayList<>(current.getStops());
             Vector2 superClusterPos = new Vector2(current.getPosition());
             clustered[i] = true;
 

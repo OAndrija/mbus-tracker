@@ -16,7 +16,7 @@ import com.mbus.app.assets.AssetDescriptors;
 import com.mbus.app.assets.RegionNames;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
-import com.mbus.app.model.ZoomXY;
+import com.mbus.app.utils.ZoomXY;
 import com.mbus.app.systems.input.BusLineClickHandler;
 import com.mbus.app.systems.input.MapGestureListener;
 import com.mbus.app.systems.input.MarkerClickHandler;
@@ -123,57 +123,42 @@ public class RasterMapScreen implements Screen {
             BusPositionCalculator.getCurrentDayType()
         );
 
-        hudPanel.setFilteredStopsCallback(new HudPanel.FilteredStopsCallback() {
-            @Override
-            public void onFilteredStopsChanged(List<BusStop> filteredStops) {
-                Gdx.app.log("RasterMapScreen", "Filtered stops count: " + filteredStops.size());
-                mapRenderer.setFilteredStops(filteredStops);
-                markerClickHandler.setStops(filteredStops);
+        hudPanel.setFilteredStopsCallback(filteredStops -> {
+            Gdx.app.log("RasterMapScreen", "Filtered stops count: " + filteredStops.size());
+            mapRenderer.setFilteredStops(filteredStops);
+            markerClickHandler.setStops(filteredStops);
+        });
+
+        hudPanel.setBusLineVisibilityCallback(visibleLineIds -> {
+            Gdx.app.log("RasterMapScreen", "Visible lines: " + visibleLineIds);
+            mapRenderer.setVisibleLineIds(visibleLineIds);
+            if (lineClickHandler != null) {
+                lineClickHandler.setVisibleLineIds(visibleLineIds);
             }
         });
 
-        hudPanel.setBusLineVisibilityCallback(new HudPanel.BusLineVisibilityCallback() {
-            @Override
-            public void onBusLineVisibilityChanged(Set<Integer> visibleLineIds) {
-                Gdx.app.log("RasterMapScreen", "Visible lines: " + visibleLineIds);
-                mapRenderer.setVisibleLineIds(visibleLineIds);
-                if (lineClickHandler != null) {
-                    lineClickHandler.setVisibleLineIds(visibleLineIds);
-                }
+        detailPanel.setVisibilityChangeCallback(visible -> {
+            updateHudBoundaries();
+            if (!visible) {
+                mapRenderer.setSelectedStop(null);
             }
         });
 
-        detailPanel.setVisibilityChangeCallback(new BusStopDetailPanel.VisibilityChangeCallback() {
-            @Override
-            public void onVisibilityChanged(boolean visible) {
-                updateHudBoundaries();
-                if (!visible) {
-                    mapRenderer.setSelectedStop(null);
-                }
-            }
+        hudPanel.setShowAllStopsCallback(showAll -> {
+            Gdx.app.log("RasterMapScreen", "Show all stops: " + showAll);
+            mapRenderer.setShowMarkers(showAll);
         });
 
-        hudPanel.setShowAllStopsCallback(new HudPanel.ShowAllStopsCallback() {
-            @Override
-            public void onShowAllStopsChanged(boolean showAll) {
-                Gdx.app.log("RasterMapScreen", "Show all stops: " + showAll);
-                mapRenderer.setShowMarkers(showAll);
-            }
-        });
-
-        hudPanel.setBusStopClickCallback(new HudPanel.BusStopClickCallback() {
-            @Override
-            public void onBusStopClicked(BusStop busStop) {
-                Gdx.app.log("RasterMapScreen", "HUD clicked bus stop: " + busStop.name);
-                mapRenderer.setSelectedStop(busStop);
-                detailPanel.showBusStop(busStop);
-                int currentTime = BusPositionCalculator.getCurrentTimeMinutes();
-                int dayType = BusPositionCalculator.getCurrentDayType();
-                String timeStr = BusPositionCalculator.formatTime(currentTime);
-                int dayOfWeek = convertDayTypeToDayOfWeek(dayType);
-                detailPanel.updateCurrentTime(timeStr, dayOfWeek);
-                zoomToBusStop(busStop);
-            }
+        hudPanel.setBusStopClickCallback(busStop -> {
+            Gdx.app.log("RasterMapScreen", "HUD clicked bus stop: " + busStop.name);
+            mapRenderer.setSelectedStop(busStop);
+            detailPanel.showBusStop(busStop);
+            int currentTime = BusPositionCalculator.getCurrentTimeMinutes();
+            int dayType = BusPositionCalculator.getCurrentDayType();
+            String timeStr = BusPositionCalculator.formatTime(currentTime);
+            int dayOfWeek = convertDayTypeToDayOfWeek(dayType);
+            detailPanel.updateCurrentTime(timeStr, dayOfWeek);
+            zoomToBusStop(busStop);
         });
 
         setupInput();
@@ -353,41 +338,35 @@ public class RasterMapScreen implements Screen {
         lineClickHandler.setVisibleLineIds(hudPanel.getVisibleLineIds());
         mapGestureListener.setLineClickHandler(lineClickHandler);
 
-        mapGestureListener.setBusStopClickCallback(new MapGestureListener.BusStopClickCallback() {
-            @Override
-            public void onBusStopClicked(BusStop busStop) {
-                if (mapRenderer.isShowingMarkers()) {
-                    Gdx.app.log("RasterMapScreen", "Map clicked bus stop: " + busStop.name);
-                    mapRenderer.setSelectedStop(busStop);
-                    detailPanel.showBusStop(busStop);
-                    int currentTime = BusPositionCalculator.getCurrentTimeMinutes();
-                    int dayType = BusPositionCalculator.getCurrentDayType();
-                    String timeStr = BusPositionCalculator.formatTime(currentTime);
-                    int dayOfWeek = convertDayTypeToDayOfWeek(dayType);
-                    detailPanel.updateCurrentTime(timeStr, dayOfWeek);
-                    updateHudBoundaries();
-                }
+        mapGestureListener.setBusStopClickCallback(busStop -> {
+            if (mapRenderer.isShowingMarkers()) {
+                Gdx.app.log("RasterMapScreen", "Map clicked bus stop: " + busStop.name);
+                mapRenderer.setSelectedStop(busStop);
+                detailPanel.showBusStop(busStop);
+                int currentTime = BusPositionCalculator.getCurrentTimeMinutes();
+                int dayType = BusPositionCalculator.getCurrentDayType();
+                String timeStr = BusPositionCalculator.formatTime(currentTime);
+                int dayOfWeek = convertDayTypeToDayOfWeek(dayType);
+                detailPanel.updateCurrentTime(timeStr, dayOfWeek);
+                updateHudBoundaries();
             }
         });
 
-        mapGestureListener.setBusLineClickCallback(new MapGestureListener.BusLineClickCallback() {
-            @Override
-            public void onBusLineClicked(BusLine busLine) {
-                if (mapRenderer.getSelectedLine() == busLine) {
-                    Gdx.app.log("RasterMapScreen", "Deselecting bus line: " + busLine.lineId);
-                    mapRenderer.setSelectedLine(null);
+        mapGestureListener.setBusLineClickCallback(busLine -> {
+            if (mapRenderer.getSelectedLine() == busLine) {
+                Gdx.app.log("RasterMapScreen", "Deselecting bus line: " + busLine.lineId);
+                mapRenderer.setSelectedLine(null);
 
-                    hudPanel.selectAllLines();
-                    hudPanel.setShowAllStops(true);
-                } else {
-                    Gdx.app.log("RasterMapScreen", "Map clicked bus line: " + busLine.lineId);
-                    mapRenderer.setSelectedLine(busLine);
-                    mapRenderer.setSelectedStop(null);
+                hudPanel.selectAllLines();
+                hudPanel.setShowAllStops(true);
+            } else {
+                Gdx.app.log("RasterMapScreen", "Map clicked bus line: " + busLine.lineId);
+                mapRenderer.setSelectedLine(busLine);
+                mapRenderer.setSelectedStop(null);
 
-                    hudPanel.selectOnlyLine(busLine.lineId);
+                hudPanel.selectOnlyLine(busLine.lineId);
 
-                    hudPanel.setShowAllStops(true);
-                }
+                hudPanel.setShowAllStops(true);
             }
         });
 

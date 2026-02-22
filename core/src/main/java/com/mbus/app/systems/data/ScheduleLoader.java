@@ -20,7 +20,7 @@ public class ScheduleLoader {
     private static final double MIN_STOP_DISTANCE = 0.003;
 
     public static List<BusSchedule> loadSchedulesFromFile(String filePath) {
-        List<BusSchedule> schedules = new ArrayList<BusSchedule>();
+        List<BusSchedule> schedules = new ArrayList<>();
 
         try {
             FileHandle file = Gdx.files.internal(filePath);
@@ -66,7 +66,7 @@ public class ScheduleLoader {
             String departureTimeStr = json.getString("departureTime");
             int departureTime = BusSchedule.parseTime(departureTimeStr);
 
-            List<BusSchedule.StopTime> stopTimes = new ArrayList<BusSchedule.StopTime>();
+            List<BusSchedule.StopTime> stopTimes = new ArrayList<>();
             JsonValue stopTimesArray = json.get("stopTimes");
 
             if (stopTimesArray != null) {
@@ -91,23 +91,23 @@ public class ScheduleLoader {
 
     public static List<BusLine> assignSchedulesToLines(List<BusLine> lines,
                                                        List<BusSchedule> schedules) {
-        Map<String, List<BusSchedule>> schedulesByLine = new HashMap<String, List<BusSchedule>>();
+        Map<String, List<BusSchedule>> schedulesByLine = new HashMap<>();
 
         for (BusSchedule schedule : schedules) {
             String key = getLineKey(schedule.lineId, schedule.variantId, schedule.direction);
             if (!schedulesByLine.containsKey(key)) {
-                schedulesByLine.put(key, new ArrayList<BusSchedule>());
+                schedulesByLine.put(key, new ArrayList<>());
             }
             schedulesByLine.get(key).add(schedule);
         }
 
-        List<BusLine> updatedLines = new ArrayList<BusLine>();
+        List<BusLine> updatedLines = new ArrayList<>();
         for (BusLine line : lines) {
             String key = getLineKey(line.lineId, line.variantId, line.direction);
             List<BusSchedule> lineSchedules = schedulesByLine.get(key);
 
             if (lineSchedules == null) {
-                lineSchedules = new ArrayList<BusSchedule>();
+                lineSchedules = new ArrayList<>();
             }
 
             BusLine updatedLine = new BusLine(
@@ -137,7 +137,7 @@ public class ScheduleLoader {
     }
 
     public static List<BusSchedule> generateExampleSchedules(List<BusLine> lines) {
-        List<BusSchedule> schedules = new ArrayList<BusSchedule>();
+        List<BusSchedule> schedules = new ArrayList<>();
         int scheduleIdCounter = 1;
         Random random = new Random(12345);
 
@@ -195,10 +195,9 @@ public class ScheduleLoader {
     private static List<BusStop> filterNearbyStops(List<BusStop> stops) {
         if (stops.isEmpty()) return stops;
 
-        List<BusStop> filtered = new ArrayList<BusStop>();
+        List<BusStop> filtered = new ArrayList<>();
 
-        for (int i = 0; i < stops.size(); i++) {
-            BusStop current = stops.get(i);
+        for (BusStop current : stops) {
             boolean shouldSkip = false;
 
             for (BusStop existing : filtered) {
@@ -231,7 +230,7 @@ public class ScheduleLoader {
         int numBuses, int tripInterval, int routeDuration,
         Random random) {
 
-        List<BusSchedule> schedules = new ArrayList<BusSchedule>();
+        List<BusSchedule> schedules = new ArrayList<>();
         int scheduleId = startScheduleId;
 
         int totalServiceTime = serviceEndTime - serviceStartTime;
@@ -290,7 +289,7 @@ public class ScheduleLoader {
     private static List<BusSchedule.StopTime> calculateStopTimes(
         List<BusStop> stops, int departureTime, Random random) {
 
-        List<BusSchedule.StopTime> stopTimes = new ArrayList<BusSchedule.StopTime>();
+        List<BusSchedule.StopTime> stopTimes = new ArrayList<>();
         int currentTime = departureTime;
 
         for (int i = 0; i < stops.size(); i++) {

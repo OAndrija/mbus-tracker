@@ -1,5 +1,7 @@
 package com.mbus.app.model;
 
+import com.mbus.app.utils.Geolocation;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -36,8 +38,8 @@ public class BusStop {
         this.geo = geo;
 
         this.lineIds = lineIds != null
-            ? Collections.unmodifiableList(new ArrayList<Integer>(lineIds))
-            : Collections.unmodifiableList(new ArrayList<Integer>());
+            ? Collections.unmodifiableList(new ArrayList<>(lineIds))
+            : Collections.unmodifiableList(new ArrayList<>());
     }
 
     public BusStop(int idAvpost,
@@ -77,7 +79,7 @@ public class BusStop {
     }
 
     public List<StopArrival> getUpcomingArrivals(List<BusLine> lines, int currentTime, int dayType, int maxResults) {
-        List<StopArrival> arrivals = new ArrayList<StopArrival>();
+        List<StopArrival> arrivals = new ArrayList<>();
 
         for (BusLine line : lines) {
             if (!hasLine(line.lineId)) continue;
@@ -92,7 +94,7 @@ public class BusStop {
             }
         }
 
-        Collections.sort(arrivals, new Comparator<StopArrival>() {
+        arrivals.sort(new Comparator<StopArrival>() {
             @Override
             public int compare(StopArrival a1, StopArrival a2) {
                 return Integer.compare(a1.arrivalTime, a2.arrivalTime);

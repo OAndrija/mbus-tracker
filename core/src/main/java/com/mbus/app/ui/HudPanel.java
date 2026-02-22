@@ -18,20 +18,17 @@ import java.util.*;
 import java.util.List;
 
 public class HudPanel {
-    private Stage stage;
-    private Skin skin;
+    private final Stage stage;
+    private final Skin skin;
     private Table mainPanel;
-    private Texture titleIcon;
+    private final Texture titleIcon;
 
-    private TextField searchField;
-    private TextField timeField;
     private ScrollPane busStopsScrollPane;
     private TextButton allStopsBtn;
-    private Label currentTimeLabel;
 
     private List<BusStop> allBusStops;
     private List<BusLine> busLines;
-    private Set<Integer> visibleLineIds;
+    private final Set<Integer> visibleLineIds;
     private boolean showingAllStops = true;
 
     private String currentTime = "";
@@ -67,9 +64,9 @@ public class HudPanel {
         this.skin = skin;
         this.titleIcon = titleIcon;
         this.stage = new Stage(new ScreenViewport());
-        this.allBusStops = new ArrayList<BusStop>();
-        this.busLines = new ArrayList<BusLine>();
-        this.visibleLineIds = new HashSet<Integer>();
+        this.allBusStops = new ArrayList<>();
+        this.busLines = new ArrayList<>();
+        this.visibleLineIds = new HashSet<>();
 
         java.util.Calendar calendar = java.util.Calendar.getInstance();
         int hour = calendar.get(java.util.Calendar.HOUR_OF_DAY);
@@ -106,69 +103,6 @@ public class HudPanel {
 
         mainPanel.add(headerTable).width(panelWidth - 20).pad(10).row();
 
-//        // Create time input section
-//        Table timeTable = new Table();
-//
-//        timeField = new TextField(currentTime, skin, "search");
-//        timeField.setMessageText("HH:MM");
-//        timeField.setMaxLength(5);
-//        timeField.addListener(new ChangeListener() {
-//            @Override
-//            public void changed(ChangeEvent event, Actor actor) {
-//                String text = timeField.getText();
-//                if (isValidTimeFormat(text)) {
-//                    currentTime = text;
-//                    if (timeChangedCallback != null) {
-//                        timeChangedCallback.onTimeChanged(currentTime, currentDayOfWeek);
-//                    }
-//                    Gdx.app.log("HudPanel", "Time changed to: " + currentTime);
-//                }
-//            }
-//        });
-//        timeTable.add(timeField).width(120);
-//
-//        // Day of week buttons
-//        TextButton prevDayBtn = new TextButton("<", skin, "maroon-small");
-//        prevDayBtn.addListener(new ChangeListener() {
-//            @Override
-//            public void changed(ChangeEvent event, Actor actor) {
-//                currentDayOfWeek--;
-//                if (currentDayOfWeek < 1) currentDayOfWeek = 7;
-//                updateDayLabel();
-//                if (timeChangedCallback != null) {
-//                    timeChangedCallback.onTimeChanged(currentTime, currentDayOfWeek);
-//                }
-//            }
-//        });
-//
-//        currentTimeLabel = new Label(getDayName(currentDayOfWeek), skin, "default");
-//        currentTimeLabel.setFontScale(0.65f);
-//        currentTimeLabel.setAlignment(Align.center);
-//
-//        TextButton nextDayBtn = new TextButton(">", skin, "maroon-small");
-//        nextDayBtn.addListener(new ChangeListener() {
-//            @Override
-//            public void changed(ChangeEvent event, Actor actor) {
-//                currentDayOfWeek++;
-//                if (currentDayOfWeek > 7) currentDayOfWeek = 1;
-//                updateDayLabel();
-//                if (timeChangedCallback != null) {
-//                    timeChangedCallback.onTimeChanged(currentTime, currentDayOfWeek);
-//                }
-//            }
-//        });
-//
-//        timeTable.add(prevDayBtn).width(25).height(25).padLeft(8);
-//        timeTable.add(currentTimeLabel).width(50).padLeft(3).padRight(3);
-//        timeTable.add(nextDayBtn).width(25).height(25);
-//
-//        mainPanel.add(timeTable).width(panelWidth - 20).padLeft(10).padRight(10).padTop(5).padBottom(5).row();
-
-        // Create search field (commented out as before)
-//        searchField = new TextField("", skin, "search");
-//        searchField.setMessageText("Išči postajališče...");
-//        mainPanel.add(searchField).width(panelWidth - 20).padLeft(10).padRight(10).padTop(5).row();
-
         Label linesLabel = new Label("Linije", skin, "title-black");
         linesLabel.setFontScale(0.8f);
         mainPanel.add(linesLabel).left().padLeft(10).padTop(15).padBottom(15).row();
@@ -190,7 +124,7 @@ public class HudPanel {
 
         allStopsBtn = new TextButton("Postaje", skin, "orange-small-toggle");
         allStopsBtn.setColor(0.663f, 0.620f, 0.58f, 1f);
-        allStopsBtn.setChecked(showingAllStops); // Set initial checked state
+        allStopsBtn.setChecked(showingAllStops);
 
         allStopsBtn.addListener(new ChangeListener() {
             @Override
@@ -220,7 +154,7 @@ public class HudPanel {
     private List<BusStop> getFilteredStops() {
         boolean allLinesVisible = true;
         if (busLines != null && !busLines.isEmpty()) {
-            Set<Integer> allLineIds = new HashSet<Integer>();
+            Set<Integer> allLineIds = new HashSet<>();
             for (BusLine line : busLines) {
                 allLineIds.add(line.lineId);
             }
@@ -232,7 +166,7 @@ public class HudPanel {
             return allBusStops;
         }
 
-        List<BusStop> filtered = new ArrayList<BusStop>();
+        List<BusStop> filtered = new ArrayList<>();
 
         for (BusStop stop : allBusStops) {
             for (Integer lineId : stop.getLineIds()) {
@@ -281,7 +215,7 @@ public class HudPanel {
         refreshBusStopsTable();
 
         if (busLineVisibilityCallback != null) {
-            busLineVisibilityCallback.onBusLineVisibilityChanged(new HashSet<Integer>(visibleLineIds));
+            busLineVisibilityCallback.onBusLineVisibilityChanged(new HashSet<>(visibleLineIds));
         }
 
         if (filteredStopsCallback != null) {
@@ -300,7 +234,7 @@ public class HudPanel {
             return table;
         }
 
-        Set<Integer> uniqueLineIds = new TreeSet<Integer>();
+        Set<Integer> uniqueLineIds = new TreeSet<>();
         for (BusLine line : busLines) {
             uniqueLineIds.add(line.lineId);
         }
@@ -377,7 +311,7 @@ public class HudPanel {
 
                 String labelText = stop.name;
                 if (isFiltering && stop.getLineCount() > 0) {
-                    List<Integer> visibleStopLines = new ArrayList<Integer>();
+                    List<Integer> visibleStopLines = new ArrayList<>();
                     for (Integer lineId : stop.getLineIds()) {
                         if (visibleLineIds.contains(lineId)) {
                             visibleStopLines.add(lineId);
@@ -452,12 +386,12 @@ public class HudPanel {
     }
 
     public void setBusStops(List<BusStop> stops) {
-        this.allBusStops = stops != null ? stops : new ArrayList<BusStop>();
+        this.allBusStops = stops != null ? stops : new ArrayList<>();
         refreshBusStopsTable();
     }
 
     public void setBusLines(List<BusLine> lines) {
-        this.busLines = lines != null ? lines : new ArrayList<BusLine>();
+        this.busLines = lines != null ? lines : new ArrayList<>();
 
         visibleLineIds.clear();
         for (BusLine line : this.busLines) {
@@ -467,7 +401,7 @@ public class HudPanel {
         refreshBusLinesTable();
 
         if (busLineVisibilityCallback != null) {
-            busLineVisibilityCallback.onBusLineVisibilityChanged(new HashSet<Integer>(visibleLineIds));
+            busLineVisibilityCallback.onBusLineVisibilityChanged(new HashSet<>(visibleLineIds));
         }
     }
 
@@ -546,47 +480,8 @@ public class HudPanel {
         this.filteredStopsCallback = callback;
     }
 
-    public void setTimeChangedCallback(TimeChangedCallback callback) {
-        this.timeChangedCallback = callback;
-    }
-
-    public String getCurrentTime() {
-        return currentTime;
-    }
-
-    public int getCurrentDayOfWeek() {
-        return currentDayOfWeek;
-    }
-
-    private boolean isValidTimeFormat(String time) {
-        if (time == null || time.length() != 5) return false;
-        if (time.charAt(2) != ':') return false;
-
-        try {
-            String[] parts = time.split(":");
-            int hour = Integer.parseInt(parts[0]);
-            int minute = Integer.parseInt(parts[1]);
-            return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private String getDayName(int dayOfWeek) {
-        switch (dayOfWeek) {
-            case 1: return "Pon";
-            case 2: return "Tor";
-            case 3: return "Sre";
-            case 4: return "Cet";
-            case 5: return "Pet";
-            case 6: return "Sob";
-            case 7: return "Ned";
-            default: return "Pon";
-        }
-    }
-
     public Set<Integer> getVisibleLineIds() {
-        return new HashSet<Integer>(visibleLineIds);
+        return new HashSet<>(visibleLineIds);
     }
 
     public void resize(int width, int height) {

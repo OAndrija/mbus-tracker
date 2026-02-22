@@ -15,8 +15,8 @@ import com.mbus.app.assets.AssetDescriptors;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusSchedule;
 import com.mbus.app.model.BusStop;
-import com.mbus.app.model.Geolocation;
-import com.mbus.app.model.ZoomXY;
+import com.mbus.app.utils.Geolocation;
+import com.mbus.app.utils.ZoomXY;
 import com.mbus.app.systems.data.GeoJSONLoader;
 import com.mbus.app.systems.data.ScheduleLoader;
 import com.mbus.app.systems.map.MapRasterTiles;
@@ -64,7 +64,7 @@ public class LoadingScreen implements Screen {
         }
     }
 
-    private final ConcurrentLinkedQueue<TileData> tileDataQueue = new ConcurrentLinkedQueue<TileData>();
+    private final ConcurrentLinkedQueue<TileData> tileDataQueue = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean tilesDownloadComplete = new AtomicBoolean(false);
 
     private static final Geolocation CENTER_GEOLOCATION =
@@ -137,23 +137,20 @@ public class LoadingScreen implements Screen {
                 value++;
             }
 
-            tileDownloadThread = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    for (int i = 0; i < totalTiles; i++) {
-                        int tx = centerTile.x + factorX[i];
-                        int ty = centerTile.y + factorY[i];
+            tileDownloadThread = new Thread(() -> {
+                for (int i = 0; i < totalTiles; i++) {
+                    int tx = centerTile.x + factorX[i];
+                    int ty = centerTile.y + factorY[i];
 
-                        try {
-                            byte[] tileData = MapRasterTiles.getTileData(Constants.ZOOM, tx, ty);
-                            tileDataQueue.add(new TileData(i, tileData));
-                        } catch (Exception e) {
-                            Gdx.app.error(TAG, "Failed to download tile " + i, e);
-                        }
+                    try {
+                        byte[] tileData = MapRasterTiles.getTileData(Constants.ZOOM, tx, ty);
+                        tileDataQueue.add(new TileData(i, tileData));
+                    } catch (Exception e) {
+                        Gdx.app.error(TAG, "Failed to download tile " + i, e);
                     }
-                    tilesDownloadComplete.set(true);
-                    Gdx.app.log(TAG, "All tiles downloaded");
                 }
+                tilesDownloadComplete.set(true);
+                Gdx.app.log(TAG, "All tiles downloaded");
             });
             tileDownloadThread.start();
 
@@ -164,77 +161,69 @@ public class LoadingScreen implements Screen {
     }
 
     private void startDataLoading() {
-        dataLoadingThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Gdx.app.log(TAG, "Loading bus stops...");
-                    List<BusStop> rawStops = GeoJSONLoader.loadBusStopsFromFile("data/int_mob_marprom_postaje.json");
-                    Gdx.app.log(TAG, "Loaded " + rawStops.size() + " bus stops");
+        dataLoadingThread = new Thread(() -> {
+            try {
+                Gdx.app.log(TAG, "Loading bus stops...");
+                List<BusStop> rawStops = GeoJSONLoader.loadBusStopsFromFile("data/int_mob_marprom_postaje.json");
+                Gdx.app.log(TAG, "Loaded " + rawStops.size() + " bus stops");
 
-                    Gdx.app.log(TAG, "Loading bus lines...");
-                    List<BusLine> rawLines = GeoJSONLoader.loadBusLinesFromFile("data/int_mob_marprom_linije.json");
-                    Gdx.app.log(TAG, "Loaded " + rawLines.size() + " bus lines");
+                Gdx.app.log(TAG, "Loading bus lines...");
+                List<BusLine> rawLines = GeoJSONLoader.loadBusLinesFromFile("data/int_mob_marprom_linije.json");
+                Gdx.app.log(TAG, "Loaded " + rawLines.size() + " bus lines");
 
-                    Gdx.app.log(TAG, "Building relationships...");
-                    double proximityThreshold = 50.0;
-                    BusLineStopRelationshipBuilder.RelationshipResult result =
-                        BusLineStopRelationshipBuilder.buildRelationships(rawLines, rawStops, proximityThreshold);
+                Gdx.app.log(TAG, "Building relationships...");
+                double proximityThreshold = 50.0;
+                BusLineStopRelationshipBuilder.RelationshipResult result =
+                    BusLineStopRelationshipBuilder.buildRelationships(rawLines, rawStops, proximityThreshold);
 
-                    Gdx.app.log(TAG, "Loading schedules...");
-                    List<BusSchedule> schedules;
+                Gdx.app.log(TAG, "Loading schedules...");
+                List<BusSchedule> schedules;
 
-                    schedules = ScheduleLoader.loadSchedulesFromFile("data/schedules.json");
+                schedules = ScheduleLoader.loadSchedulesFromFile("data/schedules.json");
 
-                    if (schedules.isEmpty()) {
-                        Gdx.app.log(TAG, "No schedule file found, generating example schedules...");
-                        schedules = ScheduleLoader.generateExampleSchedules(result.lines);
-                    }
-
-                    Gdx.app.log(TAG, "Loaded/generated " + schedules.size() + " schedules");
-
-                    Gdx.app.log(TAG, "Assigning schedules to lines...");
-                    List<BusLine> linesWithSchedules = ScheduleLoader.assignSchedulesToLines(result.lines, schedules);
-
-                    int totalStopsWithLines = 0;
-                    int totalLinesWithStops = 0;
-                    int totalLinesWithSchedules = 0;
-
-                    for (BusStop stop : result.stops) {
-                        if (stop.getLineCount() > 0) {
-                            totalStopsWithLines++;
-                        }
-                    }
-
-                    for (BusLine line : linesWithSchedules) {
-                        if (line.getStopCount() > 0) {
-                            totalLinesWithStops++;
-                        }
-                        if (line.getScheduleCount() > 0) {
-                            totalLinesWithSchedules++;
-                        }
-                    }
-
-                    Gdx.app.log(TAG, "Built relationships: " + totalStopsWithLines + "/" +
-                        result.stops.size() + " stops have lines");
-                    Gdx.app.log(TAG, totalLinesWithStops + "/" + linesWithSchedules.size() + " lines have stops");
-                    Gdx.app.log(TAG, totalLinesWithSchedules + "/" + linesWithSchedules.size() + " lines have schedules");
-
-                    loadedStops = result.stops;
-                    loadedLines = linesWithSchedules;
-                    dataLoadingComplete = true;
-
-                    Gdx.app.log(TAG, "Data loading complete");
-
-                } catch (final Exception e) {
-                    Gdx.app.error(TAG, "Error loading data", e);
-                    Gdx.app.postRunnable(new Runnable() {
-                        @Override
-                        public void run() {
-                            statusLabel.setText("Error loading data: " + e.getMessage());
-                        }
-                    });
+                if (schedules.isEmpty()) {
+                    Gdx.app.log(TAG, "No schedule file found, generating example schedules...");
+                    schedules = ScheduleLoader.generateExampleSchedules(result.lines);
                 }
+
+                Gdx.app.log(TAG, "Loaded/generated " + schedules.size() + " schedules");
+
+                Gdx.app.log(TAG, "Assigning schedules to lines...");
+                List<BusLine> linesWithSchedules = ScheduleLoader.assignSchedulesToLines(result.lines, schedules);
+
+                int totalStopsWithLines = 0;
+                int totalLinesWithStops = 0;
+                int totalLinesWithSchedules = 0;
+
+                for (BusStop stop : result.stops) {
+                    if (stop.getLineCount() > 0) {
+                        totalStopsWithLines++;
+                    }
+                }
+
+                for (BusLine line : linesWithSchedules) {
+                    if (line.getStopCount() > 0) {
+                        totalLinesWithStops++;
+                    }
+                    if (line.getScheduleCount() > 0) {
+                        totalLinesWithSchedules++;
+                    }
+                }
+
+                Gdx.app.log(TAG, "Built relationships: " + totalStopsWithLines + "/" +
+                    result.stops.size() + " stops have lines");
+                Gdx.app.log(TAG, totalLinesWithStops + "/" + linesWithSchedules.size() + " lines have stops");
+                Gdx.app.log(TAG, totalLinesWithSchedules + "/" + linesWithSchedules.size() + " lines have schedules");
+
+                loadedStops = result.stops;
+                loadedLines = linesWithSchedules;
+                dataLoadingComplete = true;
+
+                Gdx.app.log(TAG, "Data loading complete");
+
+            } catch (final Exception e) {
+                Gdx.app.error(TAG, "Error loading data", e);
+                Gdx.app.postRunnable(() -> statusLabel.setText("Error loading data: " + e.getMessage()));
             }
         });
         dataLoadingThread.start();

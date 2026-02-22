@@ -5,7 +5,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Logger;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
-import com.mbus.app.model.Geolocation;
+import com.mbus.app.utils.Geolocation;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -41,7 +41,7 @@ public class GeoJSONLoader {
         JSONObject root = new JSONObject(jsonText);
 
         JSONArray features = root.getJSONArray("features");
-        List<BusStop> stops = new ArrayList<BusStop>(features.length());
+        List<BusStop> stops = new ArrayList<>(features.length());
 
         for (int i = 0; i < features.length(); i++) {
             JSONObject feature = features.getJSONObject(i);
@@ -110,7 +110,7 @@ public class GeoJSONLoader {
 
         JSONArray features = root.getJSONArray("features");
 
-        Map<Integer, BusLine> bestVariantPerLine = new HashMap<Integer, BusLine>();
+        Map<Integer, BusLine> bestVariantPerLine = new HashMap<>();
 
         for (int i = 0; i < features.length(); i++) {
             JSONObject feature = features.getJSONObject(i);
@@ -125,8 +125,8 @@ public class GeoJSONLoader {
 
             JSONArray coordinates = geometry.getJSONArray("coordinates");
 
-            List<Geolocation> paths = new ArrayList<Geolocation>(coordinates.length());
-            List<double[]> originalCoords = new ArrayList<double[]>(coordinates.length());
+            List<Geolocation> paths = new ArrayList<>(coordinates.length());
+            List<double[]> originalCoords = new ArrayList<>(coordinates.length());
 
             for (int j = 0; j < coordinates.length(); j++) {
                 JSONArray coord = coordinates.getJSONArray(j);
@@ -177,9 +177,9 @@ public class GeoJSONLoader {
             }
         }
 
-        List<BusLine> lines = new ArrayList<BusLine>(bestVariantPerLine.values());
+        List<BusLine> lines = new ArrayList<>(bestVariantPerLine.values());
 
-        java.util.Set<Integer> uniqueLineIds = new java.util.TreeSet<Integer>();
+        java.util.Set<Integer> uniqueLineIds = new java.util.TreeSet<>();
         for (BusLine line : lines) {
             uniqueLineIds.add(line.lineId);
         }
@@ -195,7 +195,7 @@ public class GeoJSONLoader {
         }
 
         log.info("Loaded " + lines.size() + " unique bus lines from " + path);
-        log.info("Unique bus line IDs (" + uniqueLineIds.size() + "): " + lineIdsStr.toString());
+        log.info("Unique bus line IDs (" + uniqueLineIds.size() + "): " + lineIdsStr);
 
         return lines;
     }

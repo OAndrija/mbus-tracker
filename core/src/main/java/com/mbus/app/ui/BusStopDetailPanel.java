@@ -20,15 +20,15 @@ import java.util.List;
 
 public class BusStopDetailPanel {
 
-    private Stage stage;
-    private Skin skin;
+    private final Stage stage;
+    private final Skin skin;
     private Table mainPanel;
     private boolean visible;
 
     private BusStop currentStop;
     private List<BusLine> allLines;
     private VisibilityChangeCallback visibilityCallback;
-    private Texture timeIcon;
+    private final Texture timeIcon;
 
     private String scheduleTime;
     private int scheduleDayOfWeek;
@@ -63,11 +63,6 @@ public class BusStopDetailPanel {
     }
 
     public void updateCurrentTime(String time, int dayOfWeek) {
-        this.scheduleTime = time;
-        this.scheduleDayOfWeek = dayOfWeek;
-    }
-
-    public void setScheduleTime(String time, int dayOfWeek) {
         this.scheduleTime = time;
         this.scheduleDayOfWeek = dayOfWeek;
     }
@@ -127,7 +122,7 @@ public class BusStopDetailPanel {
 
         mainPanel.add(arrivalsHeaderTable).width(panelWidth).padTop(5).padBottom(10).row();
 
-        Table arrivalsTable = createUpcomingArrivalsTable(panelWidth);
+        Table arrivalsTable = createUpcomingArrivalsTable();
         ScrollPane arrivalsScrollPane = new ScrollPane(arrivalsTable, skin, "no-bg");
         arrivalsScrollPane.setFadeScrollBars(true);
         arrivalsScrollPane.setScrollingDisabled(true, false);
@@ -142,7 +137,7 @@ public class BusStopDetailPanel {
         }
     }
 
-    private Table createUpcomingArrivalsTable(float panelWidth) {
+    private Table createUpcomingArrivalsTable() {
         Table table = new Table();
         table.align(Align.top | Align.left);
 

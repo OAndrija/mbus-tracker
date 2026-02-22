@@ -61,21 +61,10 @@ public class BusPositionCalculator {
         }
     }
 
-    public static List<ActiveBusInfo> getActiveBuses(List<BusLine> lines,
-                                                     int currentTime,
-                                                     int dayType) {
-        Calendar cal = Calendar.getInstance();
-        int seconds = cal.get(Calendar.SECOND);
-        int millis = cal.get(Calendar.MILLISECOND);
-        float preciseTime = currentTime + (seconds / 60.0f) + (millis / 60000.0f);
-
-        return getActiveBusesAtTime(lines, preciseTime, dayType);
-    }
-
     public static List<ActiveBusInfo> getActiveBusesAtTime(List<BusLine> lines,
                                                            float preciseTime,
                                                            int dayType) {
-        List<ActiveBusInfo> activeBuses = new ArrayList<ActiveBusInfo>();
+        List<ActiveBusInfo> activeBuses = new ArrayList<>();
 
         for (BusLine line : lines) {
             for (BusSchedule schedule : line.getSchedules()) {

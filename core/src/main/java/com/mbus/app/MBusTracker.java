@@ -12,7 +12,6 @@ import com.mbus.app.assets.AssetDescriptors;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
 import com.mbus.app.screens.LoadingScreen;
-import com.mbus.app.screens.RasterMapScreen;
 import com.mbus.app.systems.input.CameraController;
 import com.mbus.app.utils.Constants;
 
@@ -27,13 +26,13 @@ public class MBusTracker extends Game {
     public InputMultiplexer inputMultiplexer;
     private AssetManager assetManager;
 
-    public float initialZoom;
-
     private List<BusStop> busStops;
     private List<BusLine> busLines;
 
     @Override
     public void create() {
+        Gdx.app.setLogLevel(Application.LOG_ERROR);
+
         camera = new OrthographicCamera();
 
         viewport = new ExtendViewport(Constants.MAP_WIDTH, Constants.MAP_HEIGHT, camera);
@@ -55,16 +54,7 @@ public class MBusTracker extends Game {
             return;
         }
 
-        if (Gdx.app.getType() == Application.ApplicationType.Desktop) {
-            initialZoom = 0.20f;
-        } else if (Gdx.app.getType() == Application.ApplicationType.Android
-            || Gdx.app.getType() == Application.ApplicationType.iOS) {
-            initialZoom = 0.10f;
-        } else {
-            initialZoom = 0.20f;
-        }
-
-        camera.zoom = initialZoom;
+        camera.zoom = 0.20f;
         camera.position.set(Constants.MAP_WIDTH / 2f, Constants.MAP_HEIGHT / 2f, 0);
         camera.update();
 

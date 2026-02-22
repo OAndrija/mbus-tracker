@@ -4,8 +4,8 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 import com.mbus.app.model.BusLine;
-import com.mbus.app.model.Geolocation;
-import com.mbus.app.model.ZoomXY;
+import com.mbus.app.utils.Geolocation;
+import com.mbus.app.utils.ZoomXY;
 import com.mbus.app.systems.map.MapRasterTiles;
 
 import java.util.List;
@@ -15,7 +15,7 @@ public class BusLineClickHandler {
 
     private static final float CLICK_TOLERANCE = 15f;
 
-    private OrthographicCamera camera;
+    private final OrthographicCamera camera;
     private List<BusLine> busLines;
     private Set<Integer> visibleLineIds;
     private ZoomXY beginTile;

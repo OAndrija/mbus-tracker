@@ -6,7 +6,7 @@ import java.util.Map;
 
 public class BusLineColors {
 
-    private static final Map<Integer, Color> lineColors = new HashMap<Integer, Color>();
+    private static final Map<Integer, Color> lineColors = new HashMap<>();
 
     static {
         lineColors.put(1, new Color(0.2f, 0.6f, 1f, 0.7f));      // Light Blue
@@ -36,12 +36,6 @@ public class BusLineColors {
             return new Color(0.5f, 0.5f, 0.5f, 0.7f); // Gray
         }
         return new Color(color);
-    }
-
-    public static Color getColor(int lineId, float alpha) {
-        Color color = getColor(lineId);
-        color.a = alpha;
-        return color;
     }
 
     public static Color getButtonColor(int lineId) {

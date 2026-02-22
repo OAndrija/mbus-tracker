@@ -1,5 +1,7 @@
 package com.mbus.app.model;
 
+import com.mbus.app.utils.Geolocation;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -44,16 +46,16 @@ public class BusLine {
         this.note = note;
         this.providerName = providerName;
         this.providerLink = providerLink;
-        this.path = Collections.unmodifiableList(new ArrayList<Geolocation>(path));
+        this.path = Collections.unmodifiableList(new ArrayList<>(path));
         this.originalCoordinates = originalCoordinates != null
-            ? Collections.unmodifiableList(new ArrayList<double[]>(originalCoordinates))
+            ? Collections.unmodifiableList(new ArrayList<>(originalCoordinates))
             : null;
         this.stops = stops != null
-            ? Collections.unmodifiableList(new ArrayList<BusStop>(stops))
-            : Collections.unmodifiableList(new ArrayList<BusStop>());
+            ? Collections.unmodifiableList(new ArrayList<>(stops))
+            : Collections.unmodifiableList(new ArrayList<>());
         this.schedules = schedules != null
-            ? Collections.unmodifiableList(new ArrayList<BusSchedule>(schedules))
-            : Collections.unmodifiableList(new ArrayList<BusSchedule>());
+            ? Collections.unmodifiableList(new ArrayList<>(schedules))
+            : Collections.unmodifiableList(new ArrayList<>());
     }
 
     public BusLine(int lineId,
@@ -87,33 +89,6 @@ public class BusLine {
         return schedules;
     }
 
-    public List<BusSchedule> getSchedulesForDayType(int dayType) {
-        List<BusSchedule> result = new ArrayList<BusSchedule>();
-        for (BusSchedule schedule : schedules) {
-            if (schedule.dayType == dayType) {
-                result.add(schedule);
-            }
-        }
-        return result;
-    }
-
-    public BusSchedule getNextDeparture(int currentTime, int dayType) {
-        BusSchedule nextSchedule = null;
-        int minTimeDiff = Integer.MAX_VALUE;
-
-        for (BusSchedule schedule : schedules) {
-            if (schedule.dayType == dayType && schedule.departureTime >= currentTime) {
-                int timeDiff = schedule.departureTime - currentTime;
-                if (timeDiff < minTimeDiff) {
-                    minTimeDiff = timeDiff;
-                    nextSchedule = schedule;
-                }
-            }
-        }
-
-        return nextSchedule;
-    }
-
     public int getPointCount() {
         return path.size();
     }
@@ -124,19 +99,6 @@ public class BusLine {
 
     public int getScheduleCount() {
         return schedules.size();
-    }
-
-    public boolean hasStop(BusStop stop) {
-        return stops.contains(stop);
-    }
-
-    public boolean hasStop(int stopId) {
-        for (BusStop stop : stops) {
-            if (stop.idAvpost == stopId) {
-                return true;
-            }
-        }
-        return false;
     }
 
     @Override

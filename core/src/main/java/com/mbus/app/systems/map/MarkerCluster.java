@@ -24,7 +24,7 @@ public class MarkerCluster {
 
     public MarkerCluster(Vector2 position, BusStop stop) {
         this.position = position;
-        this.stops = new ArrayList<BusStop>();
+        this.stops = new ArrayList<>();
         this.stops.add(stop);
         this.isCluster = false;
 
@@ -34,7 +34,7 @@ public class MarkerCluster {
 
     public MarkerCluster(Vector2 position, List<BusStop> stops) {
         this.position = position;
-        this.stops = new ArrayList<BusStop>(stops);
+        this.stops = new ArrayList<>(stops);
         this.isCluster = stops.size() > 1;
 
         initAnimation();
@@ -59,10 +59,6 @@ public class MarkerCluster {
         return animatedPosition;
     }
 
-    public Vector2 getTargetPosition() {
-        return targetPosition;
-    }
-
     public BusStop getSingleStop() {
         return isCluster ? null : stops.get(0);
     }
@@ -75,13 +71,9 @@ public class MarkerCluster {
         return clusterId;
     }
 
-    public void setClusterId(String id) {
-        this.clusterId = id;
-    }
-
     private String generateId() {
         StringBuilder sb = new StringBuilder();
-        List<Integer> sortedIds = new ArrayList<Integer>();
+        List<Integer> sortedIds = new ArrayList<>();
         for (BusStop stop : stops) {
             sortedIds.add(stop.idAvpost);
         }
@@ -144,10 +136,6 @@ public class MarkerCluster {
     public boolean shouldRemove() {
         float distanceToTarget = animatedPosition.dst(targetPosition);
 
-        if (distanceToTarget < 20f && alpha <= 0.05f) {
-            return true;
-        }
-
-        return false;
+        return distanceToTarget < 20f && alpha <= 0.05f;
     }
 }

@@ -1,5 +1,6 @@
 package com.mbus.app.systems.map;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
@@ -15,10 +16,12 @@ import com.badlogic.gdx.maps.tiled.TiledMapTileLayer;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
 import com.badlogic.gdx.maps.tiled.tiles.StaticTiledMapTile;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.Vector3;
 
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
-import com.mbus.app.model.ZoomXY;
+import com.mbus.app.utils.Geolocation;
+import com.mbus.app.utils.ZoomXY;
 import com.mbus.app.utils.BusLineColors;
 import com.mbus.app.utils.Constants;
 
@@ -73,7 +76,7 @@ public class MapRenderer {
     private static final float LABEL_SHADOW_OFFSET = 3f;
 
     private Set<Integer> visibleLineIds;
-    private BusAnimationRenderer busAnimationRenderer;
+    private final BusAnimationRenderer busAnimationRenderer;
     private float currentTimeMinutes = 0f;
     private int currentDayType = 0;
 
@@ -137,10 +140,6 @@ public class MapRenderer {
         this.selectedStop = stop;
     }
 
-    public BusStop getSelectedStop() {
-        return selectedStop;
-    }
-
     public void setHoveredLine(BusLine line) {
         this.hoveredLine = line;
     }
@@ -171,22 +170,10 @@ public class MapRenderer {
 
         if (selectedLine != null) {
             busAnimationRenderer.renderActiveBuses(
-                selectedLine,
-                currentTimeMinutes,
-                currentDayType,
-                beginTile,
-                camera.zoom,
-                delta
-            );
+                selectedLine, currentTimeMinutes, currentDayType, beginTile, camera.zoom, delta);
         } else if (hoveredLine != null) {
             busAnimationRenderer.renderActiveBuses(
-                hoveredLine,
-                currentTimeMinutes,
-                currentDayType,
-                beginTile,
-                camera.zoom,
-                delta
-            );
+                hoveredLine, currentTimeMinutes, currentDayType, beginTile, camera.zoom, delta);
         }
 
         spriteBatch.end();
@@ -195,9 +182,7 @@ public class MapRenderer {
     }
 
     private void renderBusLines() {
-        if (visibleLineIds == null || visibleLineIds.isEmpty()) {
-            return;
-        }
+        if (visibleLineIds == null || visibleLineIds.isEmpty()) return;
 
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
@@ -208,25 +193,21 @@ public class MapRenderer {
         for (BusLine line : busLines) {
             if (!visibleLineIds.contains(line.lineId)) continue;
             if (line == hoveredLine || line == selectedLine) continue;
-
-            Color lineColor = BusLineColors.getColor(line.lineId);
-            renderLine(line, baseLineWidth, lineColor);
+            renderLine(line, baseLineWidth, BusLineColors.getColor(line.lineId));
         }
 
         if (hoveredLine != null && visibleLineIds.contains(hoveredLine.lineId)) {
             Color lineColor = BusLineColors.getColor(hoveredLine.lineId);
-            Color glowColor = new Color(lineColor.r, lineColor.g, lineColor.b, 0.3f);
-            renderLine(hoveredLine, HOVER_LINE_WIDTH * Math.min(zoomScale * 0.5f, 2.0f) + 4f, glowColor);
-            renderLine(hoveredLine, HOVER_LINE_WIDTH * Math.min(zoomScale * 0.5f, 2.0f), lineColor);
+            float width = HOVER_LINE_WIDTH * Math.min(zoomScale * 0.5f, 2.0f);
+            renderLine(hoveredLine, width + 4f, new Color(lineColor.r, lineColor.g, lineColor.b, 0.3f));
+            renderLine(hoveredLine, width, lineColor);
         }
 
         if (selectedLine != null && visibleLineIds.contains(selectedLine.lineId)) {
             float breathe = (float) Math.sin(pulseTime * PULSE_SPEED) * 0.5f + 0.5f;
             float animatedWidth = (SELECT_LINE_WIDTH + breathe * 3f) * Math.min(zoomScale * 0.5f, 2.0f);
-
             Color lineColor = BusLineColors.getColor(selectedLine.lineId);
-            Color glowColor = new Color(lineColor.r, lineColor.g, lineColor.b, 0.4f + breathe * 0.2f);
-            renderLine(selectedLine, animatedWidth + 6f, glowColor);
+            renderLine(selectedLine, animatedWidth + 6f, new Color(lineColor.r, lineColor.g, lineColor.b, 0.4f + breathe * 0.2f));
             renderLine(selectedLine, animatedWidth, lineColor);
         }
 
@@ -235,26 +216,17 @@ public class MapRenderer {
 
     private void renderLine(BusLine line, float lineWidth, Color color) {
         shapeRenderer.setColor(color);
-        List<com.mbus.app.model.Geolocation> path = line.getPath();
+        List<Geolocation> path = line.getPath();
 
         if (path.size() < 2) return;
 
         for (int i = 0; i < path.size() - 1; i++) {
-            com.mbus.app.model.Geolocation point1 = path.get(i);
-            com.mbus.app.model.Geolocation point2 = path.get(i + 1);
-
-            Vector2 pos1 = MapRasterTiles.getPixelPosition(
-                point1.lat, point1.lng, beginTile.x, beginTile.y
-            );
-            Vector2 pos2 = MapRasterTiles.getPixelPosition(
-                point2.lat, point2.lng, beginTile.x, beginTile.y
-            );
+            Vector2 pos1 = MapRasterTiles.getPixelPosition(path.get(i).lat, path.get(i).lng, beginTile.x, beginTile.y);
+            Vector2 pos2 = MapRasterTiles.getPixelPosition(path.get(i + 1).lat, path.get(i + 1).lng, beginTile.x, beginTile.y);
 
             if (!isLineVisible(pos1, pos2)) continue;
 
             shapeRenderer.rectLine(pos1.x, pos1.y, pos2.x, pos2.y, lineWidth);
-
-            // Add circles at joints to smooth corners
             shapeRenderer.circle(pos1.x, pos1.y, lineWidth / 2, 16);
             if (i == path.size() - 2) {
                 shapeRenderer.circle(pos2.x, pos2.y, lineWidth / 2, 16);
@@ -286,17 +258,12 @@ public class MapRenderer {
         spriteBatch.dispose();
         font.dispose();
 
-        if (tiledMap != null)
-            tiledMap.dispose();
+        if (tiledMap != null) tiledMap.dispose();
 
         if (mapTiles != null) {
             for (Texture t : mapTiles)
                 if (t != null) t.dispose();
         }
-    }
-
-    public ZoomXY getBeginTile() {
-        return beginTile;
     }
 
     public List<BusStop> getStops() {
@@ -308,10 +275,8 @@ public class MapRenderer {
         MapLayers layers = tiledMap.getLayers();
 
         TiledMapTileLayer layer = new TiledMapTileLayer(
-            Constants.NUM_TILES,
-            Constants.NUM_TILES,
-            MapRasterTiles.TILE_SIZE,
-            MapRasterTiles.TILE_SIZE
+            Constants.NUM_TILES, Constants.NUM_TILES,
+            MapRasterTiles.TILE_SIZE, MapRasterTiles.TILE_SIZE
         );
 
         int index = 0;
@@ -345,119 +310,98 @@ public class MapRenderer {
 
         float zoomScale = getZoomScale();
 
-        // Pass delta to clustering algorithm
         List<MarkerCluster> clusters = MarkerClusterer.clusterMarkers(
-            filteredStops,
-            beginTile,
-            camera.zoom,
-            Constants.MAP_WIDTH,
-            Constants.MAP_HEIGHT,
-            com.badlogic.gdx.Gdx.graphics.getDeltaTime()  // Add delta time
+            filteredStops, beginTile, camera.zoom,
+            Constants.MAP_WIDTH, Constants.MAP_HEIGHT,
+            Gdx.graphics.getDeltaTime()
         );
 
-        // Render normal markers first
+        // Normal markers
         spriteBatch.begin();
         for (MarkerCluster cluster : clusters) {
-            if (cluster.isCluster) continue;
-            if (cluster.isDying) continue;
-
+            if (cluster.isCluster || cluster.isDying) continue;
             BusStop stop = cluster.getSingleStop();
             if (stop == selectedStop || stop == hoveredStop) continue;
-
             Vector2 pos = cluster.getPosition();
-            float scale = cluster.currentScale * zoomScale;
-            Color tint = new Color(1, 1, 1, 0.9f * cluster.alpha);
-            drawMarker(pos.x, pos.y, scale, tint, false);
+            drawMarker(pos.x, pos.y, cluster.currentScale * zoomScale, new Color(1, 1, 1, 0.9f * cluster.alpha), false);
         }
         spriteBatch.end();
 
-        // Render clusters
+        // Cluster shapes pass
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         for (MarkerCluster cluster : clusters) {
             if (!cluster.isCluster) continue;
-
             Vector2 pos = cluster.getPosition();
-            float scale = cluster.currentScale;
-            float alpha = cluster.alpha;
-
-            drawCluster(pos.x, pos.y, cluster.getCount(), camera.zoom, scale, alpha);
+            drawClusterShape(pos.x, pos.y, cluster.getCount(), camera.zoom, cluster.currentScale, cluster.alpha);
         }
+        shapeRenderer.end();
 
-        // Render hovered stop with glow
+        // Cluster text pass
+        spriteBatch.begin();
+        for (MarkerCluster cluster : clusters) {
+            if (!cluster.isCluster) continue;
+            Vector2 pos = cluster.getPosition();
+            drawClusterText(pos.x, pos.y, cluster.getCount(), camera.zoom, cluster.currentScale, cluster.alpha);
+        }
+        spriteBatch.end();
+
+        // Hovered stop
         if (hoveredStop != null) {
             for (MarkerCluster cluster : clusters) {
-                if (!cluster.isCluster && cluster.getSingleStop() == hoveredStop) {
-                    Vector2 pos = cluster.getPosition();
-                    float scale = cluster.currentScale * zoomScale;
+                if (cluster.isCluster || cluster.getSingleStop() != hoveredStop) continue;
+                Vector2 pos = cluster.getPosition();
+                float scale = cluster.currentScale * zoomScale;
 
-                    shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-                    shapeRenderer.setColor(0.2f, 0.6f, 1.0f, 0.25f * cluster.alpha);
-                    shapeRenderer.circle(pos.x, pos.y, BASE_MARKER_SIZE * 0.6f * scale);
-                    shapeRenderer.end();
+                shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+                shapeRenderer.setColor(0.2f, 0.6f, 1.0f, 0.25f * cluster.alpha);
+                shapeRenderer.circle(pos.x, pos.y, BASE_MARKER_SIZE * 0.6f * scale);
+                shapeRenderer.end();
 
-                    spriteBatch.begin();
-                    drawMarker(pos.x, pos.y, HOVER_SCALE * scale,
-                        new Color(0.5f, 0.8f, 1.0f, cluster.alpha), false);
-                    spriteBatch.end();
-                    break;
-                }
+                spriteBatch.begin();
+                drawMarker(pos.x, pos.y, HOVER_SCALE * scale, new Color(0.5f, 0.8f, 1.0f, cluster.alpha), false);
+                spriteBatch.end();
+                break;
             }
         }
 
-        // Render selected stop with pulse
+        // Selected stop
         if (selectedStop != null) {
             for (MarkerCluster cluster : clusters) {
-                if (!cluster.isCluster && cluster.getSingleStop() == selectedStop) {
-                    Vector2 pos = cluster.getPosition();
+                if (cluster.isCluster || cluster.getSingleStop() != selectedStop) continue;
+                Vector2 pos = cluster.getPosition();
+                float breathe = (float) Math.sin(pulseTime * PULSE_SPEED) * 0.5f + 0.5f;
+                float currentScale = (SELECT_SCALE + breathe * 0.15f) * cluster.currentScale * zoomScale;
 
-                    float breathe = (float) Math.sin(pulseTime * PULSE_SPEED) * 0.5f + 0.5f;
-                    float currentScale = (SELECT_SCALE + breathe * 0.15f) *
-                        cluster.currentScale * zoomScale;
-
-                    spriteBatch.begin();
-                    drawMarker(pos.x, pos.y, currentScale,
-                        new Color(0.3f, 0.8f, 1.0f, cluster.alpha), false);
-                    spriteBatch.end();
-                    break;
-                }
+                spriteBatch.begin();
+                drawMarker(pos.x, pos.y, currentScale, new Color(0.3f, 0.8f, 1.0f, cluster.alpha), false);
+                spriteBatch.end();
+                break;
             }
         }
     }
 
-    // Update the drawCluster method signature to accept scale and alpha:
-    private void drawCluster(float x, float y, int count, float zoom, float scale, float alpha) {
+    private void drawClusterShape(float x, float y, int count, float zoom, float scale, float alpha) {
         float zoomScale = 1.0f + (zoom * 4f);
         float countScale = 1.0f + Math.min(count / 8f, 1.2f);
         float clusterSize = BASE_MARKER_SIZE * countScale * zoomScale * scale;
-
         Color clusterColor = getClusterColor(count);
-
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
         shapeRenderer.setColor(clusterColor.r, clusterColor.g, clusterColor.b, 0.25f * alpha);
         shapeRenderer.circle(x, y, clusterSize * 0.7f);
-
         shapeRenderer.setColor(clusterColor.r, clusterColor.g, clusterColor.b, 0.5f * alpha);
         shapeRenderer.circle(x, y, clusterSize * 0.55f);
-
         shapeRenderer.setColor(clusterColor.r, clusterColor.g, clusterColor.b, 0.85f * alpha);
         shapeRenderer.circle(x, y, clusterSize * 0.4f);
+    }
 
-        shapeRenderer.end();
-
-        spriteBatch.begin();
-
+    private void drawClusterText(float x, float y, int count, float zoom, float scale, float alpha) {
         String countText = String.valueOf(count);
         float fontScale = (0.5f + (zoom * 14f)) * scale;
         font.getData().setScale(fontScale);
 
         GlyphLayout layout = new GlyphLayout(font, countText);
-        float textWidth = layout.width;
-        float textHeight = layout.height;
-
         font.setColor(1, 1, 1, alpha);
-        font.draw(spriteBatch, countText, x - textWidth / 2, y + textHeight / 2);
-
-        spriteBatch.end();
+        font.draw(spriteBatch, countText, x - layout.width / 2, y + layout.height / 2);
     }
 
     private void drawMarker(float x, float y, float scale, Color tint, boolean addHighlight) {
@@ -465,33 +409,23 @@ public class MapRenderer {
         float halfSize = size / 2f;
 
         spriteBatch.setColor(0, 0, 0, 0.3f * tint.a);
-        spriteBatch.draw(markerTexture,
-            x - halfSize + 2, y - halfSize - 2,
-            size, size);
+        spriteBatch.draw(markerTexture, x - halfSize + 2, y - halfSize - 2, size, size);
 
         spriteBatch.setColor(tint);
-        spriteBatch.draw(markerTexture,
-            x - halfSize, y - halfSize,
-            size, size);
+        spriteBatch.draw(markerTexture, x - halfSize, y - halfSize, size, size);
 
         if (addHighlight) {
             spriteBatch.setColor(1, 1, 1, 0.3f);
-            spriteBatch.draw(markerTexture,
-                x - halfSize, y - halfSize,
-                size, size);
+            spriteBatch.draw(markerTexture, x - halfSize, y - halfSize, size, size);
         }
 
         spriteBatch.setColor(Color.WHITE);
     }
 
     private Color getClusterColor(int count) {
-        if (count <= 3) {
-            return new Color(0.2f, 0.6f, 1.0f, 1f);
-        } else if (count <= 8) {
-            return new Color(1.0f, 0.85f, 0.2f, 1f);
-        } else {
-            return new Color(1.0f, 0.5f, 0.1f, 1f);
-        }
+        if (count <= 3) return new Color(0.2f, 0.6f, 1.0f, 1f);
+        if (count <= 8) return new Color(1.0f, 0.85f, 0.2f, 1f);
+        return new Color(1.0f, 0.5f, 0.1f, 1f);
     }
 
     private void renderFallbackMarkers() {
@@ -501,14 +435,9 @@ public class MapRenderer {
         float zoomScale = getZoomScale();
 
         for (BusStop stop : filteredStops) {
-            Vector2 pos = MapRasterTiles.getPixelPosition(
-                stop.geo.lat, stop.geo.lng,
-                beginTile.x, beginTile.y
-            );
+            Vector2 pos = MapRasterTiles.getPixelPosition(stop.geo.lat, stop.geo.lng, beginTile.x, beginTile.y);
 
-            if (pos.x < 0 || pos.y < 0 ||
-                pos.x > Constants.MAP_WIDTH || pos.y > Constants.MAP_HEIGHT)
-                continue;
+            if (pos.x < 0 || pos.y < 0 || pos.x > Constants.MAP_WIDTH || pos.y > Constants.MAP_HEIGHT) continue;
 
             if (stop == selectedStop) {
                 shapeRenderer.setColor(0.2f, 0.8f, 1.0f, 1);
@@ -526,8 +455,6 @@ public class MapRenderer {
     }
 
     private void renderLineLabels() {
-        spriteBatch.setProjectionMatrix(camera.combined);
-
         if (hoveredLine != null && visibleLineIds != null && visibleLineIds.contains(hoveredLine.lineId)) {
             renderLineLabel(hoveredLine);
         }
@@ -553,6 +480,7 @@ public class MapRenderer {
         float bgWidth = textWidth + paddingX * 2;
         float bgHeight = textHeight + paddingY * 2;
         float cornerRadius = LABEL_CORNER_RADIUS * zoomMultiplier;
+        float shadowOffset = LABEL_SHADOW_OFFSET * zoomMultiplier;
 
         float x = labelPos.x;
         float y = labelPos.y - textHeight * 0.5f - paddingY * 0.5f;
@@ -560,24 +488,17 @@ public class MapRenderer {
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
-        float shadowOffset = LABEL_SHADOW_OFFSET * zoomMultiplier;
         shapeRenderer.setColor(0f, 0f, 0f, 0.2f);
-
-        shapeRenderer.rect(x + cornerRadius + shadowOffset, y - shadowOffset,
-            bgWidth - cornerRadius * 2, bgHeight);
-        shapeRenderer.rect(x + shadowOffset, y + cornerRadius - shadowOffset,
-            bgWidth, bgHeight - cornerRadius * 2);
-
+        shapeRenderer.rect(x + cornerRadius + shadowOffset, y - shadowOffset, bgWidth - cornerRadius * 2, bgHeight);
+        shapeRenderer.rect(x + shadowOffset, y + cornerRadius - shadowOffset, bgWidth, bgHeight - cornerRadius * 2);
         shapeRenderer.circle(x + cornerRadius + shadowOffset, y + cornerRadius - shadowOffset, cornerRadius, 16);
         shapeRenderer.circle(x + bgWidth - cornerRadius + shadowOffset, y + cornerRadius - shadowOffset, cornerRadius, 16);
         shapeRenderer.circle(x + cornerRadius + shadowOffset, y + bgHeight - cornerRadius - shadowOffset, cornerRadius, 16);
         shapeRenderer.circle(x + bgWidth - cornerRadius + shadowOffset, y + bgHeight - cornerRadius - shadowOffset, cornerRadius, 16);
 
         shapeRenderer.setColor(1f, 1f, 1f, 0.97f);
-
         shapeRenderer.rect(x + cornerRadius, y, bgWidth - cornerRadius * 2, bgHeight);
         shapeRenderer.rect(x, y + cornerRadius, bgWidth, bgHeight - cornerRadius * 2);
-
         shapeRenderer.circle(x + cornerRadius, y + cornerRadius, cornerRadius, 16);
         shapeRenderer.circle(x + bgWidth - cornerRadius, y + cornerRadius, cornerRadius, 16);
         shapeRenderer.circle(x + cornerRadius, y + bgHeight - cornerRadius, cornerRadius, 16);
@@ -585,23 +506,17 @@ public class MapRenderer {
 
         shapeRenderer.end();
 
+        spriteBatch.setProjectionMatrix(camera.combined);
         spriteBatch.begin();
         font.setColor(0.25f, 0.25f, 0.25f, 1f);
         font.draw(spriteBatch, labelText, x + paddingX, y + bgHeight * 0.5f + textHeight * 0.35f);
         spriteBatch.end();
 
-        // Reset
         font.getData().setScale(1f);
     }
 
     private Vector2 getMouseWorldPosition() {
-        com.badlogic.gdx.math.Vector3 worldCoords = camera.unproject(
-            new com.badlogic.gdx.math.Vector3(
-                com.badlogic.gdx.Gdx.input.getX(),
-                com.badlogic.gdx.Gdx.input.getY(),
-                0
-            )
-        );
+        Vector3 worldCoords = camera.unproject(new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0));
         return new Vector2(worldCoords.x, worldCoords.y);
     }
 }
