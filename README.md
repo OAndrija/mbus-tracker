@@ -4,6 +4,17 @@ A desktop bus tracking application for the city of Maribor, Slovenia, built with
 
 ---
 
+## Download
+
+| File                          | Description |
+|-------------------------------|-------------|
+| `mbus-v0.1.0-beta-winX64.zip` | Windows 64-bit — no Java required, just extract and run the .exe |
+| `mbus-v0.1.0-beta.jar`        | Cross-platform — requires Java 17+ |
+
+See the [Releases](../../releases) page to download the latest version.
+
+---
+
 ## Features
 
 - **Interactive map** rendered from raster tiles (Geoapify / OpenStreetMap), with tile caching for offline use
@@ -19,15 +30,15 @@ A desktop bus tracking application for the city of Maribor, Slovenia, built with
 
 ## Tech Stack
 
-| Layer     | Technology                                                     |
-|-----------|----------------------------------------------------------------|
-| Language  | Java 11                                                        |
-| Framework | LibGDX                                                         |
-| Rendering | OrthographicCamera, SpriteBatch, ShapeRenderer, TiledMap       |
-| Map tiles | Geoapify REST API (OSM Bright)                                 |
-| Map data  | GeoJSON (bus stops and lines from public Maribor transit data) |
-| UI        | Scene2D (Stage, Table, Skin)                                   |
-| Build     | Gradle (Desktop target via LWJGL3)                             |
+| Layer | Technology |
+|---|---|
+| Language | Java 17 |
+| Framework | LibGDX |
+| Rendering | OrthographicCamera, SpriteBatch, ShapeRenderer, TiledMap |
+| Map tiles | Geoapify REST API (OSM Bright) |
+| Map data | GeoJSON (bus stops and lines from public Maribor transit data) |
+| UI | Scene2D (Stage, Table, Skin) |
+| Build | Gradle (Desktop target via LWJGL3 + Construo) |
 
 ---
 
@@ -57,7 +68,7 @@ MBusTracker (Game)
 
 ### Prerequisites
 
-- Java 11+
+- Java 17+
 - Gradle (wrapper included)
 
 ### Run
@@ -72,7 +83,13 @@ MBusTracker (Game)
 ./gradlew lwjgl3:jar
 ```
 
-The output JAR includes all assets and the pre-cached map tiles, so no network connection or API key is required for normal use.
+### Build a Windows executable
+
+```bash
+./gradlew lwjgl3:packageWinX64
+```
+
+The JAR and EXE both include all assets and the pre-cached map tiles, so no network connection or API key is required for normal use.
 
 ### API Key (optional)
 
