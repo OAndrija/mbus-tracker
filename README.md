@@ -1,38 +1,94 @@
-# MBus
+# MBus — Maribor Bus Tracker
 
-A [libGDX](https://libgdx.com/) project generated with [gdx-liftoff](https://github.com/libgdx/gdx-liftoff).
+A desktop bus tracking application for the city of Maribor, Slovenia, built with **Java** and **LibGDX**. MBus visualizes local bus lines and stops on an interactive map, with animated real-time bus position simulation based on schedule data.
 
-This project was generated with a template including simple application launchers and an `ApplicationAdapter` extension that draws libGDX logo.
+---
 
-## Platforms
+## Features
 
-- `core`: Main module with the application logic shared by all platforms.
-- `lwjgl3`: Primary desktop platform using LWJGL3; was called 'desktop' in older docs.
-- `android`: Android mobile platform. Needs Android SDK.
-- `html`: Web platform using GWT and WebGL. Supports only Java projects.
+- **Interactive map** rendered from raster tiles (Geoapify / OpenStreetMap), with tile caching for offline use
+- **Bus line visualization** with per-line color coding, hover effects, and animated selection
+- **Bus stop markers** with dynamic clustering that adapts to zoom level
+- **Animated bus positions** calculated from schedule data and rendered directionally (8-direction sprites)
+- **HUD panel** for filtering lines and stops, with a searchable list and per-stop detail view
+- **Smooth camera** with gesture-based pan/zoom, clamped to the map bounds, and animated fly-to on stop selection
+- **Background loading screen** with threaded tile downloads and data parsing, showing live progress
+- **Offline-first design** — ships with a pre-built tile cache; API key is optional and loaded gracefully via reflection if absent
 
-## Gradle
+---
 
-This project uses [Gradle](https://gradle.org/) to manage dependencies.
-The Gradle wrapper was included, so you can run Gradle tasks using `gradlew.bat` or `./gradlew` commands.
-Useful Gradle tasks and flags:
+## Tech Stack
 
-- `--continue`: when using this flag, errors will not stop the tasks from running.
-- `--daemon`: thanks to this flag, Gradle daemon will be used to run chosen tasks.
-- `--offline`: when using this flag, cached dependency archives will be used.
-- `--refresh-dependencies`: this flag forces validation of all dependencies. Useful for snapshot versions.
-- `android:lint`: performs Android project validation.
-- `build`: builds sources and archives of every project.
-- `cleanEclipse`: removes Eclipse project data.
-- `cleanIdea`: removes IntelliJ project data.
-- `clean`: removes `build` folders, which store compiled classes and built archives.
-- `eclipse`: generates Eclipse project data.
-- `html:dist`: compiles GWT sources. The compiled application can be found at `html/build/dist`: you can use any HTTP server to deploy it.
-- `html:superDev`: compiles GWT sources and runs the application in SuperDev mode. It will be available at [localhost:8080/html](http://localhost:8080/html). Use only during development.
-- `idea`: generates IntelliJ project data.
-- `lwjgl3:jar`: builds application's runnable jar, which can be found at `lwjgl3/build/libs`.
-- `lwjgl3:run`: starts the application.
-- `test`: runs unit tests (if any).
+| Layer | Technology |
+|---|---|
+| Language | Java 11 |
+| Framework | LibGDX |
+| Rendering | OrthographicCamera, SpriteBatch, ShapeRenderer, TiledMap |
+| Map tiles | Geoapify REST API (OSM Bright) |
+| Map data | GeoJSON (bus stops and lines from public Maribor transit data) |
+| UI | Scene2D (Stage, Table, Skin) |
+| Build | Gradle (Desktop target via LWJGL3) |
 
-Note that most tasks that are not specific to a single project can be run with `name:` prefix, where the `name` should be replaced with the ID of a specific project.
-For example, `core:clean` removes `build` folder only from the `core` project.
+---
+
+## Architecture
+
+```
+MBusTracker (Game)
+├── LoadingScreen          — Threaded tile download + GeoJSON parsing
+│   ├── MapRasterTiles     — Tile fetch, cache read/write, coordinate math
+│   ├── GeoJSONLoader      — Parses bus stop and line geometry
+│   └── ScheduleLoader     — Loads or generates bus schedules
+└── RasterMapScreen        — Main application screen
+    ├── MapRenderer        — Tile map, bus lines, stop markers, labels
+    ├── BusAnimationRenderer — Interpolated bus position rendering
+    ├── MarkerClusterer    — Zoom-aware stop clustering with animations
+    ├── HudPanel           — Line/stop filter sidebar
+    ├── BusStopDetailPanel — Per-stop schedule detail view
+    └── Input
+        ├── MapGestureListener  — Pan, zoom, tap handling
+        ├── MarkerClickHandler  — Stop hit testing in world space
+        └── BusLineClickHandler — Line segment hit testing
+```
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Java 11+
+- Gradle (wrapper included)
+
+### Run
+
+```bash
+./gradlew lwjgl3:run
+```
+
+### Build a distributable JAR
+
+```bash
+./gradlew lwjgl3:jar
+```
+
+The output JAR includes all assets and the pre-cached map tiles, so no network connection or API key is required for normal use.
+
+### API Key (optional)
+
+If you want the app to re-download tiles on cache miss, create `core/src/main/java/com/mbus/app/utils/Keys.java`:
+
+```java
+public class Keys {
+    public static final String GEOAPIFY = "your_key_here";
+}
+```
+
+If this file is absent the app runs in cache-only mode — no errors, no crashes.
+
+---
+
+## Data Sources
+
+- **Bus stops and lines** — Public GeoJSON data from the City of Maribor / Marprom
+- **Schedules** — Generated from route data; real schedule import supported via `schedules.json`

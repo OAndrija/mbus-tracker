@@ -7,17 +7,11 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Logger;
 import com.mbus.app.utils.Constants;
-import com.mbus.app.model.Geolocation;
-import com.mbus.app.utils.Keys;
 import com.mbus.app.model.ZoomXY;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
-import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -26,7 +20,7 @@ public class MapRasterTiles {
     private static final Logger log = new Logger("MapRasterTiles", Logger.INFO);
 
     static String mapServiceUrl = "https://maps.geoapify.com/v1/tile/";
-    static String token = "?&apiKey=" + Keys.GEOAPIFY;
+    static String token;
     static String tilesetId = "osm-bright-smooth";
     static String format = "@2x.png";
 
@@ -35,6 +29,19 @@ public class MapRasterTiles {
     private static final String CACHE_FOLDER = "tile_cache/";
 
     static {
+        String key = "";
+        try {
+            Class<?> keysClass = Class.forName("com.mbus.app.utils.Keys");
+            java.lang.reflect.Field field = keysClass.getField("GEOAPIFY");
+            Object value = field.get(null);
+            if (value != null) {
+                key = value.toString();
+            }
+        } catch (Throwable t) {
+            log.info("No API key found, running in cache-only mode.");
+        }
+        token = key.isEmpty() ? "" : "?&apiKey=" + key;
+
         FileHandle cacheDir = Gdx.files.local(CACHE_FOLDER);
         if (!cacheDir.exists()) {
             cacheDir.mkdirs();
@@ -150,7 +157,6 @@ public class MapRasterTiles {
         String fileName = zoom + "_" + x + "_" + y + ".png";
         FileHandle file = Gdx.files.local(CACHE_FOLDER + fileName);
 
-        // 1) LOAD FROM CACHE
         if (file.exists()) {
             byte[] cached = readFileBytes(fileName);
             if (cached != null) {
@@ -161,7 +167,10 @@ public class MapRasterTiles {
             }
         }
 
-        // 2) DOWNLOAD
+        if (token.isEmpty()) {
+            throw new IOException("Tile not cached and no API key available: " + fileName);
+        }
+
         String urlStr = mapServiceUrl + tilesetId + "/" + zoom + "/" + x + "/" + y + format + token;
         log.info("Downloading tile: zoom=" + zoom + " x=" + x + " y=" + y);
 
@@ -171,7 +180,6 @@ public class MapRasterTiles {
         byte[] data = bis.toByteArray();
         log.info("Tile downloaded (" + data.length + " bytes)");
 
-        // 3) SAVE TO CACHE
         saveFileBytes(fileName, data);
 
         return data;
