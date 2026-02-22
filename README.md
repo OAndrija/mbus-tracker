@@ -19,15 +19,15 @@ A desktop bus tracking application for the city of Maribor, Slovenia, built with
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Language | Java 11 |
-| Framework | LibGDX |
-| Rendering | OrthographicCamera, SpriteBatch, ShapeRenderer, TiledMap |
-| Map tiles | Geoapify REST API (OSM Bright) |
-| Map data | GeoJSON (bus stops and lines from public Maribor transit data) |
-| UI | Scene2D (Stage, Table, Skin) |
-| Build | Gradle (Desktop target via LWJGL3) |
+| Layer     | Technology                                                     |
+|-----------|----------------------------------------------------------------|
+| Language  | Java 11                                                        |
+| Framework | LibGDX                                                         |
+| Rendering | OrthographicCamera, SpriteBatch, ShapeRenderer, TiledMap       |
+| Map tiles | Geoapify REST API (OSM Bright)                                 |
+| Map data  | GeoJSON (bus stops and lines from public Maribor transit data) |
+| UI        | Scene2D (Stage, Table, Skin)                                   |
+| Build     | Gradle (Desktop target via LWJGL3)                             |
 
 ---
 
