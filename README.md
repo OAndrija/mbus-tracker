@@ -1,15 +1,23 @@
 # MBus — Maribor Bus Tracker
 
+![Java](https://img.shields.io/badge/Java-17-orange?logo=openjdk)
+![LibGDX](https://img.shields.io/badge/LibGDX-1.12-red?logo=libgdx)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Release](https://img.shields.io/github/v/release/OAndrija/mbus-tracker?include_prereleases)
+
 A desktop bus tracking application for the city of Maribor, Slovenia, built with **Java** and **LibGDX**. MBus visualizes local bus lines and stops on an interactive map, with animated real-time bus position simulation based on schedule data.
+
+![Overview](docs/images/bus.png)
 
 ---
 
 ## Download
 
-| File                          | Description |
-|-------------------------------|-------------|
-| `mbus-v0.1.0-beta-winX64.zip` | Windows 64-bit — no Java required, just extract and run the .exe |
-| `mbus-v0.1.0-beta.jar`        | Cross-platform — requires Java 17+ |
+| File                     | Description |
+|--------------------------|-------------|
+| `mbus-vX.X.X-winX64.zip` | Windows 64-bit — no Java required, just extract and run the .exe |
+| `mbus-vX.X.X.jar`        | Cross-platform — requires Java 17+ |
 
 See the [Releases](../../releases) page to download the latest version.
 
@@ -25,6 +33,13 @@ See the [Releases](../../releases) page to download the latest version.
 - **Smooth camera** with gesture-based pan/zoom, clamped to the map bounds, and animated fly-to on stop selection
 - **Background loading screen** with threaded tile downloads and data parsing, showing live progress
 - **Offline-first design** — ships with a pre-built tile cache; API key is optional and loaded gracefully via reflection if absent
+
+---
+
+## Screenshots
+
+![Overview](docs/images/overview.png)
+![Line Selection](docs/images/line_selection.png)
 
 ---
 
@@ -64,14 +79,21 @@ MBusTracker (Game)
 
 ---
 
-## Getting Started
+## Getting Started (Developers)
 
 ### Prerequisites
 
 - Java 17+
 - Gradle (wrapper included)
 
-### Run
+### Clone the repository
+
+```bash
+git clone https://github.com/OAndrija/mbus-tracker.git
+cd mbus-tracker
+```
+
+### Run from source
 
 ```bash
 ./gradlew lwjgl3:run
@@ -83,11 +105,15 @@ MBusTracker (Game)
 ./gradlew lwjgl3:jar
 ```
 
+Output: `lwjgl3/build/libs/`
+
 ### Build a Windows executable
 
 ```bash
 ./gradlew lwjgl3:packageWinX64
 ```
+
+Output: `lwjgl3/build/construo/`
 
 The JAR and EXE both include all assets and the pre-cached map tiles, so no network connection or API key is required for normal use.
 
@@ -109,3 +135,9 @@ If this file is absent the app runs in cache-only mode — no errors, no crashes
 
 - **Bus stops and lines** — Public GeoJSON data from the City of Maribor / Marprom
 - **Schedules** — Generated from route data; real schedule import supported via `schedules.json`
+
+---
+
+## License
+
+MIT
