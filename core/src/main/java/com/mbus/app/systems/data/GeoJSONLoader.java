@@ -69,11 +69,6 @@ public class GeoJSONLoader {
             String idMarprom = props.optString("id_marprom", "");
             String name = props.optString("ime_postaj", "");
 
-            name = name.replace('Š', 'S').replace('š', 's')
-                .replace('Č', 'C').replace('č', 'c')
-                .replace('Ć', 'C').replace('ć', 'c')
-                .replace('Ž', 'Z').replace('ž', 'z');
-
             BusStop stop = new BusStop(
                 idAvpost,
                 idMarprom,

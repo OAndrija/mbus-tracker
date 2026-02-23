@@ -86,14 +86,14 @@ public class RasterMapScreen implements Screen {
         Gdx.app.log("RasterMapScreen", "Using " + stops.size() + " stops and " +
             busLines.size() + " lines from pre-loaded data");
 
-        hudPanel = new HudPanel(skin, titleIcon);
+        hudPanel = new HudPanel(app.getAssetManager());
         detailPanel = new BusStopDetailPanel(skin, timeIcon);
 
         hudPanel.setBusLines(busLines);
         hudPanel.setBusStops(stops);
         detailPanel.setBusLines(busLines);
 
-        mapRenderer = new MapRenderer(app.camera);
+        mapRenderer = new MapRenderer(app.camera, app.getAssetManager());
         mapRenderer.loadTiles(mapTiles, beginTile);
         mapRenderer.setMarkerTexture(markerTexture);
         mapRenderer.setStops(stops);

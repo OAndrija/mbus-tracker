@@ -7,8 +7,11 @@ com.badlogic.gdx.graphics.Color: {
 	bleached_peach: { r: 0.9372549, g: 0.8980392, b: 0.8627451, a: 1 }
 },
 com.badlogic.gdx.graphics.g2d.BitmapFont: {
-	font: { file: font-export.fnt },
-	font-title: { file: font-title-export.fnt }
+	font: { file: regular.fnt },
+	font-title: { file: title.fnt },
+  font-title-extrabold: { file: title_extrabold.fnt },
+  font-title-24: { file: title24.fnt },
+  font-semibold: { file: semibold.fnt }
 },
 com.badlogic.gdx.scenes.scene2d.ui.Skin$TintedDrawable: {
 	dialogDim: {
@@ -297,6 +300,10 @@ com.badlogic.gdx.scenes.scene2d.ui.Label$LabelStyle: {
     font: font,
     fontColor: { a: 1, b: 0.01, g: 0.01, r: 0.01 }
   },
+  black-semibold: {
+    font: font-semibold,
+    fontColor: { a: 1, b: 0.01, g: 0.01, r: 0.01 }
+  },
 	error: {
 		font: font,
 		fontColor: { a: 1, b: 0.2627451, g: 0.05490196, r: 0.6 }
@@ -315,6 +322,14 @@ com.badlogic.gdx.scenes.scene2d.ui.Label$LabelStyle: {
 	},
   title-black: {
     font: font-title,
+    fontColor: { a: 1, b: 0.1, g: 0.1, r: 0.1 }
+  },
+  title-black-extrabold: {
+    font: font-title-extrabold,
+    fontColor: { a: 1, b: 0.1, g: 0.1, r: 0.1 }
+  },
+  title-black-24: {
+    font: font-title-24,
     fontColor: { a: 1, b: 0.1, g: 0.1, r: 0.1 }
   },
 	title: {

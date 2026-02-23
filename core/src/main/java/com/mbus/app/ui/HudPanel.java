@@ -1,6 +1,7 @@
 package com.mbus.app.ui;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -9,6 +10,7 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.mbus.app.assets.AssetDescriptors;
 import com.mbus.app.model.BusStop;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.utils.Constants;
@@ -22,6 +24,8 @@ public class HudPanel {
     private final Skin skin;
     private Table mainPanel;
     private final Texture titleIcon;
+    private final Texture busstopIcon;
+    private final Texture buslineIcon;
 
     private ScrollPane busStopsScrollPane;
     private TextButton allStopsBtn;
@@ -60,9 +64,11 @@ public class HudPanel {
     private FilteredStopsCallback filteredStopsCallback;
     private TimeChangedCallback timeChangedCallback;
 
-    public HudPanel(Skin skin, Texture titleIcon) {
-        this.skin = skin;
-        this.titleIcon = titleIcon;
+    public HudPanel(AssetManager assetManager) {
+        this.skin = assetManager.get(AssetDescriptors.SKIN);
+        this.titleIcon = assetManager.get(AssetDescriptors.TITLE_ICON);
+        this.busstopIcon = assetManager.get(AssetDescriptors.BUSSTOP_ICON);
+        this.buslineIcon = assetManager.get(AssetDescriptors.BUSLINE_ICON);
         this.stage = new Stage(new ScreenViewport());
         this.allBusStops = new ArrayList<>();
         this.busLines = new ArrayList<>();
@@ -88,27 +94,32 @@ public class HudPanel {
 
         mainPanel.setBackground(skin.getDrawable("panel-maroon"));
 
+        // ── Header ──────────────────────────────────────────────────────────
         Table headerTable = new Table();
 
         if (titleIcon != null) {
             Image iconImage = new Image(titleIcon);
-            headerTable.add(iconImage).size(35, 35).padRight(5);
+            headerTable.add(iconImage).size(44, 44).padTop(3);
         }
 
-        Label headerLabel = new Label("MBus", skin, "title-black");
+        Label headerLabel = new Label("MBus", skin, "title-black-extrabold");
         headerLabel.setWrap(false);
         headerLabel.setAlignment(Align.center);
-        headerLabel.setFontScale(1.3f);
         headerTable.add(headerLabel);
 
         mainPanel.add(headerTable).width(panelWidth - 20).pad(10).row();
 
+        Table linesHeaderTable = new Table();
+        if (buslineIcon != null) {
+            Image buslineImage = new Image(buslineIcon);
+            linesHeaderTable.add(buslineImage).size(25, 25).padRight(6);
+        }
         Label linesLabel = new Label("Linije", skin, "title-black");
-        linesLabel.setFontScale(0.8f);
-        mainPanel.add(linesLabel).left().padLeft(10).padTop(15).padBottom(15).row();
+        linesHeaderTable.add(linesLabel);
+        mainPanel.add(linesHeaderTable).left().padLeft(10).padTop(15).padBottom(10).row();
 
         Table busLinesTable = createBusLinesTable();
-        mainPanel.add(busLinesTable).width(panelWidth - 20).padLeft(10).padBottom(20).padRight(10).row();
+        mainPanel.add(busLinesTable).width(panelWidth - 20).padBottom(10).row();
 
         Table allButtonsTable = new Table();
         TextButton allLinesBtn = new TextButton("Linije", skin, "orange-small-toggle");
@@ -138,9 +149,14 @@ public class HudPanel {
 
         mainPanel.add(allButtonsTable).width(panelWidth - 20).padLeft(10).padRight(10).padTop(10).row();
 
-        Label stopsLabel = new Label("Postajalisca", skin, "title-black");
-        stopsLabel.setFontScale(0.8f);
-        mainPanel.add(stopsLabel).left().padLeft(10).padTop(30).padBottom(25).row();
+        Table stopsHeaderTable = new Table();
+        if (busstopIcon != null) {
+            Image busstopImage = new Image(busstopIcon);
+            stopsHeaderTable.add(busstopImage).size(25, 25).padRight(6);
+        }
+        Label stopsLabel = new Label("Postaje", skin, "title-black");
+        stopsHeaderTable.add(stopsLabel);
+        mainPanel.add(stopsHeaderTable).left().padLeft(10).padTop(30).padBottom(25).row();
 
         Table busStopsTable = createBusStopsTable();
         busStopsScrollPane = new ScrollPane(busStopsTable, skin, "no-bg");
@@ -229,7 +245,6 @@ public class HudPanel {
 
         if (busLines == null || busLines.isEmpty()) {
             Label emptyLabel = new Label("Ni podatkov o linijah", skin, "default");
-            emptyLabel.setFontScale(0.8f);
             table.add(emptyLabel).pad(10);
             return table;
         }
@@ -247,17 +262,30 @@ public class HudPanel {
         float buttonSize;
 
         if (availableWidth > 300) {
-            buttonsPerRow = 6;
+            buttonsPerRow = 7;
         } else if (availableWidth > 240) {
-            buttonsPerRow = 5;
+            buttonsPerRow = 6;
         } else if (availableWidth > 180) {
-            buttonsPerRow = 4;
+            buttonsPerRow = 5;
         } else {
-            buttonsPerRow = 3;
+            buttonsPerRow = 4;
         }
 
         buttonSize = (availableWidth - (padding * 2 * buttonsPerRow)) / buttonsPerRow;
-        buttonSize = Math.max(30f, Math.min(buttonSize, 50f));
+
+        int screenHeight = Gdx.graphics.getHeight();
+        float maxButtonSize;
+        if (screenHeight >= 1000) {
+            maxButtonSize = 55f;
+        } else if (screenHeight >= 600) {
+            maxButtonSize = 48f;
+        } else if (screenHeight >= 480) {
+            maxButtonSize = 35f;
+        } else {
+            maxButtonSize = 28f;
+        }
+
+        buttonSize = Math.max(24f, Math.min(buttonSize, maxButtonSize));
 
         int count = 0;
 

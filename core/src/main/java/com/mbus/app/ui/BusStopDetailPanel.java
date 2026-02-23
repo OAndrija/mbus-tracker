@@ -73,8 +73,7 @@ public class BusStopDetailPanel {
 
         Table headerTable = new Table();
 
-        Label titleLabel = new Label("Postajalisce", skin, "title-black");
-        titleLabel.setFontScale(0.8f);
+        Label titleLabel = new Label("Postajališče", skin, "title-black-24");
         titleLabel.setAlignment(Align.left);
 
         TextButton closeBtn = new TextButton("<", skin, "maroon-small");
@@ -109,8 +108,7 @@ public class BusStopDetailPanel {
 
         Table arrivalsHeaderTable = new Table();
 
-        Label arrivalsHeaderLabel = new Label("Prihodi", skin, "title-black");
-        arrivalsHeaderLabel.setFontScale(0.8f);
+        Label arrivalsHeaderLabel = new Label("Prihodi", skin, "title-black-24");
 
         arrivalsHeaderTable.add(arrivalsHeaderLabel).expandX().left().padLeft(10);
 
@@ -143,7 +141,6 @@ public class BusStopDetailPanel {
 
         if (allLines == null || allLines.isEmpty()) {
             Label emptyLabel = new Label("Ni podatkov o voznem redu", skin, "black");
-            emptyLabel.setFontScale(0.75f);
             emptyLabel.setColor(Color.GRAY);
             table.add(emptyLabel).pad(10);
             return table;
@@ -164,7 +161,7 @@ public class BusStopDetailPanel {
             currentStop.getUpcomingArrivals(allLines, currentTime, dayType, 20);
 
         if (upcomingArrivals.isEmpty()) {
-            Label emptyLabel = new Label("Ni vec prihodov danes", skin, "black");
+            Label emptyLabel = new Label("Ni več prihodov danes", skin, "black");
             emptyLabel.setColor(Color.GRAY);
             table.add(emptyLabel).pad(10);
             return table;
@@ -197,8 +194,7 @@ public class BusStopDetailPanel {
                 timeColor = Color.GRAY;
             }
 
-            Label timeLabel = new Label(timeText, skin, "black");
-            timeLabel.setFontScale(0.9f);
+            Label timeLabel = new Label(timeText, skin, "black-semibold");
             timeLabel.setColor(timeColor);
             timeLabel.setAlignment(Align.right);
 
@@ -225,9 +221,8 @@ public class BusStopDetailPanel {
         Label footerLabel = new Label(
             dayTypeStr + " • " + BusSchedule.formatTime(currentTime),
             skin,
-            "black"
+            "black-semibold"
         );
-        footerLabel.setFontScale(0.6f);
         footerLabel.setColor(Color.GRAY);
         footerLabel.setAlignment(Align.center);
 

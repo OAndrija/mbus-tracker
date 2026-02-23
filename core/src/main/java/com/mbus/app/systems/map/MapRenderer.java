@@ -1,6 +1,7 @@
 package com.mbus.app.systems.map;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
@@ -18,6 +19,7 @@ import com.badlogic.gdx.maps.tiled.tiles.StaticTiledMapTile;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 
+import com.mbus.app.assets.AssetDescriptors;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
 import com.mbus.app.utils.Geolocation;
@@ -33,6 +35,7 @@ public class MapRenderer {
     private final OrthographicCamera camera;
     private final ShapeRenderer shapeRenderer;
     private final SpriteBatch spriteBatch;
+    private final AssetManager assetManager;
     private final BitmapFont font;
 
     private Texture[] mapTiles;
@@ -80,11 +83,12 @@ public class MapRenderer {
     private float currentTimeMinutes = 0f;
     private int currentDayType = 0;
 
-    public MapRenderer(OrthographicCamera camera) {
+    public MapRenderer(OrthographicCamera camera, AssetManager assetManager) {
         this.camera = camera;
         this.shapeRenderer = new ShapeRenderer();
         this.spriteBatch = new SpriteBatch();
-        this.font = new BitmapFont();
+        this.assetManager = assetManager;
+        this.font = assetManager.get(AssetDescriptors.FONT);
         this.busAnimationRenderer = new BusAnimationRenderer(spriteBatch);
     }
 
@@ -396,7 +400,7 @@ public class MapRenderer {
 
     private void drawClusterText(float x, float y, int count, float zoom, float scale, float alpha) {
         String countText = String.valueOf(count);
-        float fontScale = (0.5f + (zoom * 14f)) * scale;
+        float fontScale = (0.7f + (zoom * 7f)) * scale;
         font.getData().setScale(fontScale);
 
         GlyphLayout layout = new GlyphLayout(font, countText);
