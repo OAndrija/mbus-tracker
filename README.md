@@ -131,13 +131,6 @@ If this file is absent the app runs in cache-only mode — no errors, no crashes
 
 ---
 
-## Data Sources
-
-- **Bus stops and lines** — Public GeoJSON data from the City of Maribor / Marprom
-- **Schedules** — Generated from route data; real schedule import supported via `schedules.json`
-
----
-
 ## License
 
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
