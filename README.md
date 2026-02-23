@@ -140,4 +140,4 @@ If this file is absent the app runs in cache-only mode — no errors, no crashes
 
 ## License
 
-MIT
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
