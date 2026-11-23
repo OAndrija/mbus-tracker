@@ -1,23 +1,24 @@
 package com.mbus.app.systems.map;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.Align;
 
-import com.mbus.app.assets.AssetDescriptors;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
+import com.mbus.app.ui.theme.Palette;
+import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.BusLineColors;
 import com.mbus.app.utils.Constants;
 
@@ -31,10 +32,11 @@ public class MapRenderer {
     private final OrthographicCamera camera;
     private final ShapeRenderer shapeRenderer;
     private final SpriteBatch spriteBatch;
-    private final AssetManager assetManager;
+    private final Theme theme;
     private final BitmapFont font;
+    private final GlyphLayout glyphLayout = new GlyphLayout();
+    private final Color tint = new Color();
 
-    private Texture markerTexture;
     private MapTileLayer tileLayer;
     private WorldGeometry geometry;
     private List<BusStop> allStops;
@@ -55,49 +57,37 @@ public class MapRenderer {
 
     private float pulseTime = 0f;
 
-    private static final float BASE_MARKER_SIZE = 32f;
-    private static final float HOVER_SCALE = 1.4f;
-    private static final float SELECT_SCALE = 1.4f;
     private static final float PULSE_SPEED = 2.5f;
 
-    private static final float MIN_ZOOM_SCALE = 0.7f;
-    private static final float MAX_ZOOM_SCALE = 4f;
-    private static final float ZOOM_SCALE_FACTOR = 6f;
+    // All sizes are in logical screen pixels.
+    private static final float STOP_SIZE_FAR = 18f;
+    private static final float STOP_SIZE_NEAR = 28f;
+    private static final float LINE_WIDTH_FAR = 3f;
+    private static final float LINE_WIDTH_NEAR = 6f;
+    private static final float LINE_CASING = 2f;
+    private static final float HOVERED_LINE_EXTRA = 2f;
+    private static final float STOP_HIT_SLOP = 2f;
+    private static final float LINE_ALPHA = 0.9f;
 
-    private static final float BUS_LINE_WIDTH = 10f;
-    private static final float HOVER_LINE_WIDTH = 14f;
-    private static final float SELECT_LINE_WIDTH = 16f;
-
-    private static final float LABEL_BASE_FONT_SCALE = 1.8f;
-    private static final float LABEL_ZOOM_FONT_SCALE = 13.0f;
-    private static final float LABEL_BASE_PADDING_X = 16f;
-    private static final float LABEL_BASE_PADDING_Y = 12f;
-    private static final float LABEL_CORNER_RADIUS = 8f;
-    private static final float LABEL_SHADOW_OFFSET = 3f;
+    // Camera zoom at which the far and near sizes apply
+    private static final float FAR_ZOOM = 0.3f;
+    private static final float NEAR_ZOOM = 0.05f;
 
     private Set<Integer> visibleLineIds;
-    private final BusAnimationRenderer busAnimationRenderer;
-    private float currentTimeMinutes = 0f;
+    private final BusRenderer busRenderer;
+    private double currentTimeMinutes = 0;
     private int currentDayType = 0;
 
-    public MapRenderer(OrthographicCamera camera, AssetManager assetManager) {
+    public MapRenderer(OrthographicCamera camera, Theme theme) {
         this.camera = camera;
         this.shapeRenderer = new ShapeRenderer();
         this.spriteBatch = new SpriteBatch();
-        this.assetManager = assetManager;
-        this.font = assetManager.get(AssetDescriptors.FONT);
-        this.busAnimationRenderer = new BusAnimationRenderer(spriteBatch);
+        this.theme = theme;
+        this.font = theme.map;
+        this.busRenderer = new BusRenderer(spriteBatch, theme);
     }
 
-    public void loadBusSprites(TextureRegion north, TextureRegion northeast,
-                               TextureRegion east, TextureRegion southeast,
-                               TextureRegion south, TextureRegion southwest,
-                               TextureRegion west, TextureRegion northwest) {
-        busAnimationRenderer.loadBusSprites(north, northeast, east, southeast,
-            south, southwest, west, northwest);
-    }
-
-    public void setCurrentTime(float timeMinutes, int dayType) {
+    public void setCurrentTime(double timeMinutes, int dayType) {
         this.currentTimeMinutes = timeMinutes;
         this.currentDayType = dayType;
     }
@@ -106,11 +96,7 @@ public class MapRenderer {
     public void setMap(MapTileLayer tileLayer, WorldGeometry geometry) {
         this.tileLayer = tileLayer;
         this.geometry = geometry;
-        busAnimationRenderer.setGeometry(geometry);
-    }
-
-    public void setMarkerTexture(Texture texture) {
-        this.markerTexture = texture;
+        busRenderer.setGeometry(geometry);
     }
 
     public void setStops(List<BusStop> stops) {
@@ -170,16 +156,24 @@ public class MapRenderer {
         }
 
         updateLinesWithBuses();
-        busAnimationRenderer.render(linesWithBuses, currentTimeMinutes, currentDayType,
-            camera, view, shapeRenderer, font, delta);
-
-        renderLineLabels();
+        spriteBatch.setProjectionMatrix(camera.combined);
+        busRenderer.render(linesWithBuses, currentTimeMinutes, currentDayType, view,
+            camera.zoom, getWorldPerPixel(), getCloseness(), delta);
     }
 
     private void updateView() {
         float width = camera.viewportWidth * camera.zoom;
         float height = camera.viewportHeight * camera.zoom;
         view.set(camera.position.x - width / 2f, camera.position.y - height / 2f, width, height);
+    }
+
+    private float getWorldPerPixel() {
+        return camera.viewportWidth * camera.zoom / Gdx.graphics.getWidth();
+    }
+
+    /** 0 when zoomed out, 1 when zoomed in. */
+    private float getCloseness() {
+        return MathUtils.clamp((FAR_ZOOM - camera.zoom) / (FAR_ZOOM - NEAR_ZOOM), 0f, 1f);
     }
 
     /** A selected line shows only its own buses, otherwise all visible lines show theirs. */
@@ -197,37 +191,38 @@ public class MapRenderer {
     private void renderBusLines() {
         if (visibleLineIds == null || visibleLineIds.isEmpty()) return;
 
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
-        float zoomScale = getZoomScale();
-        float baseLineWidth = BUS_LINE_WIDTH * Math.min(zoomScale * 0.5f, 2.0f);
+        float pixel = getWorldPerPixel();
+        float width = MathUtils.lerp(LINE_WIDTH_FAR, LINE_WIDTH_NEAR, getCloseness()) * pixel;
 
         for (BusLine line : busLines) {
             if (!visibleLineIds.contains(line.lineId)) continue;
             if (line == hoveredLine || line == selectedLine) continue;
-            renderLine(line, baseLineWidth, BusLineColors.getColor(line.lineId));
+            renderLine(line, width, BusLineColors.getColor(line.lineId), LINE_ALPHA);
         }
 
-        if (hoveredLine != null && visibleLineIds.contains(hoveredLine.lineId)) {
-            Color lineColor = BusLineColors.getColor(hoveredLine.lineId);
-            float width = HOVER_LINE_WIDTH * Math.min(zoomScale * 0.5f, 2.0f);
-            renderLine(hoveredLine, width + 4f, new Color(lineColor.r, lineColor.g, lineColor.b, 0.3f));
-            renderLine(hoveredLine, width, lineColor);
+        if (selectedLine != null && selectedLine != hoveredLine) {
+            renderEmphasizedLine(selectedLine, width, pixel);
         }
-
-        if (selectedLine != null && visibleLineIds.contains(selectedLine.lineId)) {
-            float breathe = (float) Math.sin(pulseTime * PULSE_SPEED) * 0.5f + 0.5f;
-            float animatedWidth = (SELECT_LINE_WIDTH + breathe * 3f) * Math.min(zoomScale * 0.5f, 2.0f);
-            Color lineColor = BusLineColors.getColor(selectedLine.lineId);
-            renderLine(selectedLine, animatedWidth + 6f, new Color(lineColor.r, lineColor.g, lineColor.b, 0.4f + breathe * 0.2f));
-            renderLine(selectedLine, animatedWidth, lineColor);
+        if (hoveredLine != null) {
+            renderEmphasizedLine(hoveredLine, width, pixel);
         }
 
         shapeRenderer.end();
     }
 
-    private void renderLine(BusLine line, float lineWidth, Color color) {
+    private void renderEmphasizedLine(BusLine line, float width, float pixel) {
+        if (!visibleLineIds.contains(line.lineId)) return;
+        float wide = width + HOVERED_LINE_EXTRA * pixel;
+        renderLine(line, wide + 2 * LINE_CASING * pixel, Color.WHITE, 1f);
+        renderLine(line, wide, BusLineColors.getColor(line.lineId), 1f);
+    }
+
+    private void renderLine(BusLine line, float lineWidth, Color color, float alpha) {
         WorldGeometry.LinePath path = geometry.getLine(line);
         if (path.size() < 2) return;
 
@@ -242,7 +237,7 @@ public class MapRenderer {
         float minStep = worldPerPixel * 1.5f;
         int segments = MathUtils.clamp((int) (lineWidth / worldPerPixel), 6, 16);
 
-        shapeRenderer.setColor(color);
+        shapeRenderer.setColor(color.r, color.g, color.b, alpha);
         float x1 = path.x[0], y1 = path.y[0];
         int last = path.size() - 1;
 
@@ -280,25 +275,11 @@ public class MapRenderer {
         return allStops;
     }
 
-    private float getZoomScale() {
-        float scale = MIN_ZOOM_SCALE + (camera.zoom * ZOOM_SCALE_FACTOR);
-        return Math.min(Math.max(scale, MIN_ZOOM_SCALE), MAX_ZOOM_SCALE);
-    }
-
     private void renderMarkers(float delta) {
         if (filteredStops == null || filteredStops.isEmpty()) {
             clusters = Collections.emptyList();
             return;
         }
-        if (markerTexture == null) {
-            renderFallbackMarkers();
-            return;
-        }
-
-        spriteBatch.setProjectionMatrix(camera.combined);
-        shapeRenderer.setProjectionMatrix(camera.combined);
-
-        float zoomScale = getZoomScale();
 
         clusters = MarkerClusterer.clusterMarkers(
             filteredStops, geometry, camera.zoom,
@@ -306,69 +287,66 @@ public class MapRenderer {
             delta
         );
 
-        // Normal markers
+        spriteBatch.setProjectionMatrix(camera.combined);
         spriteBatch.begin();
+
+        MarkerCluster hovered = null;
+        MarkerCluster selected = null;
         for (MarkerCluster cluster : clusters) {
-            if (cluster.isCluster || cluster.isDying) continue;
             BusStop stop = cluster.getSingleStop();
-            if (stop == selectedStop || stop == hoveredStop) continue;
-            Vector2 pos = cluster.getPosition();
-            drawMarker(pos.x, pos.y, cluster.currentScale * zoomScale, new Color(1, 1, 1, 0.9f * cluster.alpha), false);
+            if (stop == null || cluster.isDying) continue;
+            if (stop == selectedStop) selected = cluster;
+            else if (stop == hoveredStop) hovered = cluster;
+            else drawMarker(theme.stopMarker, cluster, getStopSize());
         }
+
+        for (MarkerCluster cluster : clusters) {
+            if (cluster.isCluster) drawCluster(cluster);
+        }
+
+        if (hovered != null) {
+            drawMarker(theme.stopMarkerHovered, hovered, getStopSize() * 1.2f);
+        }
+        if (selected != null) {
+            float breathe = MathUtils.sin(pulseTime * PULSE_SPEED) * 0.5f + 0.5f;
+            drawMarker(theme.stopMarkerSelected, selected, getStopSize() * (1.4f + breathe * 0.1f));
+        }
+
+        spriteBatch.setColor(Color.WHITE);
         spriteBatch.end();
+    }
 
-        // Cluster shapes pass
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        for (MarkerCluster cluster : clusters) {
-            if (!cluster.isCluster) continue;
-            Vector2 pos = cluster.getPosition();
-            drawClusterShape(pos.x, pos.y, cluster.getCount(), camera.zoom, cluster.currentScale, cluster.alpha);
-        }
-        shapeRenderer.end();
+    /** Diameter of a stop marker in screen pixels. */
+    private float getStopSize() {
+        return MathUtils.lerp(STOP_SIZE_FAR, STOP_SIZE_NEAR, getCloseness());
+    }
 
-        // Cluster text pass
-        spriteBatch.begin();
-        for (MarkerCluster cluster : clusters) {
-            if (!cluster.isCluster) continue;
-            Vector2 pos = cluster.getPosition();
-            drawClusterText(pos.x, pos.y, cluster.getCount(), camera.zoom, cluster.currentScale, cluster.alpha);
-        }
+    /** Diameter of a cluster in screen pixels. */
+    private static float getClusterSize(int count) {
+        if (count <= 3) return 22f;
+        if (count <= 9) return 25f;
+        if (count <= 19) return 28f;
+        return 32f;
+    }
+
+    private void drawMarker(Texture texture, MarkerCluster cluster, float pixels) {
+        float size = pixels * getWorldPerPixel() * cluster.currentScale / Theme.MARKER_DISC;
+        Vector2 pos = cluster.getPosition();
+        spriteBatch.setColor(1f, 1f, 1f, cluster.alpha);
+        spriteBatch.draw(texture, pos.x - size / 2f, pos.y - size / 2f, size, size);
+    }
+
+    private void drawCluster(MarkerCluster cluster) {
+        float pixels = getClusterSize(cluster.getCount());
+        drawMarker(theme.clusterMarker, cluster, pixels);
+
+        float scale = 0.34f * pixels * getWorldPerPixel() * cluster.currentScale / font.getCapHeight();
+        Vector2 pos = cluster.getPosition();
+        font.getData().setScale(scale);
+        tint.set(Palette.INK.r, Palette.INK.g, Palette.INK.b, cluster.alpha);
+        glyphLayout.setText(font, String.valueOf(cluster.getCount()), tint, 0, Align.left, false);
+        font.draw(spriteBatch, glyphLayout, pos.x - glyphLayout.width / 2f, pos.y + font.getCapHeight() / 2f);
         font.getData().setScale(1f);
-        spriteBatch.end();
-
-        // Hovered stop
-        if (hoveredStop != null) {
-            for (MarkerCluster cluster : clusters) {
-                if (cluster.isCluster || cluster.getSingleStop() != hoveredStop) continue;
-                Vector2 pos = cluster.getPosition();
-                float scale = cluster.currentScale * zoomScale;
-
-                shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-                shapeRenderer.setColor(0.2f, 0.6f, 1.0f, 0.25f * cluster.alpha);
-                shapeRenderer.circle(pos.x, pos.y, BASE_MARKER_SIZE * 0.6f * scale);
-                shapeRenderer.end();
-
-                spriteBatch.begin();
-                drawMarker(pos.x, pos.y, HOVER_SCALE * scale, new Color(0.5f, 0.8f, 1.0f, cluster.alpha), false);
-                spriteBatch.end();
-                break;
-            }
-        }
-
-        // Selected stop
-        if (selectedStop != null) {
-            for (MarkerCluster cluster : clusters) {
-                if (cluster.isCluster || cluster.getSingleStop() != selectedStop) continue;
-                Vector2 pos = cluster.getPosition();
-                float breathe = (float) Math.sin(pulseTime * PULSE_SPEED) * 0.5f + 0.5f;
-                float currentScale = (SELECT_SCALE + breathe * 0.15f) * cluster.currentScale * zoomScale;
-
-                spriteBatch.begin();
-                drawMarker(pos.x, pos.y, currentScale, new Color(0.3f, 0.8f, 1.0f, cluster.alpha), false);
-                spriteBatch.end();
-                break;
-            }
-        }
     }
 
     /** Returns the stop cluster at a screen position, or null. */
@@ -376,7 +354,7 @@ public class MapRenderer {
         Vector3 world = camera.unproject(new Vector3(screenX, screenY, 0));
         for (MarkerCluster cluster : clusters) {
             if (!cluster.isCluster || cluster.isDying) continue;
-            float radius = getClusterSize(cluster.getCount(), camera.zoom, cluster.currentScale) * 0.7f;
+            float radius = getClusterSize(cluster.getCount()) / 2f * getWorldPerPixel();
             if (cluster.getPosition().dst2(world.x, world.y) <= radius * radius) {
                 return cluster;
             }
@@ -384,147 +362,20 @@ public class MapRenderer {
         return null;
     }
 
-    private float getClusterSize(int count, float zoom, float scale) {
-        float zoomScale = 1.0f + (zoom * 4f);
-        float countScale = 1.0f + Math.min(count / 8f, 1.2f);
-        return BASE_MARKER_SIZE * countScale * zoomScale * scale;
-    }
-
-    private void drawClusterShape(float x, float y, int count, float zoom, float scale, float alpha) {
-        float clusterSize = getClusterSize(count, zoom, scale);
-        Color clusterColor = getClusterColor(count);
-
-        shapeRenderer.setColor(clusterColor.r, clusterColor.g, clusterColor.b, 0.25f * alpha);
-        shapeRenderer.circle(x, y, clusterSize * 0.7f);
-        shapeRenderer.setColor(clusterColor.r, clusterColor.g, clusterColor.b, 0.5f * alpha);
-        shapeRenderer.circle(x, y, clusterSize * 0.55f);
-        shapeRenderer.setColor(clusterColor.r, clusterColor.g, clusterColor.b, 0.85f * alpha);
-        shapeRenderer.circle(x, y, clusterSize * 0.4f);
-    }
-
-    private void drawClusterText(float x, float y, int count, float zoom, float scale, float alpha) {
-        String countText = String.valueOf(count);
-        float fontScale = (0.7f + (zoom * 7f)) * scale;
-        font.getData().setScale(fontScale);
-
-        GlyphLayout layout = new GlyphLayout(font, countText);
-        font.setColor(1, 1, 1, alpha);
-        font.draw(spriteBatch, countText, x - layout.width / 2, y + layout.height / 2);
-    }
-
-    private void drawMarker(float x, float y, float scale, Color tint, boolean addHighlight) {
-        float size = BASE_MARKER_SIZE * scale;
-        float halfSize = size / 2f;
-
-        spriteBatch.setColor(0, 0, 0, 0.3f * tint.a);
-        spriteBatch.draw(markerTexture, x - halfSize + 2, y - halfSize - 2, size, size);
-
-        spriteBatch.setColor(tint);
-        spriteBatch.draw(markerTexture, x - halfSize, y - halfSize, size, size);
-
-        if (addHighlight) {
-            spriteBatch.setColor(1, 1, 1, 0.3f);
-            spriteBatch.draw(markerTexture, x - halfSize, y - halfSize, size, size);
-        }
-
-        spriteBatch.setColor(Color.WHITE);
-    }
-
-    private Color getClusterColor(int count) {
-        if (count <= 3) return new Color(0.2f, 0.6f, 1.0f, 1f);
-        if (count <= 8) return new Color(1.0f, 0.85f, 0.2f, 1f);
-        return new Color(1.0f, 0.5f, 0.1f, 1f);
-    }
-
-    private void renderFallbackMarkers() {
-        shapeRenderer.setProjectionMatrix(camera.combined);
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-
-        float zoomScale = getZoomScale();
-
-        for (BusStop stop : filteredStops) {
-            Vector2 pos = geometry.getStop(stop);
-
-            if (pos.x < 0 || pos.y < 0 || pos.x > Constants.MAP_WIDTH || pos.y > Constants.MAP_HEIGHT) continue;
-
-            if (stop == selectedStop) {
-                shapeRenderer.setColor(0.2f, 0.8f, 1.0f, 1);
-                shapeRenderer.circle(pos.x, pos.y, 10 * zoomScale);
-            } else if (stop == hoveredStop) {
-                shapeRenderer.setColor(0.5f, 0.8f, 1.0f, 1);
-                shapeRenderer.circle(pos.x, pos.y, 8 * zoomScale);
-            } else {
-                shapeRenderer.setColor(1, 0, 0, 1);
-                shapeRenderer.circle(pos.x, pos.y, 6 * zoomScale);
+    /** Returns the stop whose own marker is at a screen position, or null. */
+    public BusStop findStop(int screenX, int screenY) {
+        Vector3 world = camera.unproject(new Vector3(screenX, screenY, 0));
+        float radius = (getStopSize() / 2f + STOP_HIT_SLOP) * getWorldPerPixel();
+        float closest = radius * radius;
+        BusStop found = null;
+        for (MarkerCluster cluster : clusters) {
+            if (cluster.isCluster || cluster.isDying) continue;
+            float distance = cluster.getPosition().dst2(world.x, world.y);
+            if (distance <= closest) {
+                closest = distance;
+                found = cluster.getSingleStop();
             }
         }
-
-        shapeRenderer.end();
-    }
-
-    private void renderLineLabels() {
-        if (hoveredLine != null && visibleLineIds != null && visibleLineIds.contains(hoveredLine.lineId)) {
-            renderLineLabel(hoveredLine);
-        }
-    }
-
-    private void renderLineLabel(BusLine line) {
-        String labelText = "Linija " + line.lineId;
-
-        Vector2 labelPos = getMouseWorldPosition();
-        labelPos.x += 40 * camera.zoom;
-        labelPos.y += 40 * camera.zoom;
-
-        float fontScale = Math.max(LABEL_BASE_FONT_SCALE, LABEL_ZOOM_FONT_SCALE * camera.zoom);
-        font.getData().setScale(fontScale);
-
-        GlyphLayout layout = new GlyphLayout(font, labelText);
-        float textWidth = layout.width;
-        float textHeight = layout.height;
-
-        float zoomMultiplier = Math.max(1f, camera.zoom * 15f);
-        float paddingX = LABEL_BASE_PADDING_X * zoomMultiplier;
-        float paddingY = LABEL_BASE_PADDING_Y * zoomMultiplier;
-        float bgWidth = textWidth + paddingX * 2;
-        float bgHeight = textHeight + paddingY * 2;
-        float cornerRadius = LABEL_CORNER_RADIUS * zoomMultiplier;
-        float shadowOffset = LABEL_SHADOW_OFFSET * zoomMultiplier;
-
-        float x = labelPos.x;
-        float y = labelPos.y - textHeight * 0.5f - paddingY * 0.5f;
-
-        shapeRenderer.setProjectionMatrix(camera.combined);
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-
-        shapeRenderer.setColor(0f, 0f, 0f, 0.2f);
-        shapeRenderer.rect(x + cornerRadius + shadowOffset, y - shadowOffset, bgWidth - cornerRadius * 2, bgHeight);
-        shapeRenderer.rect(x + shadowOffset, y + cornerRadius - shadowOffset, bgWidth, bgHeight - cornerRadius * 2);
-        shapeRenderer.circle(x + cornerRadius + shadowOffset, y + cornerRadius - shadowOffset, cornerRadius, 16);
-        shapeRenderer.circle(x + bgWidth - cornerRadius + shadowOffset, y + cornerRadius - shadowOffset, cornerRadius, 16);
-        shapeRenderer.circle(x + cornerRadius + shadowOffset, y + bgHeight - cornerRadius - shadowOffset, cornerRadius, 16);
-        shapeRenderer.circle(x + bgWidth - cornerRadius + shadowOffset, y + bgHeight - cornerRadius - shadowOffset, cornerRadius, 16);
-
-        shapeRenderer.setColor(1f, 1f, 1f, 0.97f);
-        shapeRenderer.rect(x + cornerRadius, y, bgWidth - cornerRadius * 2, bgHeight);
-        shapeRenderer.rect(x, y + cornerRadius, bgWidth, bgHeight - cornerRadius * 2);
-        shapeRenderer.circle(x + cornerRadius, y + cornerRadius, cornerRadius, 16);
-        shapeRenderer.circle(x + bgWidth - cornerRadius, y + cornerRadius, cornerRadius, 16);
-        shapeRenderer.circle(x + cornerRadius, y + bgHeight - cornerRadius, cornerRadius, 16);
-        shapeRenderer.circle(x + bgWidth - cornerRadius, y + bgHeight - cornerRadius, cornerRadius, 16);
-
-        shapeRenderer.end();
-
-        spriteBatch.setProjectionMatrix(camera.combined);
-        spriteBatch.begin();
-        font.setColor(0.25f, 0.25f, 0.25f, 1f);
-        font.draw(spriteBatch, labelText, x + paddingX, y + bgHeight * 0.5f + textHeight * 0.35f);
-        spriteBatch.end();
-
-        font.getData().setScale(1f);
-    }
-
-    private Vector2 getMouseWorldPosition() {
-        Vector3 worldCoords = camera.unproject(new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0));
-        return new Vector2(worldCoords.x, worldCoords.y);
+        return found;
     }
 }

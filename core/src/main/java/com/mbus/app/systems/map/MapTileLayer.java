@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Disposable;
 import com.mbus.app.utils.Constants;
+import com.mbus.app.utils.MipMaps;
 import com.mbus.app.utils.ZoomXY;
 
 import java.util.HashSet;
@@ -48,8 +49,7 @@ public class MapTileLayer implements Disposable {
         this.camera = camera;
         this.beginTile = beginTile;
 
-        this.overview = new Texture(overviewPixels, true);
-        this.overview.setFilter(Texture.TextureFilter.MipMapLinearLinear, Texture.TextureFilter.Linear);
+        this.overview = MipMaps.create(overviewPixels);
         overviewPixels.dispose();
 
         this.executor = Executors.newFixedThreadPool(2, task -> {
@@ -141,8 +141,7 @@ public class MapTileLayer implements Disposable {
             requested.remove(tile.index);
             if (tile.pixels == null) continue;
 
-            Texture texture = new Texture(tile.pixels, true);
-            texture.setFilter(Texture.TextureFilter.MipMapLinearLinear, Texture.TextureFilter.Linear);
+            Texture texture = MipMaps.create(tile.pixels);
             tile.pixels.dispose();
             tiles.put(tile.index, texture);
             uploads++;

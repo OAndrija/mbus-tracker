@@ -115,10 +115,9 @@ public class MapRasterTiles {
         double scale = Math.pow(2, Constants.ZOOM);
 
         return new Vector2(
-            (float) (Math.floor(worldCoordinate[0] * scale) - (beginTileX * TILE_SIZE)),
+            (float) (worldCoordinate[0] * scale - beginTileX * (double) TILE_SIZE),
             (float) (Constants.MAP_HEIGHT -
-                (Math.floor(worldCoordinate[1] * scale) -
-                    (beginTileY * TILE_SIZE) - 1))
+                (worldCoordinate[1] * scale - beginTileY * (double) TILE_SIZE))
         );
     }
 

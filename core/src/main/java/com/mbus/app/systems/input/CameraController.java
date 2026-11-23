@@ -23,7 +23,8 @@ public class CameraController extends InputAdapter {
 
     private float targetZoom;
     private boolean zooming = false;
-    private float hudWidth = 0f;
+    private int anchorX, anchorY;
+    private UiHitTest uiHitTest = (x, y) -> false;
     private boolean keyboardEnabled = true;
     private Runnable userInputListener;
 
@@ -31,8 +32,8 @@ public class CameraController extends InputAdapter {
         this.camera = camera;
     }
 
-    public void setHudWidth(float width) {
-        this.hudWidth = width;
+    public void setUiHitTest(UiHitTest uiHitTest) {
+        this.uiHitTest = uiHitTest;
     }
 
     /** Off while the user types in a text field, whose letters would otherwise move the map. */
@@ -79,7 +80,7 @@ public class CameraController extends InputAdapter {
             zoom = targetZoom;
             zooming = false;
         }
-        zoomTo(zoom, Gdx.input.getX(), Gdx.input.getY());
+        zoomTo(zoom, anchorX, anchorY);
     }
 
     /** Changes the zoom while keeping the map point under the given screen position in place. */
@@ -101,14 +102,23 @@ public class CameraController extends InputAdapter {
 
     @Override
     public boolean scrolled(float amountX, float amountY) {
-        if (Gdx.input.getX() < hudWidth) {
+        int x = Gdx.input.getX();
+        int y = Gdx.input.getY();
+        if (uiHitTest.isOverUi(x, y)) {
             return false;
         }
+        zoomBy((float) Math.pow(WHEEL_STEP, amountY), x, y);
+        return true;
+    }
+
+    /** Smoothly changes the zoom, keeping the given screen position in place. */
+    public void zoomBy(float factor, int screenX, int screenY) {
         if (userInputListener != null) userInputListener.run();
 
         float from = zooming ? targetZoom : camera.zoom;
-        targetZoom = clampZoom(from * (float) Math.pow(WHEEL_STEP, amountY));
+        targetZoom = clampZoom(from * factor);
+        anchorX = screenX;
+        anchorY = screenY;
         zooming = true;
-        return true;
     }
 }

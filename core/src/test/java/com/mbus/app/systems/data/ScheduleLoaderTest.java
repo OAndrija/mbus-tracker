@@ -8,7 +8,6 @@ import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusSchedule;
 import com.mbus.app.model.BusStop;
 import com.mbus.app.utils.BusLineStopRelationshipBuilder;
-import com.mbus.app.utils.BusPositionCalculator;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -51,8 +50,15 @@ public class ScheduleLoaderTest {
     @Test
     public void busesRunOnEveryDayType() {
         for (int dayType = 0; dayType <= 2; dayType++) {
-            assertFalse("no buses at noon on day type " + dayType,
-                BusPositionCalculator.getActiveBusesAtTime(lines, 12 * 60, dayType).isEmpty());
+            boolean running = false;
+            for (BusLine line : lines) {
+                for (BusSchedule trip : line.getSchedules()) {
+                    List<BusSchedule.StopTime> times = trip.getStopTimes();
+                    running |= trip.dayType == dayType && trip.departureTime <= 12 * 60
+                        && times.get(times.size() - 1).arrivalTime >= 12 * 60;
+                }
+            }
+            assertTrue("no buses at noon on day type " + dayType, running);
         }
     }
 

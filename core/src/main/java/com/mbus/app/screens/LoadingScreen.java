@@ -2,16 +2,15 @@ package com.mbus.app.screens;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
-import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
-import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.mbus.app.MBusTracker;
-import com.mbus.app.assets.AssetDescriptors;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusSchedule;
 import com.mbus.app.model.BusStop;
@@ -21,6 +20,8 @@ import com.mbus.app.systems.data.GeoJSONLoader;
 import com.mbus.app.systems.data.ScheduleLoader;
 import com.mbus.app.systems.map.MapRasterTiles;
 import com.mbus.app.systems.map.TileOverview;
+import com.mbus.app.ui.theme.Palette;
+import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.BusLineStopRelationshipBuilder;
 import com.mbus.app.utils.Constants;
 
@@ -35,12 +36,8 @@ public class LoadingScreen implements Screen {
 
     private final MBusTracker app;
     private Stage stage;
-    private Skin skin;
 
-    private Table rootTable;
-    private Label titleLabel;
     private Label statusLabel;
-    private Label percentLabel;
     private ProgressBar progressBar;
 
     private float progress = 0f;
@@ -67,26 +64,27 @@ public class LoadingScreen implements Screen {
 
     @Override
     public void show() {
-        skin = app.getAssetManager().get(AssetDescriptors.SKIN);
-
+        Theme theme = app.getTheme();
         stage = new Stage(new ScreenViewport());
 
-        rootTable = new Table();
-        rootTable.setFillParent(true);
-        rootTable.setBackground(skin.getDrawable("panel-maroon"));
-        stage.addActor(rootTable);
+        ProgressBar.ProgressBarStyle barStyle = new ProgressBar.ProgressBarStyle();
+        barStyle.background = theme.roundRect(3, Palette.BORDER);
+        barStyle.background.setMinHeight(6);
+        barStyle.knobBefore = theme.roundRect(3, Palette.BRAND);
+        barStyle.knobBefore.setMinHeight(6);
+        progressBar = new ProgressBar(0f, 1f, 0.01f, false, barStyle);
+        progressBar.setAnimateDuration(0.15f);
 
-        titleLabel = new Label("MBus", skin, "title");
-        statusLabel = new Label("Initializing...", skin);
-        percentLabel = new Label("0%", skin);
+        statusLabel = theme.label("", theme.body, Palette.MUTED);
 
-        progressBar = new ProgressBar(0f, 1f, 0.01f, false, skin);
-        progressBar.setAnimateDuration(0.1f);
-
-        rootTable.add(titleLabel).padBottom(40).row();
-        rootTable.add(progressBar).width(400).height(30).padBottom(10).row();
-        rootTable.add(percentLabel).padBottom(20).row();
-        rootTable.add(statusLabel).row();
+        Table root = new Table();
+        root.setFillParent(true);
+        root.add(new Image(theme.logo(72))).size(72).padBottom(20).row();
+        root.add(theme.label("MBus", theme.display, Palette.INK)).row();
+        root.add(theme.label("Maribor", theme.body, Palette.MUTED)).padBottom(36).row();
+        root.add(progressBar).width(280).height(6).padBottom(16).row();
+        root.add(statusLabel);
+        stage.addActor(root);
 
         startTileLoading();
         startDataLoading();
@@ -94,8 +92,6 @@ public class LoadingScreen implements Screen {
 
     private void startTileLoading() {
         try {
-            statusLabel.setText("Preparing map tiles...");
-
             final ZoomXY centerTile = MapRasterTiles.getTileNumber(
                 CENTER_GEOLOCATION.lat,
                 CENTER_GEOLOCATION.lng,
@@ -219,8 +215,7 @@ public class LoadingScreen implements Screen {
 
     @Override
     public void render(float delta) {
-        Gdx.gl.glClearColor(1f, 1f, 1f, 1f);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        ScreenUtils.clear(Palette.SURFACE);
 
         int tilesLoaded = tilesProcessed.get();
         float tileProgress = totalTiles > 0 ? (float) tilesLoaded / totalTiles : 0f;
@@ -228,19 +223,13 @@ public class LoadingScreen implements Screen {
 
         progress = (tileProgress * 0.4f) + (dataProgress * 0.6f);
 
-        progressBar.setValue(progress);
-        percentLabel.setText(String.format("%.0f%%", progress * 100));
-
+        progressBar.setValue(Math.max(progress, 0.04f)); // never narrower than its round ends
         if (dataError != null) {
-            statusLabel.setText("Error loading data: " + dataError);
-        } else if (!dataLoadingComplete && tilesLoaded < totalTiles) {
-            statusLabel.setText("Loading data and map... (" + tilesLoaded + "/" + totalTiles + " tiles)");
-        } else if (!dataLoadingComplete) {
-            statusLabel.setText("Loading bus data and schedules...");
+            statusLabel.setText("Podatkov ni mogoče naložiti: " + dataError);
         } else if (tilesLoaded < totalTiles) {
-            statusLabel.setText("Loading map tiles... (" + tilesLoaded + "/" + totalTiles + ")");
+            statusLabel.setText("Nalaganje zemljevida  ·  " + Math.round(progress * 100) + " %");
         } else {
-            statusLabel.setText("Complete!");
+            statusLabel.setText("Nalaganje voznih redov  ·  " + Math.round(progress * 100) + " %");
         }
 
         stage.act(delta);

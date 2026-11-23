@@ -13,12 +13,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 public class ScheduleLoader {
 
     private static final String TAG = "ScheduleLoader";
     private static final double MIN_STOP_DISTANCE = 0.003;
+
+    // Average between stops, so that a bus that stops everywhere still drives at city speed
+    private static final double TRAVEL_SPEED_KMH = 40;
+    private static final double KM_PER_DEGREE = 111.32;
 
     // 0 = workday, 1 = saturday, 2 = sunday/holiday
     private static final int[] DAY_TYPES = {0, 1, 2};
@@ -143,7 +146,6 @@ public class ScheduleLoader {
     public static List<BusSchedule> generateExampleSchedules(List<BusLine> lines) {
         List<BusSchedule> schedules = new ArrayList<>();
         int scheduleIdCounter = 1;
-        Random random = new Random(12345);
 
         Gdx.app.log(TAG, "=== STARTING SCHEDULE GENERATION ===");
         Gdx.app.log(TAG, "Total lines to process: " + lines.size());
@@ -174,7 +176,7 @@ public class ScheduleLoader {
                     0, 24 * 60,
                     2,
                     tripInterval,
-                    routeDuration, random);
+                    routeDuration);
                 schedules.addAll(daySchedules);
                 scheduleIdCounter += daySchedules.size();
             }
@@ -223,8 +225,7 @@ public class ScheduleLoader {
     private static List<BusSchedule> generateMultiTripSchedule(
         BusLine line, List<BusStop> scheduledStops, int dayType, int startScheduleId,
         int serviceStartTime, int serviceEndTime,
-        int numBuses, int tripInterval, int routeDuration,
-        Random random) {
+        int numBuses, int tripInterval, int routeDuration) {
 
         List<BusSchedule> schedules = new ArrayList<>();
         int scheduleId = startScheduleId;
@@ -254,7 +255,7 @@ public class ScheduleLoader {
 
             while (currentDeparture + routeDuration <= serviceEndTime && tripsForThisBus < maxTripsPerBus) {
                 List<BusSchedule.StopTime> stopTimes = calculateStopTimes(
-                    scheduledStops, currentDeparture, random);
+                    scheduledStops, currentDeparture, stopPositions);
 
                 schedules.add(new BusSchedule(
                     scheduleId++,
@@ -319,11 +320,15 @@ public class ScheduleLoader {
         return times;
     }
 
+    /** In kilometers. */
     private static double[] cumulativeDistances(List<Geolocation> path) {
         double[] result = new double[path.size()];
         for (int i = 1; i < path.size(); i++) {
-            result[i] = result[i - 1] + calculateDistance(
-                path.get(i - 1).lat, path.get(i - 1).lng, path.get(i).lat, path.get(i).lng);
+            Geolocation from = path.get(i - 1);
+            Geolocation to = path.get(i);
+            double lngScale = Math.cos(Math.toRadians(from.lat));
+            result[i] = result[i - 1]
+                + KM_PER_DEGREE * Math.hypot(to.lat - from.lat, (to.lng - from.lng) * lngScale);
         }
         return result;
     }
@@ -355,40 +360,20 @@ public class ScheduleLoader {
         }
     }
 
+    /** Travel times follow the road, which can be much longer than the straight line between two stops. */
     private static List<BusSchedule.StopTime> calculateStopTimes(
-        List<BusStop> stops, int departureTime, Random random) {
+        List<BusStop> stops, int departureTime, Map<Integer, Double> stopPositions) {
 
         List<BusSchedule.StopTime> stopTimes = new ArrayList<>();
         int currentTime = departureTime;
 
         for (int i = 0; i < stops.size(); i++) {
             BusStop stop = stops.get(i);
-
             stopTimes.add(new BusSchedule.StopTime(stop.idAvpost, i, currentTime));
 
             if (i < stops.size() - 1) {
-                BusStop nextStop = stops.get(i + 1);
-                double distanceInDegrees = calculateDistance(
-                    stop.geo.lat, stop.geo.lng,
-                    nextStop.geo.lat, nextStop.geo.lng
-                );
-
-                double distanceInKm = distanceInDegrees * 111.0;
-
-                double travelTimeHours = distanceInKm / 50.0;
-                double travelTimeMinutes = travelTimeHours * 60.0;
-
-                if (distanceInKm < 1) {
-                    travelTimeMinutes = 0.5 + (random.nextDouble() * 0.2);
-                } else if (distanceInKm < 1.5) {
-                    travelTimeMinutes = Math.max(0.5, travelTimeMinutes);
-                } else {
-                    travelTimeMinutes = Math.max(1.0, travelTimeMinutes);
-                }
-
-                int travelTimeMinutesInt = (int) Math.max(1, Math.round(travelTimeMinutes));
-
-                currentTime += travelTimeMinutesInt;
+                double km = stopPositions.get(stops.get(i + 1).idAvpost) - stopPositions.get(stop.idAvpost);
+                currentTime += (int) Math.max(1, Math.ceil(km / TRAVEL_SPEED_KMH * 60.0));
             }
         }
 

@@ -12,7 +12,7 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     private final OrthographicCamera camera;
     private float initialZoom = 1f;
 
-    private MarkerClickHandler markerClickHandler;
+    private StopFinder stopFinder;
     private BusLineClickHandler lineClickHandler;
     private BusStopClickCallback stopClickCallback;
     private BusLineClickCallback lineClickCallback;
@@ -20,22 +20,20 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     private Runnable mapTouchListener;
     private Runnable panListener;
 
-    // HUD boundary
-    private float hudWidth = 0f;
+    private UiHitTest uiHitTest = (x, y) -> false;
     private boolean touchStartedOnMap = false;
 
     public MapGestureListener(OrthographicCamera camera) {
         this.camera = camera;
-        this.markerClickHandler = new MarkerClickHandler(camera);
         this.lineClickHandler = new BusLineClickHandler(camera);
     }
 
-    public void setHudWidth(float width) {
-        this.hudWidth = width;
+    public void setUiHitTest(UiHitTest uiHitTest) {
+        this.uiHitTest = uiHitTest;
     }
 
-    private boolean isOverHud(float x) {
-        return x < hudWidth;
+    private boolean isOverUi(float x, float y) {
+        return uiHitTest.isOverUi((int) x, (int) y);
     }
 
     public void setBusStopClickCallback(BusStopClickCallback callback) {
@@ -58,8 +56,8 @@ public class MapGestureListener implements GestureDetector.GestureListener {
         this.panListener = listener;
     }
 
-    public void setMarkerClickHandler(MarkerClickHandler handler) {
-        this.markerClickHandler = handler;
+    public void setStopFinder(StopFinder stopFinder) {
+        this.stopFinder = stopFinder;
     }
 
     public void setLineClickHandler(BusLineClickHandler handler) {
@@ -103,14 +101,14 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     @Override
     public boolean touchDown(float x, float y, int pointer, int button) {
         initialZoom = camera.zoom;
-        touchStartedOnMap = !isOverHud(x);
+        touchStartedOnMap = !isOverUi(x, y);
         if (touchStartedOnMap && mapTouchListener != null) mapTouchListener.run();
         return false;
     }
 
     @Override
     public boolean tap(float x, float y, int count, int button) {
-        if (isOverHud(x)) {
+        if (isOverUi(x, y)) {
             return false;
         }
 
@@ -118,8 +116,8 @@ public class MapGestureListener implements GestureDetector.GestureListener {
             return true;
         }
 
-        if (markerClickHandler != null && stopClickCallback != null) {
-            BusStop clickedStop = markerClickHandler.checkMarkerClick((int)x, (int)y);
+        if (stopFinder != null && stopClickCallback != null) {
+            BusStop clickedStop = stopFinder.findStop((int) x, (int) y);
             if (clickedStop != null) {
                 stopClickCallback.onBusStopClicked(clickedStop);
                 return true;
@@ -139,6 +137,11 @@ public class MapGestureListener implements GestureDetector.GestureListener {
 
     @Override public boolean longPress(float x, float y) { return false; }
     @Override public boolean fling(float velocityX, float velocityY, int button) { return false; }
+
+    public interface StopFinder {
+        /** Returns the stop marker at a screen position, or null. */
+        BusStop findStop(int screenX, int screenY);
+    }
 
     public interface ClusterClickHandler {
         /** Returns true if a stop cluster was hit. */

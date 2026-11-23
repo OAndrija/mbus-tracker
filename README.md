@@ -28,8 +28,8 @@ See the [Releases](../../releases) page to download the latest version.
 - **Interactive map** rendered from raster tiles (Geoapify / OpenStreetMap), with tile caching for offline use
 - **Bus line visualization** with per-line color coding, hover effects, and animated selection
 - **Bus stop markers** with dynamic clustering that adapts to zoom level
-- **Animated bus positions** for every visible line, calculated from schedule data and rendered directionally (8-direction sprites) with a line-number badge
-- **HUD panel** for filtering lines and stops, with a searchable list (accents and case are ignored) and per-stop detail view
+- **Animated bus positions** for every visible line, calculated from schedule data: buses accelerate, brake at stops and turn along the road
+- **Floating panels** for filtering lines and stops, with a searchable list (accents and case are ignored) and upcoming arrivals per stop
 - **Streamed map tiles** — only the visible area is kept in memory at full resolution
 - **Smooth camera** with drag-to-pan and zoom at the cursor, clamped to the map bounds, and animated fly-to on stop selection
 - **Background loading screen** with threaded tile downloads and data parsing, showing live progress
@@ -66,7 +66,7 @@ See the [Releases](../../releases) page to download the latest version.
 | Rendering | OrthographicCamera, SpriteBatch, ShapeRenderer, Texture streaming |
 | Map tiles | Geoapify REST API (OSM Bright) |
 | Map data | GeoJSON (bus stops and lines from public Maribor transit data) |
-| UI | Scene2D (Stage, Table, Skin) |
+| UI | Scene2D with a custom theme; FreeType for text |
 | Build | Gradle (Desktop target via LWJGL3 + Construo) |
 
 ---
@@ -82,13 +82,16 @@ MBusTracker (Game)
 └── RasterMapScreen        — Main application screen
     ├── MapTileLayer       — Low-resolution overview plus streamed full-resolution tiles
     ├── MapRenderer        — Bus lines, stop markers, labels
-    ├── BusAnimationRenderer — Interpolated bus position rendering
+    ├── BusRenderer        — Draws the buses
+    │   ├── LineMotion      — Where a bus is at a given time
+    │   └── RouteTrack      — Distance along a route to position
     ├── MarkerClusterer    — Zoom-aware stop clustering with animations
-    ├── HudPanel           — Line/stop filter sidebar
-    ├── BusStopDetailPanel — Per-stop schedule detail view
+    ├── MapUi              — Layout of everything that floats above the map
+    │   ├── Sidebar         — Search, line filter and stop list
+    │   ├── StopPanel       — Upcoming arrivals at one stop
+    │   └── Theme           — Fonts, colors, shapes and icons, rendered for the screen's density
     └── Input
         ├── MapGestureListener  — Pan, zoom, tap handling
-        ├── MarkerClickHandler  — Stop hit testing in world space
         └── BusLineClickHandler — Line segment hit testing
 ```
 

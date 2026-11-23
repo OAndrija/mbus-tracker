@@ -1,5 +1,6 @@
 package com.mbus.app.systems.input;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector3;
 import com.mbus.app.model.BusLine;
@@ -10,7 +11,7 @@ import java.util.Set;
 
 public class BusLineClickHandler {
 
-    private static final float CLICK_TOLERANCE = 15f;
+    private static final float CLICK_TOLERANCE_PIXELS = 7f;
 
     private final OrthographicCamera camera;
     private List<BusLine> busLines;
@@ -43,7 +44,8 @@ public class BusLineClickHandler {
         float worldX = worldCoords.x;
         float worldY = worldCoords.y;
 
-        float tolerance = CLICK_TOLERANCE * camera.zoom;
+        float tolerance = CLICK_TOLERANCE_PIXELS
+            * camera.viewportWidth * camera.zoom / Gdx.graphics.getWidth();
 
         BusLine closestLine = null;
         float closestDistance = Float.MAX_VALUE;

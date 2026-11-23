@@ -1,69 +1,57 @@
 package com.mbus.app.screens;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Pixmap;
-import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.input.GestureDetector;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.utils.ScreenUtils;
 
 import com.mbus.app.MBusTracker;
-import com.mbus.app.assets.AssetDescriptors;
-import com.mbus.app.assets.RegionNames;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
 import com.mbus.app.utils.ZoomXY;
 import com.mbus.app.systems.input.BusLineClickHandler;
 import com.mbus.app.systems.input.MapGestureListener;
-import com.mbus.app.systems.input.MarkerClickHandler;
 import com.mbus.app.systems.map.MapRenderer;
 import com.mbus.app.systems.map.MapTileLayer;
 import com.mbus.app.systems.map.MarkerCluster;
 import com.mbus.app.systems.map.WorldGeometry;
-import com.mbus.app.ui.HudPanel;
-import com.mbus.app.ui.BusStopDetailPanel;
+import com.mbus.app.ui.MapUi;
+import com.mbus.app.ui.Sidebar;
+import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.utils.BusPositionCalculator;
+import com.mbus.app.utils.CityClock;
 import com.mbus.app.utils.Constants;
 
-import java.util.*;
+import java.util.List;
+import java.util.Set;
 
 public class RasterMapScreen implements Screen {
 
-    private final MBusTracker app;
+    private static final float STOP_ZOOM = 0.08f;
+    private static final float BUTTON_ZOOM_STEP = 1.5f;
 
+    private final MBusTracker app;
     private final Pixmap overview;
-    private Texture markerTexture;
-    private Texture titleIcon;
-    private Texture  timeIcon;
-    private TextureAtlas uiAtlas;
     private final ZoomXY beginTile;
+    private final CityClock clock = new CityClock();
+
     private List<BusStop> stops;
     private List<BusLine> busLines;
-
-    private MapRenderer mapRenderer;
     private WorldGeometry geometry;
-    private MapGestureListener mapGestureListener;
-    private GestureDetector gestureDetector;
-    private HudPanel hudPanel;
-    private BusStopDetailPanel detailPanel;
-    private Skin skin;
+    private MapRenderer mapRenderer;
+    private MapUi ui;
 
-    private MarkerClickHandler markerClickHandler;
+    private GestureDetector gestureDetector;
     private BusLineClickHandler lineClickHandler;
 
     private boolean animatingCamera = false;
     private float animationProgress = 0f;
-    private final float animationDuration = 1.5f;
+    private final float animationDuration = 1.0f;
     private float startX, startY, startZoom;
     private float targetX, targetY, targetZoom;
-
-    private float timeSinceLastRefresh = 0f;
-    private static final float REFRESH_INTERVAL = 30f;
 
     public RasterMapScreen(MBusTracker app, Pixmap overview, ZoomXY preloadedBeginTile) {
         this.app = app;
@@ -73,107 +61,94 @@ public class RasterMapScreen implements Screen {
 
     @Override
     public void show() {
-        skin = app.getAssetManager().get(AssetDescriptors.SKIN);
-        markerTexture = app.getAssetManager().get(AssetDescriptors.BUS_ICON);
-        titleIcon = app.getAssetManager().get(AssetDescriptors.TITLE_ICON);
-        timeIcon = app.getAssetManager().get(AssetDescriptors.TIME_ICON);
-        uiAtlas = app.getAssetManager().get(AssetDescriptors.BUS);
-
         stops = app.getBusStops();
         busLines = app.getBusLines();
 
-        if (stops == null || busLines == null) {
-            Gdx.app.error("RasterMapScreen", "Bus data not loaded! This should not happen.");
-            return;
-        }
-
-        Gdx.app.log("RasterMapScreen", "Using " + stops.size() + " stops and " +
-            busLines.size() + " lines from pre-loaded data");
-
-        hudPanel = new HudPanel(app.getAssetManager());
-        detailPanel = new BusStopDetailPanel(skin, timeIcon);
-
-        hudPanel.setBusLines(busLines);
-        hudPanel.setBusStops(stops);
-        detailPanel.setBusLines(busLines);
-
-        mapRenderer = new MapRenderer(app.camera, app.getAssetManager());
         geometry = new WorldGeometry(stops, busLines, beginTile);
+        mapRenderer = new MapRenderer(app.camera, app.getTheme());
         mapRenderer.setMap(new MapTileLayer(app.camera, beginTile, overview), geometry);
-        mapRenderer.setMarkerTexture(markerTexture);
         mapRenderer.setStops(stops);
         mapRenderer.setBusLines(busLines);
-        mapRenderer.setVisibleLineIds(hudPanel.getVisibleLineIds());
 
-        TextureAtlas.AtlasRegion busNorth = uiAtlas.findRegion(RegionNames.BUS_NORTH);
-        TextureAtlas.AtlasRegion busNortheast = uiAtlas.findRegion(RegionNames.BUS_NORTH_EAST);
-        TextureAtlas.AtlasRegion busEast = uiAtlas.findRegion(RegionNames.BUS_EAST);
-        TextureAtlas.AtlasRegion busSoutheast = uiAtlas.findRegion(RegionNames.BUS_SOUTH_EAST);
-        TextureAtlas.AtlasRegion busSouth = uiAtlas.findRegion(RegionNames.BUS_SOUTH);
-        TextureAtlas.AtlasRegion busSouthwest = uiAtlas.findRegion(RegionNames.BUS_SOUTH_WEST);
-        TextureAtlas.AtlasRegion busWest = uiAtlas.findRegion(RegionNames.BUS_WEST);
-        TextureAtlas.AtlasRegion busNorthwest = uiAtlas.findRegion(RegionNames.BUS_NORTH_WEST);
-
-        if (busNorth != null && busEast != null) {
-            mapRenderer.loadBusSprites(
-                busNorth, busNortheast, busEast, busSoutheast,
-                busSouth, busSouthwest, busWest, busNorthwest
-            );
-        } else {
-            Gdx.app.error("RasterMapScreen", "Failed to load bus sprites");
-        }
-
-        mapRenderer.setCurrentTime(
-            BusPositionCalculator.getCurrentTimeMinutesWithSeconds(),
-            BusPositionCalculator.getCurrentDayType()
-        );
-
-        hudPanel.setFilteredStopsCallback(filteredStops -> {
-            Gdx.app.log("RasterMapScreen", "Filtered stops count: " + filteredStops.size());
-            mapRenderer.setFilteredStops(filteredStops);
-            markerClickHandler.setStops(filteredStops);
-        });
-
-        hudPanel.setBusLineVisibilityCallback(visibleLineIds -> {
-            Gdx.app.log("RasterMapScreen", "Visible lines: " + visibleLineIds);
-            mapRenderer.setVisibleLineIds(visibleLineIds);
-            if (lineClickHandler != null) {
-                lineClickHandler.setVisibleLineIds(visibleLineIds);
-            }
-        });
-
-        detailPanel.setVisibilityChangeCallback(visible -> {
-            updateHudBoundaries();
-            if (!visible) {
-                mapRenderer.setSelectedStop(null);
-            }
-        });
-
-        hudPanel.setShowAllStopsCallback(showAll -> {
-            Gdx.app.log("RasterMapScreen", "Show all stops: " + showAll);
-            mapRenderer.setShowMarkers(showAll);
-        });
-
-        hudPanel.setBusStopClickCallback(busStop -> {
-            Gdx.app.log("RasterMapScreen", "HUD clicked bus stop: " + busStop.name);
-            mapRenderer.setSelectedStop(busStop);
-            detailPanel.showBusStop(busStop);
-            int currentTime = BusPositionCalculator.getCurrentTimeMinutes();
-            int dayType = BusPositionCalculator.getCurrentDayType();
-            String timeStr = BusPositionCalculator.formatTime(currentTime);
-            int dayOfWeek = convertDayTypeToDayOfWeek(dayType);
-            detailPanel.updateCurrentTime(timeStr, dayOfWeek);
-            zoomToBusStop(busStop);
-        });
+        ui = new MapUi(app.getTheme(), stops, busLines, createSidebarListener(), createMapActions(),
+            () -> selectStop(null));
+        mapRenderer.setVisibleLineIds(ui.getSidebar().getVisibleLineIds());
 
         setupInput();
     }
 
-    private void zoomToBusStop(BusStop busStop) {
-        Vector2 pos = geometry.getStop(busStop);
-        flyTo(pos.x, pos.y, 0.1f);
+    private Sidebar.Listener createSidebarListener() {
+        return new Sidebar.Listener() {
+            @Override
+            public void onVisibleLinesChanged(Set<Integer> visibleLineIds, List<BusStop> stopsOnThem) {
+                mapRenderer.setVisibleLineIds(visibleLineIds);
+                mapRenderer.setFilteredStops(stopsOnThem);
+                lineClickHandler.setVisibleLineIds(visibleLineIds);
+
+                BusLine selected = mapRenderer.getSelectedLine();
+                if (selected != null
+                    && (visibleLineIds.size() != 1 || !visibleLineIds.contains(selected.lineId))) {
+                    mapRenderer.setSelectedLine(null);
+                }
+            }
+
+            @Override
+            public void onShowStopsChanged(boolean show) {
+                mapRenderer.setShowMarkers(show);
+            }
+
+            @Override
+            public void onStopChosen(BusStop stop) {
+                selectStop(stop);
+                zoomToBusStop(stop);
+            }
+
+            @Override
+            public void onCollapsedChanged() {
+                ui.layout();
+            }
+        };
     }
 
+    private MapUi.MapActions createMapActions() {
+        return new MapUi.MapActions() {
+            @Override
+            public void zoomIn() {
+                zoomAtCenter(1f / BUTTON_ZOOM_STEP);
+            }
+
+            @Override
+            public void zoomOut() {
+                zoomAtCenter(BUTTON_ZOOM_STEP);
+            }
+
+            @Override
+            public void showWholeNetwork() {
+                flyTo(Constants.MAP_WIDTH / 2f, Constants.MAP_HEIGHT / 2f, 0.4f);
+            }
+        };
+    }
+
+    private void zoomAtCenter(float factor) {
+        int x = (int) (ui.getCoveredWidth() + Gdx.graphics.getWidth()) / 2;
+        app.cameraController.zoomBy(factor, x, Gdx.graphics.getHeight() / 2);
+    }
+
+    /** Shows a stop's arrivals, or closes them when given null. */
+    private void selectStop(BusStop stop) {
+        mapRenderer.setSelectedStop(stop);
+        ui.getSidebar().setSelectedStop(stop);
+        if (stop != null) {
+            ui.getStopPanel().show(stop);
+        }
+    }
+
+    private void zoomToBusStop(BusStop busStop) {
+        Vector2 pos = geometry.getStop(busStop);
+        flyTo(pos.x, pos.y, STOP_ZOOM);
+    }
+
+    /** Moves a point to the center of the part of the map that is not covered by panels. */
     private void flyTo(float x, float y, float zoom) {
         app.cameraController.stopZooming();
 
@@ -181,9 +156,10 @@ public class RasterMapScreen implements Screen {
         startY = app.camera.position.y;
         startZoom = app.camera.zoom;
 
-        targetX = x;
-        targetY = y;
         targetZoom = app.cameraController.clampZoom(zoom);
+        float worldPerPixel = app.camera.viewportWidth * targetZoom / Gdx.graphics.getWidth();
+        targetX = x - ui.getCoveredWidth() / 2f * worldPerPixel;
+        targetY = y;
 
         animatingCamera = true;
         animationProgress = 0f;
@@ -191,7 +167,7 @@ public class RasterMapScreen implements Screen {
 
     @Override
     public void render(float delta) {
-        ScreenUtils.clear(0, 0, 0, 1);
+        ScreenUtils.clear(Palette.MAP_BACKGROUND);
 
         updateHoverState();
 
@@ -204,64 +180,33 @@ public class RasterMapScreen implements Screen {
         app.viewport.apply();
         app.camera.update();
 
-        float currentTime = BusPositionCalculator.getCurrentTimeMinutesWithSeconds();
-        int dayType = BusPositionCalculator.getCurrentDayType();
-        mapRenderer.setCurrentTime(currentTime, dayType);
-
+        mapRenderer.setCurrentTime(
+            clock.minutes(),
+            BusPositionCalculator.getCurrentDayType());
         mapRenderer.render(delta);
 
-        hudPanel.render();
-
-        if (detailPanel.isVisible()) {
-            int currentTimeInt = (int) currentTime;
-            String timeStr = BusPositionCalculator.formatTime(currentTimeInt);
-            int dayOfWeek = convertDayTypeToDayOfWeek(dayType);
-            detailPanel.updateCurrentTime(timeStr, dayOfWeek);
-        }
-
-        detailPanel.render();
-
-        timeSinceLastRefresh += delta;
-        if (timeSinceLastRefresh >= REFRESH_INTERVAL) {
-            timeSinceLastRefresh = 0f;
-            if (detailPanel.isVisible()) {
-                detailPanel.refresh();
-            }
-        }
+        ui.render(delta);
     }
 
     private void updateHoverState() {
-        int mouseX = Gdx.input.getX();
-        float hudPanelWidth = Gdx.graphics.getWidth() / Constants.HUD_WIDTH;
-        float detailPanelWidth = detailPanel.getEffectiveWidth();
-        float totalHudWidth = hudPanelWidth + detailPanelWidth;
+        int x = Gdx.input.getX();
+        int y = Gdx.input.getY();
 
-        if (mouseX < totalHudWidth) {
-            mapRenderer.setHoveredStop(null);
-            mapRenderer.setHoveredLine(null);
-            return;
-        }
+        BusStop stop = null;
+        BusLine line = null;
+        boolean overCluster = false;
 
-        int mouseY = Gdx.input.getY();
-
-        if (mapRenderer.isShowingMarkers() && !animatingCamera) {
-            BusStop hoveredStop = markerClickHandler.checkMarkerClick(mouseX, mouseY);
-            mapRenderer.setHoveredStop(hoveredStop);
-
-            if (hoveredStop == null && lineClickHandler != null) {
-                BusLine hoveredLine = lineClickHandler.checkLineClick(mouseX, mouseY);
-                mapRenderer.setHoveredLine(hoveredLine);
-            } else {
-                mapRenderer.setHoveredLine(null);
-            }
-        } else {
-            mapRenderer.setHoveredStop(null);
-
-            if (lineClickHandler != null) {
-                BusLine hoveredLine = lineClickHandler.checkLineClick(mouseX, mouseY);
-                mapRenderer.setHoveredLine(hoveredLine);
+        if (!animatingCamera && !ui.isOver(x, y)) {
+            overCluster = mapRenderer.findCluster(x, y) != null;
+            if (!overCluster) {
+                stop = mapRenderer.findStop(x, y);
+                if (stop == null) line = lineClickHandler.checkLineClick(x, y);
             }
         }
+
+        mapRenderer.setHoveredStop(stop);
+        mapRenderer.setHoveredLine(line);
+        ui.updatePointer(stop, line, overCluster);
     }
 
     private void updateCameraAnimation(float delta) {
@@ -270,9 +215,6 @@ public class RasterMapScreen implements Screen {
         if (animationProgress >= 1f) {
             animationProgress = 1f;
             animatingCamera = false;
-            Gdx.app.log("RasterMapScreen", "Animation complete at (" +
-                app.camera.position.x + ", " + app.camera.position.y +
-                ", zoom=" + app.camera.zoom + ")");
         }
 
         float t = easeInOutCubic(animationProgress);
@@ -296,7 +238,7 @@ public class RasterMapScreen implements Screen {
     }
 
     private void updateCamera(float delta) {
-        app.cameraController.setKeyboardEnabled(!hudPanel.isTyping());
+        app.cameraController.setKeyboardEnabled(!ui.getSidebar().isTyping());
         app.cameraController.update(delta);
         clampCamera();
     }
@@ -326,52 +268,28 @@ public class RasterMapScreen implements Screen {
     }
 
     private void setupInput() {
-        mapGestureListener = new MapGestureListener(app.camera);
-
-        markerClickHandler = new MarkerClickHandler(app.camera);
-        markerClickHandler.setStops(stops);
-        markerClickHandler.setGeometry(geometry);
-        mapGestureListener.setMarkerClickHandler(markerClickHandler);
+        MapGestureListener gestures = new MapGestureListener(app.camera);
 
         lineClickHandler = new BusLineClickHandler(app.camera);
         lineClickHandler.setBusLines(busLines);
         lineClickHandler.setGeometry(geometry);
-        lineClickHandler.setVisibleLineIds(hudPanel.getVisibleLineIds());
-        mapGestureListener.setLineClickHandler(lineClickHandler);
+        lineClickHandler.setVisibleLineIds(ui.getSidebar().getVisibleLineIds());
+        gestures.setLineClickHandler(lineClickHandler);
 
-        mapGestureListener.setBusStopClickCallback(busStop -> {
-            if (mapRenderer.isShowingMarkers()) {
-                Gdx.app.log("RasterMapScreen", "Map clicked bus stop: " + busStop.name);
-                mapRenderer.setSelectedStop(busStop);
-                detailPanel.showBusStop(busStop);
-                int currentTime = BusPositionCalculator.getCurrentTimeMinutes();
-                int dayType = BusPositionCalculator.getCurrentDayType();
-                String timeStr = BusPositionCalculator.formatTime(currentTime);
-                int dayOfWeek = convertDayTypeToDayOfWeek(dayType);
-                detailPanel.updateCurrentTime(timeStr, dayOfWeek);
-                updateHudBoundaries();
-            }
-        });
+        gestures.setStopFinder(mapRenderer::findStop);
+        gestures.setBusStopClickCallback(this::selectStop);
 
-        mapGestureListener.setBusLineClickCallback(busLine -> {
+        gestures.setBusLineClickCallback(busLine -> {
             if (mapRenderer.getSelectedLine() == busLine) {
-                Gdx.app.log("RasterMapScreen", "Deselecting bus line: " + busLine.lineId);
                 mapRenderer.setSelectedLine(null);
-
-                hudPanel.selectAllLines();
-                hudPanel.setShowAllStops(true);
+                ui.getSidebar().showAllLines();
             } else {
-                Gdx.app.log("RasterMapScreen", "Map clicked bus line: " + busLine.lineId);
+                ui.getSidebar().showOnlyLine(busLine.lineId);
                 mapRenderer.setSelectedLine(busLine);
-                mapRenderer.setSelectedStop(null);
-
-                hudPanel.selectOnlyLine(busLine.lineId);
-
-                hudPanel.setShowAllStops(true);
             }
         });
 
-        mapGestureListener.setClusterClickHandler((x, y) -> {
+        gestures.setClusterClickHandler((x, y) -> {
             MarkerCluster cluster = mapRenderer.findCluster(x, y);
             if (cluster == null) return false;
             flyTo(cluster.getPosition().x, cluster.getPosition().y, app.camera.zoom * 0.5f);
@@ -379,58 +297,28 @@ public class RasterMapScreen implements Screen {
         });
 
         Runnable cancelAnimation = () -> animatingCamera = false;
-        mapGestureListener.setMapTouchListener(() -> hudPanel.stopTyping());
-        mapGestureListener.setPanListener(cancelAnimation);
-        app.cameraController.setUserInputListener(cancelAnimation);
+        gestures.setMapTouchListener(() -> ui.getSidebar().stopTyping());
+        gestures.setPanListener(() -> {
+            cancelAnimation.run();
+            app.cameraController.stopZooming();
+        });
+        gestures.setUiHitTest(ui::isOver);
 
-        gestureDetector = new GestureDetector(mapGestureListener);
+        app.cameraController.setUserInputListener(cancelAnimation);
+        app.cameraController.setUiHitTest(ui::isOver);
+
+        gestureDetector = new GestureDetector(gestures);
         gestureDetector.setTapSquareSize(8f);
 
-        if (app.inputMultiplexer != null) {
-            app.inputMultiplexer.addProcessor(app.cameraController);
-            app.inputMultiplexer.addProcessor(detailPanel.getStage());
-            app.inputMultiplexer.addProcessor(hudPanel.getStage());
-            app.inputMultiplexer.addProcessor(gestureDetector);
-        } else {
-            Gdx.input.setInputProcessor(new InputMultiplexer(
-                detailPanel.getStage(),
-                hudPanel.getStage(),
-                gestureDetector,
-                app.cameraController
-            ));
-        }
-
-        updateHudBoundaries();
-    }
-
-    private void updateHudBoundaries() {
-        float hudPanelWidth = Gdx.graphics.getWidth() / Constants.HUD_WIDTH;
-        float detailPanelWidth = detailPanel.getEffectiveWidth();
-        float totalHudWidth = hudPanelWidth + detailPanelWidth;
-
-        app.cameraController.setHudWidth(totalHudWidth);
-        mapGestureListener.setHudWidth(totalHudWidth);
-    }
-
-    private int convertDayTypeToDayOfWeek(int dayType) {
-        switch (dayType) {
-            case 0: return 1;
-            case 1: return 6;
-            case 2: return 7;
-            default: return 1;
-        }
+        app.inputMultiplexer.addProcessor(app.cameraController);
+        app.inputMultiplexer.addProcessor(ui.getStage());
+        app.inputMultiplexer.addProcessor(gestureDetector);
     }
 
     @Override
     public void resize(int width, int height) {
         app.viewport.update(width, height, false);
-        if (hudPanel != null) {
-            hudPanel.resize(width, height);
-        }
-        if (detailPanel != null) {
-            detailPanel.resize(width, height);
-            updateHudBoundaries();
-        }
+        ui.resize(width, height);
     }
 
     @Override public void pause() {}
@@ -438,25 +326,15 @@ public class RasterMapScreen implements Screen {
 
     @Override
     public void hide() {
-        if (app.inputMultiplexer != null) {
-            app.inputMultiplexer.removeProcessor(app.cameraController);
-        }
-        if (gestureDetector != null && app.inputMultiplexer != null) {
-            app.inputMultiplexer.removeProcessor(gestureDetector);
-        }
-        if (hudPanel != null && app.inputMultiplexer != null) {
-            app.inputMultiplexer.removeProcessor(hudPanel.getStage());
-        }
-        if (detailPanel != null && app.inputMultiplexer != null) {
-            app.inputMultiplexer.removeProcessor(detailPanel.getStage());
-        }
+        app.inputMultiplexer.removeProcessor(app.cameraController);
+        app.inputMultiplexer.removeProcessor(ui.getStage());
+        app.inputMultiplexer.removeProcessor(gestureDetector);
     }
 
     @Override
     public void dispose() {
         hide();
-        if (mapRenderer != null) mapRenderer.dispose();
-        if (hudPanel != null) hudPanel.dispose();
-        if (detailPanel != null) detailPanel.dispose();
+        mapRenderer.dispose();
+        ui.dispose();
     }
 }
