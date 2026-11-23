@@ -3,7 +3,7 @@ package com.mbus.app.screens;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
@@ -20,12 +20,15 @@ import com.mbus.app.utils.ZoomXY;
 import com.mbus.app.systems.data.GeoJSONLoader;
 import com.mbus.app.systems.data.ScheduleLoader;
 import com.mbus.app.systems.map.MapRasterTiles;
+import com.mbus.app.systems.map.TileOverview;
 import com.mbus.app.utils.BusLineStopRelationshipBuilder;
 import com.mbus.app.utils.Constants;
 
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class LoadingScreen implements Screen {
     private static final String TAG = "LoadingScreen";
@@ -48,24 +51,12 @@ public class LoadingScreen implements Screen {
     private List<BusLine> loadedLines;
 
     private ZoomXY beginTile;
-    private Texture[] mapTiles;
+    private Pixmap overview;
     private int totalTiles;
-    private int tilesLoaded = 0;
-    private boolean tileLoadingStarted = false;
-    private Thread tileDownloadThread;
-
-    private static class TileData {
-        final int index;
-        final byte[] data;
-
-        TileData(int index, byte[] data) {
-            this.index = index;
-            this.data = data;
-        }
-    }
-
-    private final ConcurrentLinkedQueue<TileData> tileDataQueue = new ConcurrentLinkedQueue<>();
-    private final AtomicBoolean tilesDownloadComplete = new AtomicBoolean(false);
+    private ExecutorService tileExecutor;
+    // Counts tiles that could not be loaded too, so a missing tile cannot block startup.
+    private final AtomicInteger tilesProcessed = new AtomicInteger();
+    private volatile String dataError = null;
 
     private static final Geolocation CENTER_GEOLOCATION =
         new Geolocation(46.557314, 15.637771);
@@ -120,43 +111,39 @@ public class LoadingScreen implements Screen {
                 centerTile.y - ((size - 1) / 2)
             );
 
-            mapTiles = new Texture[totalTiles];
-            tileLoadingStarted = true;
+            overview = TileOverview.create();
 
-            Gdx.app.log(TAG, "Starting tile downloads in background...");
-
-            final int[] factorY = new int[totalTiles];
-            final int[] factorX = new int[totalTiles];
-
-            int value = (size - 1) / -2;
-            for (int i = 0; i < size; i++) {
-                for (int j = 0; j < size; j++) {
-                    factorY[i * size + j] = value;
-                    factorX[i + j * size] = value;
-                }
-                value++;
-            }
-
-            tileDownloadThread = new Thread(() -> {
-                for (int i = 0; i < totalTiles; i++) {
-                    int tx = centerTile.x + factorX[i];
-                    int ty = centerTile.y + factorY[i];
-
-                    try {
-                        byte[] tileData = MapRasterTiles.getTileData(Constants.ZOOM, tx, ty);
-                        tileDataQueue.add(new TileData(i, tileData));
-                    } catch (Exception e) {
-                        Gdx.app.error(TAG, "Failed to download tile " + i, e);
-                    }
-                }
-                tilesDownloadComplete.set(true);
-                Gdx.app.log(TAG, "All tiles downloaded");
+            int threads = Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors() - 1));
+            tileExecutor = Executors.newFixedThreadPool(threads, task -> {
+                Thread thread = new Thread(task, "tile-loader");
+                thread.setDaemon(true);
+                return thread;
             });
-            tileDownloadThread.start();
+
+            for (int row = 0; row < size; row++) {
+                for (int column = 0; column < size; column++) {
+                    final int tileColumn = column;
+                    final int tileRow = row;
+                    tileExecutor.execute(() -> loadTile(tileColumn, tileRow));
+                }
+            }
+            tileExecutor.shutdown();
 
         } catch (Exception e) {
             Gdx.app.error(TAG, "Failed to start tile loading", e);
-            statusLabel.setText("Error loading tiles: " + e.getMessage());
+            dataError = e.getMessage();
+        }
+    }
+
+    private void loadTile(int column, int row) {
+        try {
+            byte[] data = MapRasterTiles.getTileData(
+                Constants.ZOOM, beginTile.x + column, beginTile.y + row);
+            TileOverview.addTile(overview, data, column, row);
+        } catch (Exception e) {
+            Gdx.app.error(TAG, "Tile " + column + "," + row + " not available: " + e.getMessage());
+        } finally {
+            tilesProcessed.incrementAndGet();
         }
     }
 
@@ -223,9 +210,10 @@ public class LoadingScreen implements Screen {
 
             } catch (final Exception e) {
                 Gdx.app.error(TAG, "Error loading data", e);
-                Gdx.app.postRunnable(() -> statusLabel.setText("Error loading data: " + e.getMessage()));
+                dataError = String.valueOf(e.getMessage());
             }
         });
+        dataLoadingThread.setDaemon(true);
         dataLoadingThread.start();
     }
 
@@ -234,24 +222,7 @@ public class LoadingScreen implements Screen {
         Gdx.gl.glClearColor(1f, 1f, 1f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        if (tileLoadingStarted) {
-            int texturesCreatedThisFrame = 0;
-            int maxTexturesPerFrame = 3;
-
-            while (texturesCreatedThisFrame < maxTexturesPerFrame && !tileDataQueue.isEmpty()) {
-                TileData tileData = tileDataQueue.poll();
-                if (tileData != null) {
-                    try {
-                        mapTiles[tileData.index] = MapRasterTiles.createTextureFromData(tileData.data);
-                        tilesLoaded++;
-                        texturesCreatedThisFrame++;
-                    } catch (Exception e) {
-                        Gdx.app.error(TAG, "Failed to create texture for tile " + tileData.index, e);
-                    }
-                }
-            }
-        }
-
+        int tilesLoaded = tilesProcessed.get();
         float tileProgress = totalTiles > 0 ? (float) tilesLoaded / totalTiles : 0f;
         float dataProgress = dataLoadingComplete ? 1f : 0f;
 
@@ -260,7 +231,9 @@ public class LoadingScreen implements Screen {
         progressBar.setValue(progress);
         percentLabel.setText(String.format("%.0f%%", progress * 100));
 
-        if (!dataLoadingComplete && tilesLoaded < totalTiles) {
+        if (dataError != null) {
+            statusLabel.setText("Error loading data: " + dataError);
+        } else if (!dataLoadingComplete && tilesLoaded < totalTiles) {
             statusLabel.setText("Loading data and map... (" + tilesLoaded + "/" + totalTiles + " tiles)");
         } else if (!dataLoadingComplete) {
             statusLabel.setText("Loading bus data and schedules...");
@@ -273,12 +246,11 @@ public class LoadingScreen implements Screen {
         stage.act(delta);
         stage.draw();
 
-        if (dataLoadingComplete && tilesLoaded >= totalTiles &&
-            tilesDownloadComplete.get() && tileDataQueue.isEmpty()) {
-
+        if (dataError == null && dataLoadingComplete && tilesLoaded >= totalTiles) {
             Gdx.app.log(TAG, "Everything loaded, transitioning to map screen");
             app.setBusData(loadedStops, loadedLines);
-            app.setScreen(new RasterMapScreen(app, mapTiles, beginTile));
+            app.setScreen(new RasterMapScreen(app, overview, beginTile));
+            dispose();
         }
     }
 
@@ -303,17 +275,23 @@ public class LoadingScreen implements Screen {
             }
         }
 
-        if (tileDownloadThread != null && tileDownloadThread.isAlive()) {
+        if (tileExecutor != null) {
+            tileExecutor.shutdownNow();
             try {
-                tileDownloadThread.join(1000);
+                tileExecutor.awaitTermination(1, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
-                Gdx.app.error(TAG, "Interrupted while waiting for tile download thread", e);
+                Gdx.app.error(TAG, "Interrupted while waiting for tile loading", e);
             }
         }
     }
 
     @Override
     public void dispose() {
-        if (stage != null) stage.dispose();
+        if (stage != null) {
+            stage.dispose();
+            stage = null;
+        }
+        // The overview belongs to the map screen. If loading was cut short it is left alone, since a
+        // worker may still be writing to it and the app is closing anyway.
     }
 }

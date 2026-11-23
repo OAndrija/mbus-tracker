@@ -10,23 +10,19 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
-import com.badlogic.gdx.maps.MapLayers;
-import com.badlogic.gdx.maps.tiled.TiledMap;
-import com.badlogic.gdx.maps.tiled.TiledMapRenderer;
-import com.badlogic.gdx.maps.tiled.TiledMapTileLayer;
-import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
-import com.badlogic.gdx.maps.tiled.tiles.StaticTiledMapTile;
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 
 import com.mbus.app.assets.AssetDescriptors;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
-import com.mbus.app.utils.Geolocation;
-import com.mbus.app.utils.ZoomXY;
 import com.mbus.app.utils.BusLineColors;
 import com.mbus.app.utils.Constants;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -38,15 +34,16 @@ public class MapRenderer {
     private final AssetManager assetManager;
     private final BitmapFont font;
 
-    private Texture[] mapTiles;
     private Texture markerTexture;
-    private ZoomXY beginTile;
+    private MapTileLayer tileLayer;
+    private WorldGeometry geometry;
     private List<BusStop> allStops;
     private List<BusStop> filteredStops;
     private List<BusLine> busLines;
 
-    private TiledMap tiledMap;
-    private TiledMapRenderer tiledMapRenderer;
+    private List<MarkerCluster> clusters = Collections.emptyList();
+    private final List<BusLine> linesWithBuses = new ArrayList<>();
+    private final Rectangle view = new Rectangle();
 
     private boolean showMarkers = true;
 
@@ -105,10 +102,11 @@ public class MapRenderer {
         this.currentDayType = dayType;
     }
 
-    public void loadTiles(Texture[] tiles, ZoomXY beginTile) {
-        this.mapTiles = tiles;
-        this.beginTile = beginTile;
-        buildTileMap();
+    /** Takes ownership of the tile layer. */
+    public void setMap(MapTileLayer tileLayer, WorldGeometry geometry) {
+        this.tileLayer = tileLayer;
+        this.geometry = geometry;
+        busAnimationRenderer.setGeometry(geometry);
     }
 
     public void setMarkerTexture(Texture texture) {
@@ -157,32 +155,43 @@ public class MapRenderer {
     }
 
     public void render(float delta) {
-        tiledMapRenderer.setView(camera);
-        tiledMapRenderer.render();
+        updateView();
+        tileLayer.render(spriteBatch);
 
         if (busLines != null && !busLines.isEmpty()) {
             renderBusLines();
         }
 
+        pulseTime += delta;
         if (showMarkers) {
-            pulseTime += delta;
-            renderMarkers();
+            renderMarkers(delta);
+        } else {
+            clusters = Collections.emptyList();
         }
 
-        spriteBatch.setProjectionMatrix(camera.combined);
-        spriteBatch.begin();
-
-        if (selectedLine != null) {
-            busAnimationRenderer.renderActiveBuses(
-                selectedLine, currentTimeMinutes, currentDayType, beginTile, camera.zoom, delta);
-        } else if (hoveredLine != null) {
-            busAnimationRenderer.renderActiveBuses(
-                hoveredLine, currentTimeMinutes, currentDayType, beginTile, camera.zoom, delta);
-        }
-
-        spriteBatch.end();
+        updateLinesWithBuses();
+        busAnimationRenderer.render(linesWithBuses, currentTimeMinutes, currentDayType,
+            camera, view, shapeRenderer, font, delta);
 
         renderLineLabels();
+    }
+
+    private void updateView() {
+        float width = camera.viewportWidth * camera.zoom;
+        float height = camera.viewportHeight * camera.zoom;
+        view.set(camera.position.x - width / 2f, camera.position.y - height / 2f, width, height);
+    }
+
+    /** A selected line shows only its own buses, otherwise all visible lines show theirs. */
+    private void updateLinesWithBuses() {
+        linesWithBuses.clear();
+        if (busLines == null || visibleLineIds == null) return;
+
+        for (BusLine line : busLines) {
+            if (!visibleLineIds.contains(line.lineId)) continue;
+            if (selectedLine != null && line != selectedLine) continue;
+            linesWithBuses.add(line);
+        }
     }
 
     private void renderBusLines() {
@@ -219,22 +228,41 @@ public class MapRenderer {
     }
 
     private void renderLine(BusLine line, float lineWidth, Color color) {
-        shapeRenderer.setColor(color);
-        List<Geolocation> path = line.getPath();
-
+        WorldGeometry.LinePath path = geometry.getLine(line);
         if (path.size() < 2) return;
 
-        for (int i = 0; i < path.size() - 1; i++) {
-            Vector2 pos1 = MapRasterTiles.getPixelPosition(path.get(i).lat, path.get(i).lng, beginTile.x, beginTile.y);
-            Vector2 pos2 = MapRasterTiles.getPixelPosition(path.get(i + 1).lat, path.get(i + 1).lng, beginTile.x, beginTile.y);
+        float pad = lineWidth;
+        float left = view.x - pad, right = view.x + view.width + pad;
+        float bottom = view.y - pad, top = view.y + view.height + pad;
+        Rectangle bounds = path.bounds;
+        if (bounds.x > right || bounds.x + bounds.width < left
+            || bounds.y > top || bounds.y + bounds.height < bottom) return;
 
-            if (!isLineVisible(pos1, pos2)) continue;
+        float worldPerPixel = view.width / Gdx.graphics.getBackBufferWidth();
+        float minStep = worldPerPixel * 1.5f;
+        int segments = MathUtils.clamp((int) (lineWidth / worldPerPixel), 6, 16);
 
-            shapeRenderer.rectLine(pos1.x, pos1.y, pos2.x, pos2.y, lineWidth);
-            shapeRenderer.circle(pos1.x, pos1.y, lineWidth / 2, 16);
-            if (i == path.size() - 2) {
-                shapeRenderer.circle(pos2.x, pos2.y, lineWidth / 2, 16);
+        shapeRenderer.setColor(color);
+        float x1 = path.x[0], y1 = path.y[0];
+        int last = path.size() - 1;
+
+        for (int i = 1; i <= last; i++) {
+            float x2 = path.x[i], y2 = path.y[i];
+
+            // Points closer than a pixel or so make no visible difference.
+            if (i < last && Math.abs(x2 - x1) < minStep && Math.abs(y2 - y1) < minStep) continue;
+
+            boolean outside = (x1 < left && x2 < left) || (x1 > right && x2 > right)
+                || (y1 < bottom && y2 < bottom) || (y1 > top && y2 > top);
+            if (!outside) {
+                shapeRenderer.rectLine(x1, y1, x2, y2, lineWidth);
+                shapeRenderer.circle(x1, y1, lineWidth / 2, segments);
+                if (i == last) {
+                    shapeRenderer.circle(x2, y2, lineWidth / 2, segments);
+                }
             }
+            x1 = x2;
+            y1 = y2;
         }
     }
 
@@ -242,59 +270,14 @@ public class MapRenderer {
         this.visibleLineIds = lineIds;
     }
 
-    private boolean isLineVisible(Vector2 pos1, Vector2 pos2) {
-        float padding = 500f;
-        float minX = -padding;
-        float maxX = Constants.MAP_WIDTH + padding;
-        float minY = -padding;
-        float maxY = Constants.MAP_HEIGHT + padding;
-
-        if (pos1.x < minX && pos2.x < minX) return false;
-        if (pos1.x > maxX && pos2.x > maxX) return false;
-        if (pos1.y < minY && pos2.y < minY) return false;
-        if (pos1.y > maxY && pos2.y > maxY) return false;
-
-        return true;
-    }
-
     public void dispose() {
         shapeRenderer.dispose();
         spriteBatch.dispose();
-        font.dispose();
-
-        if (tiledMap != null) tiledMap.dispose();
-
-        if (mapTiles != null) {
-            for (Texture t : mapTiles)
-                if (t != null) t.dispose();
-        }
+        if (tileLayer != null) tileLayer.dispose();
     }
 
     public List<BusStop> getStops() {
         return allStops;
-    }
-
-    private void buildTileMap() {
-        tiledMap = new TiledMap();
-        MapLayers layers = tiledMap.getLayers();
-
-        TiledMapTileLayer layer = new TiledMapTileLayer(
-            Constants.NUM_TILES, Constants.NUM_TILES,
-            MapRasterTiles.TILE_SIZE, MapRasterTiles.TILE_SIZE
-        );
-
-        int index = 0;
-        for (int j = Constants.NUM_TILES - 1; j >= 0; j--) {
-            for (int i = 0; i < Constants.NUM_TILES; i++) {
-                TiledMapTileLayer.Cell cell = new TiledMapTileLayer.Cell();
-                cell.setTile(new StaticTiledMapTile(new TextureRegion(mapTiles[index], MapRasterTiles.TILE_SIZE, MapRasterTiles.TILE_SIZE)));
-                layer.setCell(i, j, cell);
-                index++;
-            }
-        }
-
-        layers.add(layer);
-        tiledMapRenderer = new OrthogonalTiledMapRenderer(tiledMap);
     }
 
     private float getZoomScale() {
@@ -302,8 +285,11 @@ public class MapRenderer {
         return Math.min(Math.max(scale, MIN_ZOOM_SCALE), MAX_ZOOM_SCALE);
     }
 
-    private void renderMarkers() {
-        if (filteredStops == null || filteredStops.isEmpty()) return;
+    private void renderMarkers(float delta) {
+        if (filteredStops == null || filteredStops.isEmpty()) {
+            clusters = Collections.emptyList();
+            return;
+        }
         if (markerTexture == null) {
             renderFallbackMarkers();
             return;
@@ -314,10 +300,10 @@ public class MapRenderer {
 
         float zoomScale = getZoomScale();
 
-        List<MarkerCluster> clusters = MarkerClusterer.clusterMarkers(
-            filteredStops, beginTile, camera.zoom,
+        clusters = MarkerClusterer.clusterMarkers(
+            filteredStops, geometry, camera.zoom,
             Constants.MAP_WIDTH, Constants.MAP_HEIGHT,
-            Gdx.graphics.getDeltaTime()
+            delta
         );
 
         // Normal markers
@@ -347,6 +333,7 @@ public class MapRenderer {
             Vector2 pos = cluster.getPosition();
             drawClusterText(pos.x, pos.y, cluster.getCount(), camera.zoom, cluster.currentScale, cluster.alpha);
         }
+        font.getData().setScale(1f);
         spriteBatch.end();
 
         // Hovered stop
@@ -384,10 +371,27 @@ public class MapRenderer {
         }
     }
 
-    private void drawClusterShape(float x, float y, int count, float zoom, float scale, float alpha) {
+    /** Returns the stop cluster at a screen position, or null. */
+    public MarkerCluster findCluster(int screenX, int screenY) {
+        Vector3 world = camera.unproject(new Vector3(screenX, screenY, 0));
+        for (MarkerCluster cluster : clusters) {
+            if (!cluster.isCluster || cluster.isDying) continue;
+            float radius = getClusterSize(cluster.getCount(), camera.zoom, cluster.currentScale) * 0.7f;
+            if (cluster.getPosition().dst2(world.x, world.y) <= radius * radius) {
+                return cluster;
+            }
+        }
+        return null;
+    }
+
+    private float getClusterSize(int count, float zoom, float scale) {
         float zoomScale = 1.0f + (zoom * 4f);
         float countScale = 1.0f + Math.min(count / 8f, 1.2f);
-        float clusterSize = BASE_MARKER_SIZE * countScale * zoomScale * scale;
+        return BASE_MARKER_SIZE * countScale * zoomScale * scale;
+    }
+
+    private void drawClusterShape(float x, float y, int count, float zoom, float scale, float alpha) {
+        float clusterSize = getClusterSize(count, zoom, scale);
         Color clusterColor = getClusterColor(count);
 
         shapeRenderer.setColor(clusterColor.r, clusterColor.g, clusterColor.b, 0.25f * alpha);
@@ -439,7 +443,7 @@ public class MapRenderer {
         float zoomScale = getZoomScale();
 
         for (BusStop stop : filteredStops) {
-            Vector2 pos = MapRasterTiles.getPixelPosition(stop.geo.lat, stop.geo.lng, beginTile.x, beginTile.y);
+            Vector2 pos = geometry.getStop(stop);
 
             if (pos.x < 0 || pos.y < 0 || pos.x > Constants.MAP_WIDTH || pos.y > Constants.MAP_HEIGHT) continue;
 

@@ -2,7 +2,9 @@ package com.mbus.app.model;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class BusSchedule {
 
@@ -17,7 +19,11 @@ public class BusSchedule {
     // 06:30 = 390 minutes, 14:45 = 885 minutes
     public final int departureTime;
 
+    // Stops that drive the bus animation.
     private final List<StopTime> stopTimes;
+
+    // stopId -> arrival minute, for every stop on the line (a superset of stopTimes).
+    private final Map<Integer, Integer> arrivalByStop;
 
     public BusSchedule(int scheduleId,
                        int lineId,
@@ -26,6 +32,17 @@ public class BusSchedule {
                        int dayType,
                        int departureTime,
                        List<StopTime> stopTimes) {
+        this(scheduleId, lineId, variantId, direction, dayType, departureTime, stopTimes, null);
+    }
+
+    public BusSchedule(int scheduleId,
+                       int lineId,
+                       int variantId,
+                       int direction,
+                       int dayType,
+                       int departureTime,
+                       List<StopTime> stopTimes,
+                       Map<Integer, Integer> passingTimes) {
         this.scheduleId = scheduleId;
         this.lineId = lineId;
         this.variantId = variantId;
@@ -35,6 +52,14 @@ public class BusSchedule {
         this.stopTimes = stopTimes != null
             ? Collections.unmodifiableList(new ArrayList<>(stopTimes))
             : Collections.unmodifiableList(new ArrayList<>());
+
+        this.arrivalByStop = new HashMap<>();
+        if (passingTimes != null) {
+            arrivalByStop.putAll(passingTimes);
+        }
+        for (StopTime st : this.stopTimes) {
+            arrivalByStop.put(st.stopId, st.arrivalTime);
+        }
     }
 
     public List<StopTime> getStopTimes() {
@@ -42,12 +67,8 @@ public class BusSchedule {
     }
 
     public int getArrivalTimeAtStop(int stopId) {
-        for (StopTime st : stopTimes) {
-            if (st.stopId == stopId) {
-                return st.arrivalTime;
-            }
-        }
-        return -1;
+        Integer arrival = arrivalByStop.get(stopId);
+        return arrival != null ? arrival : -1;
     }
 
     public static String formatTime(int minutes) {

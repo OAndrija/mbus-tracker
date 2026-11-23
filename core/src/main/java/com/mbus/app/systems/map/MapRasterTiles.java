@@ -2,8 +2,6 @@ package com.mbus.app.systems.map;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.graphics.Pixmap;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Logger;
 import com.mbus.app.utils.Constants;
@@ -85,19 +83,18 @@ public class MapRasterTiles {
             connection.setUseCaches(true);
 
             ByteArrayOutputStream bis = new ByteArrayOutputStream();
-            InputStream is = connection.getInputStream();
-            byte[] buffer = new byte[8192];
+            try (InputStream is = connection.getInputStream()) {
+                byte[] buffer = new byte[8192];
 
-            int n;
-            while ((n = is.read(buffer)) > 0) {
-                bis.write(buffer, 0, n);
+                int n;
+                while ((n = is.read(buffer)) > 0) {
+                    bis.write(buffer, 0, n);
+                }
             }
-
-            is.close();
             return bis;
         } finally {
             if (connection != null) {
-                connection.getInputStream().close();
+                connection.disconnect();
             }
         }
     }
@@ -154,9 +151,5 @@ public class MapRasterTiles {
         saveFileBytes(fileName, data);
 
         return data;
-    }
-
-    public static Texture createTextureFromData(byte[] data) {
-        return new Texture(new Pixmap(data, 0, data.length));
     }
 }

@@ -1,5 +1,6 @@
 package com.mbus.app.systems.input;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.input.GestureDetector;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -15,9 +16,13 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     private BusLineClickHandler lineClickHandler;
     private BusStopClickCallback stopClickCallback;
     private BusLineClickCallback lineClickCallback;
+    private ClusterClickHandler clusterClickHandler;
+    private Runnable mapTouchListener;
+    private Runnable panListener;
 
     // HUD boundary
     private float hudWidth = 0f;
+    private boolean touchStartedOnMap = false;
 
     public MapGestureListener(OrthographicCamera camera) {
         this.camera = camera;
@@ -41,6 +46,18 @@ public class MapGestureListener implements GestureDetector.GestureListener {
         this.lineClickCallback = callback;
     }
 
+    public void setClusterClickHandler(ClusterClickHandler handler) {
+        this.clusterClickHandler = handler;
+    }
+
+    public void setMapTouchListener(Runnable listener) {
+        this.mapTouchListener = listener;
+    }
+
+    public void setPanListener(Runnable listener) {
+        this.panListener = listener;
+    }
+
     public void setMarkerClickHandler(MarkerClickHandler handler) {
         this.markerClickHandler = handler;
     }
@@ -51,10 +68,13 @@ public class MapGestureListener implements GestureDetector.GestureListener {
 
     @Override
     public boolean pan(float x, float y, float deltaX, float deltaY) {
-        if (isOverHud(x)) {
+        if (!touchStartedOnMap) {
             return false;
         }
-        camera.translate(-deltaX * camera.zoom, deltaY * camera.zoom);
+        if (panListener != null) panListener.run();
+
+        float worldPerPixel = camera.viewportWidth * camera.zoom / Gdx.graphics.getWidth();
+        camera.translate(-deltaX * worldPerPixel, deltaY * worldPerPixel);
         return true;
     }
 
@@ -83,6 +103,8 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     @Override
     public boolean touchDown(float x, float y, int pointer, int button) {
         initialZoom = camera.zoom;
+        touchStartedOnMap = !isOverHud(x);
+        if (touchStartedOnMap && mapTouchListener != null) mapTouchListener.run();
         return false;
     }
 
@@ -90,6 +112,10 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     public boolean tap(float x, float y, int count, int button) {
         if (isOverHud(x)) {
             return false;
+        }
+
+        if (clusterClickHandler != null && clusterClickHandler.onMapClicked((int) x, (int) y)) {
+            return true;
         }
 
         if (markerClickHandler != null && stopClickCallback != null) {
@@ -113,6 +139,11 @@ public class MapGestureListener implements GestureDetector.GestureListener {
 
     @Override public boolean longPress(float x, float y) { return false; }
     @Override public boolean fling(float velocityX, float velocityY, int button) { return false; }
+
+    public interface ClusterClickHandler {
+        /** Returns true if a stop cluster was hit. */
+        boolean onMapClicked(int screenX, int screenY);
+    }
 
     public interface BusStopClickCallback {
         void onBusStopClicked(BusStop busStop);

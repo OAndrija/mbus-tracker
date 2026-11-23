@@ -6,6 +6,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.mbus.app.assets.AssetDescriptors;
@@ -53,8 +54,7 @@ public class MBusTracker extends Game {
             assetManager.finishLoading();
             Gdx.app.log(TAG, "Assets loaded successfully");
         } catch (Exception e) {
-            Gdx.app.error(TAG, "Error loading assets: " + e.getMessage(), e);
-            return;
+            throw new GdxRuntimeException("Error loading assets", e);
         }
 
         camera.zoom = 0.20f;
@@ -64,7 +64,6 @@ public class MBusTracker extends Game {
         cameraController = new CameraController(camera);
 
         inputMultiplexer = new InputMultiplexer();
-        inputMultiplexer.addProcessor(cameraController);
         Gdx.input.setInputProcessor(inputMultiplexer);
 
         setScreen(new LoadingScreen(this));
@@ -78,7 +77,8 @@ public class MBusTracker extends Game {
 
     @Override
     public void dispose() {
-        super.dispose();
+        super.dispose(); // only hides the current screen
+        if (getScreen() != null) getScreen().dispose();
         assetManager.dispose();
     }
 

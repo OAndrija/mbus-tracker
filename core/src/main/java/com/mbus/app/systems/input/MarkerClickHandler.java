@@ -4,8 +4,7 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 import com.mbus.app.model.BusStop;
-import com.mbus.app.utils.ZoomXY;
-import com.mbus.app.systems.map.MapRasterTiles;
+import com.mbus.app.systems.map.WorldGeometry;
 import com.mbus.app.utils.Constants;
 
 import java.util.List;
@@ -17,7 +16,7 @@ public class MarkerClickHandler {
 
     private final OrthographicCamera camera;
     private List<BusStop> stops;
-    private ZoomXY beginTile;
+    private WorldGeometry geometry;
 
     public MarkerClickHandler(OrthographicCamera camera) {
         this.camera = camera;
@@ -27,12 +26,12 @@ public class MarkerClickHandler {
         this.stops = stops;
     }
 
-    public void setBeginTile(ZoomXY beginTile) {
-        this.beginTile = beginTile;
+    public void setGeometry(WorldGeometry geometry) {
+        this.geometry = geometry;
     }
 
     public BusStop checkMarkerClick(int screenX, int screenY) {
-        if (stops == null || stops.isEmpty() || beginTile == null) {
+        if (stops == null || stops.isEmpty() || geometry == null) {
             return null;
         }
 
@@ -46,12 +45,7 @@ public class MarkerClickHandler {
         float closestDistance = Float.MAX_VALUE;
 
         for (BusStop stop : stops) {
-            Vector2 markerPos = MapRasterTiles.getPixelPosition(
-                stop.geo.lat,
-                stop.geo.lng,
-                beginTile.x,
-                beginTile.y
-            );
+            Vector2 markerPos = geometry.getStop(stop);
 
             if (markerPos.x < 0 || markerPos.y < 0 ||
                 markerPos.x > Constants.MAP_WIDTH || markerPos.y > Constants.MAP_HEIGHT) {

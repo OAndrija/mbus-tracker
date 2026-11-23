@@ -2,11 +2,15 @@ package com.mbus.app.ui;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.assets.AssetManager;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
+import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
@@ -15,11 +19,16 @@ import com.mbus.app.model.BusStop;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.utils.Constants;
 import com.mbus.app.utils.BusLineColors;
+import com.mbus.app.utils.StopSearch;
 
 import java.util.*;
 import java.util.List;
 
 public class HudPanel {
+    // The skin fonts have no copyright sign.
+    private static final String ATTRIBUTION =
+        "Powered by Geoapify | (c) OpenMapTiles | (c) OpenStreetMap contributors";
+
     private final Stage stage;
     private final Skin skin;
     private Table mainPanel;
@@ -29,6 +38,10 @@ public class HudPanel {
 
     private ScrollPane busStopsScrollPane;
     private TextButton allStopsBtn;
+    private TextField searchField;
+    private TextField.TextFieldStyle searchStyle;
+    private String searchText = "";
+    private List<BusStop> listedStops = new ArrayList<>();
 
     private List<BusStop> allBusStops;
     private List<BusLine> busLines;
@@ -156,7 +169,9 @@ public class HudPanel {
         }
         Label stopsLabel = new Label("Postaje", skin, "title-black");
         stopsHeaderTable.add(stopsLabel);
-        mainPanel.add(stopsHeaderTable).left().padLeft(10).padTop(30).padBottom(25).row();
+        mainPanel.add(stopsHeaderTable).left().padLeft(10).padTop(20).padBottom(10).row();
+
+        mainPanel.add(createSearchField()).width(panelWidth - 20).height(38).padBottom(12).row();
 
         Table busStopsTable = createBusStopsTable();
         busStopsScrollPane = new ScrollPane(busStopsTable, skin, "no-bg");
@@ -164,7 +179,73 @@ public class HudPanel {
         busStopsScrollPane.setScrollingDisabled(true, false);
         mainPanel.add(busStopsScrollPane).width(panelWidth - 20).expand().fill().padLeft(10).padRight(10).padBottom(10).row();
 
+        ScrollOnHover.attach(busStopsScrollPane);
+
         stage.addActor(mainPanel);
+        stage.addActor(createAttribution());
+    }
+
+    private TextField createSearchField() {
+        if (searchStyle == null) {
+            searchStyle = new TextField.TextFieldStyle(skin.get("search", TextField.TextFieldStyle.class));
+            searchStyle.fontColor = new Color(0.1f, 0.1f, 0.1f, 1f);
+            searchStyle.messageFontColor = new Color(0.55f, 0.52f, 0.5f, 1f);
+        }
+
+        searchField = new TextField(searchText, searchStyle);
+        searchField.setMessageText("Išči postajo");
+        searchField.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                searchText = searchField.getText();
+                refreshBusStopsTable();
+            }
+        });
+        searchField.addListener(new InputListener() {
+            @Override
+            public boolean keyDown(InputEvent event, int keycode) {
+                if (keycode == Input.Keys.ESCAPE) {
+                    searchField.setText("");
+                    searchText = "";
+                    refreshBusStopsTable();
+                    stopTyping();
+                    return true;
+                }
+                if (keycode == Input.Keys.ENTER || keycode == Input.Keys.NUMPAD_ENTER) {
+                    if (!searchText.trim().isEmpty() && !listedStops.isEmpty() && busStopClickCallback != null) {
+                        busStopClickCallback.onBusStopClicked(listedStops.get(0));
+                        stopTyping();
+                    }
+                    return true;
+                }
+                return false;
+            }
+        });
+        return searchField;
+    }
+
+    private Table createAttribution() {
+        Label label = new Label(ATTRIBUTION, skin, "black");
+        label.setFontScale(0.75f);
+
+        Table background = new Table();
+        background.setBackground(skin.newDrawable("white", 1f, 1f, 1f, 0.75f));
+        background.add(label).padLeft(6).padRight(6);
+
+        Table root = new Table();
+        root.setFillParent(true);
+        root.setTouchable(Touchable.disabled);
+        root.align(Align.bottomRight);
+        root.add(background);
+        return root;
+    }
+
+    public boolean isTyping() {
+        return searchField != null && stage.getKeyboardFocus() == searchField;
+    }
+
+    public void stopTyping() {
+        stage.setKeyboardFocus(null);
     }
 
     private List<BusStop> getFilteredStops() {
@@ -328,6 +409,14 @@ public class HudPanel {
         table.align(Align.top | Align.left);
 
         List<BusStop> stopsToShow = getFilteredStops();
+        if (!searchText.trim().isEmpty()) {
+            List<BusStop> found = new ArrayList<>();
+            for (BusStop stop : stopsToShow) {
+                if (StopSearch.matches(stop, searchText)) found.add(stop);
+            }
+            stopsToShow = found;
+        }
+        listedStops = stopsToShow;
 
         boolean isFiltering = stopsToShow.size() < allBusStops.size();
 
@@ -404,7 +493,9 @@ public class HudPanel {
             emptyLabel.setColor(Color.GRAY);
             table.add(emptyLabel).pad(10);
         } else {
-            Label emptyLabel = new Label("Ni postajališč za izbrane linije", skin, "default");
+            Label emptyLabel = new Label(
+                searchText.trim().isEmpty() ? "Ni postajališč za izbrane linije" : "Ni zadetkov",
+                skin, "default");
             emptyLabel.setFontScale(0.8f);
             emptyLabel.setColor(Color.GRAY);
             table.add(emptyLabel).pad(10);

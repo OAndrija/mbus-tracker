@@ -1,7 +1,7 @@
 # MBus — Maribor Bus Tracker
 
 ![Java](https://img.shields.io/badge/Java-17-orange?logo=openjdk)
-![LibGDX](https://img.shields.io/badge/LibGDX-1.12-red?logo=libgdx)
+![LibGDX](https://img.shields.io/badge/LibGDX-1.13.1-red?logo=libgdx)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Release](https://img.shields.io/github/v/release/OAndrija/mbus-tracker?include_prereleases)
@@ -28,9 +28,10 @@ See the [Releases](../../releases) page to download the latest version.
 - **Interactive map** rendered from raster tiles (Geoapify / OpenStreetMap), with tile caching for offline use
 - **Bus line visualization** with per-line color coding, hover effects, and animated selection
 - **Bus stop markers** with dynamic clustering that adapts to zoom level
-- **Animated bus positions** calculated from schedule data and rendered directionally (8-direction sprites)
-- **HUD panel** for filtering lines and stops, with a searchable list and per-stop detail view
-- **Smooth camera** with gesture-based pan/zoom, clamped to the map bounds, and animated fly-to on stop selection
+- **Animated bus positions** for every visible line, calculated from schedule data and rendered directionally (8-direction sprites) with a line-number badge
+- **HUD panel** for filtering lines and stops, with a searchable list (accents and case are ignored) and per-stop detail view
+- **Streamed map tiles** — only the visible area is kept in memory at full resolution
+- **Smooth camera** with drag-to-pan and zoom at the cursor, clamped to the map bounds, and animated fly-to on stop selection
 - **Background loading screen** with threaded tile downloads and data parsing, showing live progress
 - **Offline-first design** — ships with a pre-built tile cache; API key is optional and loaded gracefully via reflection if absent
 
@@ -43,13 +44,26 @@ See the [Releases](../../releases) page to download the latest version.
 
 ---
 
+## Controls
+
+| Input | Action |
+|---|---|
+| Drag / arrow keys | Move the map |
+| Mouse wheel / Q, A | Zoom in and out |
+| Click a stop | Show upcoming arrivals |
+| Click a cluster | Zoom in on it |
+| Click a line | Show only that line; click again to show all |
+| Enter / Esc in the search box | Open the first result / clear the search |
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
 | Language | Java 17 |
 | Framework | LibGDX |
-| Rendering | OrthographicCamera, SpriteBatch, ShapeRenderer, TiledMap |
+| Rendering | OrthographicCamera, SpriteBatch, ShapeRenderer, Texture streaming |
 | Map tiles | Geoapify REST API (OSM Bright) |
 | Map data | GeoJSON (bus stops and lines from public Maribor transit data) |
 | UI | Scene2D (Stage, Table, Skin) |
@@ -64,9 +78,10 @@ MBusTracker (Game)
 ├── LoadingScreen          — Threaded tile download + GeoJSON parsing
 │   ├── MapRasterTiles     — Tile fetch, cache read/write, coordinate math
 │   ├── GeoJSONLoader      — Parses bus stop and line geometry
-│   └── ScheduleLoader     — Loads or generates bus schedules
+│   └── ScheduleLoader     — Loads or generates bus schedules (the bundled ones are generated, not the official timetable)
 └── RasterMapScreen        — Main application screen
-    ├── MapRenderer        — Tile map, bus lines, stop markers, labels
+    ├── MapTileLayer       — Low-resolution overview plus streamed full-resolution tiles
+    ├── MapRenderer        — Bus lines, stop markers, labels
     ├── BusAnimationRenderer — Interpolated bus position rendering
     ├── MarkerClusterer    — Zoom-aware stop clustering with animations
     ├── HudPanel           — Line/stop filter sidebar
@@ -97,6 +112,12 @@ cd mbus-tracker
 
 ```bash
 ./gradlew lwjgl3:run
+```
+
+### Run the tests
+
+```bash
+./gradlew core:test
 ```
 
 ### Build a distributable JAR

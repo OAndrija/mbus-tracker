@@ -33,11 +33,16 @@ public class BusStopDetailPanel {
     private String scheduleTime;
     private int scheduleDayOfWeek;
 
+    private ScrollPane arrivalsScrollPane;
+    private final Label.LabelStyle arrivalStyle;
+
     public BusStopDetailPanel(Skin skin, Texture timeIcon) {
         this.skin = skin;
         this.timeIcon = timeIcon;
         this.stage = new Stage(new ScreenViewport());
         this.visible = false;
+        // White, because a label's color is multiplied with its style's font color.
+        this.arrivalStyle = new Label.LabelStyle(skin.getFont("font-semibold"), Color.WHITE);
 
         createUI();
     }
@@ -121,10 +126,11 @@ public class BusStopDetailPanel {
         mainPanel.add(arrivalsHeaderTable).width(panelWidth).padTop(5).padBottom(10).row();
 
         Table arrivalsTable = createUpcomingArrivalsTable();
-        ScrollPane arrivalsScrollPane = new ScrollPane(arrivalsTable, skin, "no-bg");
+        arrivalsScrollPane = new ScrollPane(arrivalsTable, skin, "no-bg");
         arrivalsScrollPane.setFadeScrollBars(true);
         arrivalsScrollPane.setScrollingDisabled(true, false);
         arrivalsScrollPane.setOverscroll(false, false);
+        ScrollOnHover.attach(arrivalsScrollPane);
 
         mainPanel.add(arrivalsScrollPane).width(panelWidth - 10).expand().fill().padLeft(5).padRight(5).padBottom(10).row();
 
@@ -161,9 +167,11 @@ public class BusStopDetailPanel {
             currentStop.getUpcomingArrivals(allLines, currentTime, dayType, 20);
 
         if (upcomingArrivals.isEmpty()) {
-            Label emptyLabel = new Label("Ni več prihodov danes", skin, "black");
-            emptyLabel.setColor(Color.GRAY);
-            table.add(emptyLabel).pad(10);
+            Label emptyLabel = new Label(
+                currentStop.getLineCount() == 0 ? "Ni podatkov o linijah" : "Ni več prihodov danes",
+                skin, "black");
+            emptyLabel.setWrap(true);
+            table.add(emptyLabel).growX().pad(10);
             return table;
         }
 
@@ -182,19 +190,19 @@ public class BusStopDetailPanel {
 
             if (minutesUntil == 0) {
                 timeText = "Zdaj";
-                timeColor = new Color(1f, 0.3f, 0.3f, 1f);
+                timeColor = new Color(0.85f, 0.15f, 0.15f, 1f);
             } else if (minutesUntil <= 5) {
                 timeText = minutesUntil + " min";
-                timeColor = new Color(1f, 0.6f, 0.2f, 1f);
+                timeColor = new Color(0.8f, 0.4f, 0f, 1f);
             } else if (minutesUntil <= 15) {
                 timeText = minutesUntil + " min";
-                timeColor = new Color(0.8f, 0.8f, 0.8f, 1f);
+                timeColor = new Color(0.1f, 0.1f, 0.1f, 1f);
             } else {
                 timeText = arrival.getArrivalTimeFormatted();
-                timeColor = Color.GRAY;
+                timeColor = new Color(0.4f, 0.4f, 0.4f, 1f);
             }
 
-            Label timeLabel = new Label(timeText, skin, "black-semibold");
+            Label timeLabel = new Label(timeText, arrivalStyle);
             timeLabel.setColor(timeColor);
             timeLabel.setAlignment(Align.right);
 
@@ -219,9 +227,8 @@ public class BusStopDetailPanel {
         }
 
         Label footerLabel = new Label(
-            dayTypeStr + " • " + BusSchedule.formatTime(currentTime),
-            skin,
-            "black-semibold"
+            dayTypeStr + " | " + BusSchedule.formatTime(currentTime),
+            arrivalStyle
         );
         footerLabel.setColor(Color.GRAY);
         footerLabel.setAlignment(Align.center);
@@ -264,7 +271,11 @@ public class BusStopDetailPanel {
 
     public void refresh() {
         if (visible && currentStop != null) {
+            float scroll = arrivalsScrollPane.getScrollY();
             rebuildUI();
+            mainPanel.validate();
+            arrivalsScrollPane.setScrollY(scroll);
+            arrivalsScrollPane.updateVisualScroll();
         }
     }
 

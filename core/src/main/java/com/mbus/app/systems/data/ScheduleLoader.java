@@ -7,6 +7,7 @@ import com.badlogic.gdx.utils.JsonValue;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusSchedule;
 import com.mbus.app.model.BusStop;
+import com.mbus.app.utils.Geolocation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,6 +19,9 @@ public class ScheduleLoader {
 
     private static final String TAG = "ScheduleLoader";
     private static final double MIN_STOP_DISTANCE = 0.003;
+
+    // 0 = workday, 1 = saturday, 2 = sunday/holiday
+    private static final int[] DAY_TYPES = {0, 1, 2};
 
     public static List<BusSchedule> loadSchedulesFromFile(String filePath) {
         List<BusSchedule> schedules = new ArrayList<>();
@@ -156,31 +160,23 @@ public class ScheduleLoader {
 
             int routeDuration = estimateRouteDuration(scheduledStops, isUrbanLine);
 
-            int dayType = 0;
-
             Gdx.app.log(TAG, "Processing line " + line.lineId + " (variant=" + line.variantId +
                 ", dir=" + line.direction + ", stops=" + line.getStops().size() +
                 ", scheduled=" + scheduledStops.size() +
                 ", duration=" + routeDuration + " min)");
 
             int beforeCount = schedules.size();
+            int tripInterval = isUrbanLine ? routeDuration : routeDuration * 2;
 
-            if (isUrbanLine) {
-                schedules.addAll(generateMultiTripSchedule(
+            for (int dayType : DAY_TYPES) {
+                List<BusSchedule> daySchedules = generateMultiTripSchedule(
                     line, scheduledStops, dayType, scheduleIdCounter,
                     0, 24 * 60,
                     2,
-                    routeDuration,
-                    routeDuration, random));
-                scheduleIdCounter += 50;
-            } else {
-                schedules.addAll(generateMultiTripSchedule(
-                    line, scheduledStops, dayType, scheduleIdCounter,
-                    0, 24 * 60,
-                    2,
-                    routeDuration * 2,
-                    routeDuration, random));
-                scheduleIdCounter += 50;
+                    tripInterval,
+                    routeDuration, random);
+                schedules.addAll(daySchedules);
+                scheduleIdCounter += daySchedules.size();
             }
 
             int afterCount = schedules.size();
@@ -233,6 +229,12 @@ public class ScheduleLoader {
         List<BusSchedule> schedules = new ArrayList<>();
         int scheduleId = startScheduleId;
 
+        double[] pathPositions = cumulativeDistances(line.getPath());
+        Map<Integer, Double> stopPositions = new HashMap<>();
+        for (BusStop stop : line.getStops()) {
+            stopPositions.put(stop.idAvpost, positionOnPath(stop.geo, line.getPath(), pathPositions));
+        }
+
         int totalServiceTime = serviceEndTime - serviceStartTime;
         int maxTripsPerBus = (totalServiceTime - routeDuration) / tripInterval + 1;
 
@@ -261,7 +263,8 @@ public class ScheduleLoader {
                     line.direction,
                     dayType,
                     currentDeparture,
-                    stopTimes
+                    stopTimes,
+                    calculatePassingTimes(line.getStops(), stopTimes, stopPositions)
                 ));
 
                 currentDeparture += tripInterval;
@@ -274,6 +277,72 @@ public class ScheduleLoader {
         Gdx.app.log(TAG, "  Total schedules created for this line: " + schedules.size());
 
         return schedules;
+    }
+
+    /**
+     * Only well-spaced stops become timing points (see {@link #filterNearbyStops}), so the rest get
+     * the time the bus passes them, interpolated between the timing points around them.
+     */
+    static Map<Integer, Integer> calculatePassingTimes(List<BusStop> stops,
+                                                       List<BusSchedule.StopTime> timingPoints,
+                                                       Map<Integer, Double> stopPositions) {
+        Map<Integer, Integer> times = new HashMap<>();
+        if (timingPoints.isEmpty()) return times;
+
+        for (BusStop stop : stops) {
+            double position = stopPositions.get(stop.idAvpost);
+            BusSchedule.StopTime before = null;
+            BusSchedule.StopTime after = null;
+
+            for (BusSchedule.StopTime point : timingPoints) {
+                if (stopPositions.get(point.stopId) <= position) {
+                    before = point;
+                } else {
+                    after = point;
+                    break;
+                }
+            }
+
+            if (before == null) {
+                times.put(stop.idAvpost, after.arrivalTime);
+            } else if (after == null) {
+                times.put(stop.idAvpost, before.arrivalTime);
+            } else {
+                double from = stopPositions.get(before.stopId);
+                double to = stopPositions.get(after.stopId);
+                double t = (position - from) / (to - from);
+                times.put(stop.idAvpost, (int) Math.round(
+                    before.arrivalTime + t * (after.arrivalTime - before.arrivalTime)));
+            }
+        }
+
+        return times;
+    }
+
+    private static double[] cumulativeDistances(List<Geolocation> path) {
+        double[] result = new double[path.size()];
+        for (int i = 1; i < path.size(); i++) {
+            result[i] = result[i - 1] + calculateDistance(
+                path.get(i - 1).lat, path.get(i - 1).lng, path.get(i).lat, path.get(i).lng);
+        }
+        return result;
+    }
+
+    private static double positionOnPath(Geolocation geo, List<Geolocation> path, double[] positions) {
+        int nearest = 0;
+        double nearestDistance = Double.MAX_VALUE;
+        double lngScale = Math.cos(Math.toRadians(geo.lat));
+        for (int i = 0; i < path.size(); i++) {
+            // In metric proportions, so this agrees with the order the line's stops are sorted in.
+            double dLat = path.get(i).lat - geo.lat;
+            double dLng = (path.get(i).lng - geo.lng) * lngScale;
+            double distance = dLat * dLat + dLng * dLng;
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearest = i;
+            }
+        }
+        return positions.length == 0 ? 0 : positions[nearest];
     }
 
     private static int estimateRouteDuration(List<BusStop> stops, boolean isUrbanLine) {

@@ -3,6 +3,7 @@ package com.mbus.app.screens;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.input.GestureDetector;
@@ -20,8 +21,10 @@ import com.mbus.app.utils.ZoomXY;
 import com.mbus.app.systems.input.BusLineClickHandler;
 import com.mbus.app.systems.input.MapGestureListener;
 import com.mbus.app.systems.input.MarkerClickHandler;
-import com.mbus.app.systems.map.MapRasterTiles;
 import com.mbus.app.systems.map.MapRenderer;
+import com.mbus.app.systems.map.MapTileLayer;
+import com.mbus.app.systems.map.MarkerCluster;
+import com.mbus.app.systems.map.WorldGeometry;
 import com.mbus.app.ui.HudPanel;
 import com.mbus.app.ui.BusStopDetailPanel;
 import com.mbus.app.utils.BusPositionCalculator;
@@ -33,7 +36,7 @@ public class RasterMapScreen implements Screen {
 
     private final MBusTracker app;
 
-    private final Texture[] mapTiles;
+    private final Pixmap overview;
     private Texture markerTexture;
     private Texture titleIcon;
     private Texture  timeIcon;
@@ -43,6 +46,7 @@ public class RasterMapScreen implements Screen {
     private List<BusLine> busLines;
 
     private MapRenderer mapRenderer;
+    private WorldGeometry geometry;
     private MapGestureListener mapGestureListener;
     private GestureDetector gestureDetector;
     private HudPanel hudPanel;
@@ -61,9 +65,9 @@ public class RasterMapScreen implements Screen {
     private float timeSinceLastRefresh = 0f;
     private static final float REFRESH_INTERVAL = 30f;
 
-    public RasterMapScreen(MBusTracker app, Texture[] preloadedTiles, ZoomXY preloadedBeginTile) {
+    public RasterMapScreen(MBusTracker app, Pixmap overview, ZoomXY preloadedBeginTile) {
         this.app = app;
-        this.mapTiles = preloadedTiles;
+        this.overview = overview;
         this.beginTile = preloadedBeginTile;
     }
 
@@ -94,7 +98,8 @@ public class RasterMapScreen implements Screen {
         detailPanel.setBusLines(busLines);
 
         mapRenderer = new MapRenderer(app.camera, app.getAssetManager());
-        mapRenderer.loadTiles(mapTiles, beginTile);
+        geometry = new WorldGeometry(stops, busLines, beginTile);
+        mapRenderer.setMap(new MapTileLayer(app.camera, beginTile, overview), geometry);
         mapRenderer.setMarkerTexture(markerTexture);
         mapRenderer.setStops(stops);
         mapRenderer.setBusLines(busLines);
@@ -165,23 +170,20 @@ public class RasterMapScreen implements Screen {
     }
 
     private void zoomToBusStop(BusStop busStop) {
-        Vector2 pos = MapRasterTiles.getPixelPosition(
-            busStop.geo.lat,
-            busStop.geo.lng,
-            beginTile.x,
-            beginTile.y
-        );
+        Vector2 pos = geometry.getStop(busStop);
+        flyTo(pos.x, pos.y, 0.1f);
+    }
 
-        Gdx.app.log("RasterMapScreen", "Zooming to bus stop: " + busStop.name +
-            " at position (" + pos.x + ", " + pos.y + ")");
+    private void flyTo(float x, float y, float zoom) {
+        app.cameraController.stopZooming();
 
         startX = app.camera.position.x;
         startY = app.camera.position.y;
         startZoom = app.camera.zoom;
 
-        targetX = pos.x;
-        targetY = pos.y;
-        targetZoom = 0.1f;
+        targetX = x;
+        targetY = y;
+        targetZoom = app.cameraController.clampZoom(zoom);
 
         animatingCamera = true;
         animationProgress = 0f;
@@ -196,7 +198,7 @@ public class RasterMapScreen implements Screen {
         if (animatingCamera) {
             updateCameraAnimation(delta);
         } else {
-            updateCamera();
+            updateCamera(delta);
         }
 
         app.viewport.apply();
@@ -293,10 +295,9 @@ public class RasterMapScreen implements Screen {
         }
     }
 
-    private void updateCamera() {
-        if (!animatingCamera) {
-            app.cameraController.update();
-        }
+    private void updateCamera(float delta) {
+        app.cameraController.setKeyboardEnabled(!hudPanel.isTyping());
+        app.cameraController.update(delta);
         clampCamera();
     }
 
@@ -329,12 +330,12 @@ public class RasterMapScreen implements Screen {
 
         markerClickHandler = new MarkerClickHandler(app.camera);
         markerClickHandler.setStops(stops);
-        markerClickHandler.setBeginTile(beginTile);
+        markerClickHandler.setGeometry(geometry);
         mapGestureListener.setMarkerClickHandler(markerClickHandler);
 
         lineClickHandler = new BusLineClickHandler(app.camera);
         lineClickHandler.setBusLines(busLines);
-        lineClickHandler.setBeginTile(beginTile);
+        lineClickHandler.setGeometry(geometry);
         lineClickHandler.setVisibleLineIds(hudPanel.getVisibleLineIds());
         mapGestureListener.setLineClickHandler(lineClickHandler);
 
@@ -370,9 +371,23 @@ public class RasterMapScreen implements Screen {
             }
         });
 
+        mapGestureListener.setClusterClickHandler((x, y) -> {
+            MarkerCluster cluster = mapRenderer.findCluster(x, y);
+            if (cluster == null) return false;
+            flyTo(cluster.getPosition().x, cluster.getPosition().y, app.camera.zoom * 0.5f);
+            return true;
+        });
+
+        Runnable cancelAnimation = () -> animatingCamera = false;
+        mapGestureListener.setMapTouchListener(() -> hudPanel.stopTyping());
+        mapGestureListener.setPanListener(cancelAnimation);
+        app.cameraController.setUserInputListener(cancelAnimation);
+
         gestureDetector = new GestureDetector(mapGestureListener);
+        gestureDetector.setTapSquareSize(8f);
 
         if (app.inputMultiplexer != null) {
+            app.inputMultiplexer.addProcessor(app.cameraController);
             app.inputMultiplexer.addProcessor(detailPanel.getStage());
             app.inputMultiplexer.addProcessor(hudPanel.getStage());
             app.inputMultiplexer.addProcessor(gestureDetector);
@@ -414,6 +429,7 @@ public class RasterMapScreen implements Screen {
         }
         if (detailPanel != null) {
             detailPanel.resize(width, height);
+            updateHudBoundaries();
         }
     }
 
@@ -422,6 +438,9 @@ public class RasterMapScreen implements Screen {
 
     @Override
     public void hide() {
+        if (app.inputMultiplexer != null) {
+            app.inputMultiplexer.removeProcessor(app.cameraController);
+        }
         if (gestureDetector != null && app.inputMultiplexer != null) {
             app.inputMultiplexer.removeProcessor(gestureDetector);
         }

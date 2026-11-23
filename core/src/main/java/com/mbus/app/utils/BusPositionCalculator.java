@@ -6,6 +6,7 @@ import com.mbus.app.model.BusSchedule;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
+import java.util.TimeZone;
 
 public class BusPositionCalculator {
 
@@ -34,13 +35,19 @@ public class BusPositionCalculator {
         }
     }
 
+    private static final TimeZone CITY_TIME_ZONE = TimeZone.getTimeZone("Europe/Ljubljana");
+
+    private static Calendar cityCalendar() {
+        return Calendar.getInstance(CITY_TIME_ZONE);
+    }
+
     public static int getCurrentTimeMinutes() {
-        Calendar cal = Calendar.getInstance();
+        Calendar cal = cityCalendar();
         return cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE);
     }
 
     public static float getCurrentTimeMinutesWithSeconds() {
-        Calendar cal = Calendar.getInstance();
+        Calendar cal = cityCalendar();
         int hours = cal.get(Calendar.HOUR_OF_DAY);
         int minutes = cal.get(Calendar.MINUTE);
         int seconds = cal.get(Calendar.SECOND);
@@ -49,7 +56,7 @@ public class BusPositionCalculator {
     }
 
     public static int getCurrentDayType() {
-        Calendar cal = Calendar.getInstance();
+        Calendar cal = cityCalendar();
         int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
 
         if (dayOfWeek == Calendar.SUNDAY) {

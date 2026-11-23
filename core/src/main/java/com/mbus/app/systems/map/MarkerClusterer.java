@@ -2,7 +2,6 @@ package com.mbus.app.systems.map;
 
 import com.badlogic.gdx.math.Vector2;
 import com.mbus.app.model.BusStop;
-import com.mbus.app.utils.ZoomXY;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,10 +17,12 @@ public class MarkerClusterer {
 
     private static final Map<String, MarkerCluster> previousClusters = new HashMap<>();
     private static int previousZoomLevel = -1;
+    private static List<BusStop> previousStops;
+    private static List<MarkerCluster> clustering = new ArrayList<>();
 
     public static List<MarkerCluster> clusterMarkers(
         List<BusStop> stops,
-        ZoomXY beginTile,
+        WorldGeometry geometry,
         float cameraZoom,
         int mapWidth,
         int mapHeight,
@@ -32,22 +33,25 @@ public class MarkerClusterer {
         }
 
         int zoomLevel = getDiscreteZoomLevel(cameraZoom);
-        float clusterDistance = BASE_CLUSTER_DISTANCE * CLUSTER_MULTIPLIERS[zoomLevel];
 
-        boolean zoomChanged = (zoomLevel != previousZoomLevel);
-
-        if (zoomChanged) {
+        // Clustering only depends on the stops and the zoom level; between changes just animate.
+        if (zoomLevel != previousZoomLevel || stops != previousStops) {
+            clustering = createClusters(stops, geometry, zoomLevel, mapWidth, mapHeight);
             previousZoomLevel = zoomLevel;
+            previousStops = stops;
         }
+
+        return animateTransition(clustering, delta);
+    }
+
+    private static List<MarkerCluster> createClusters(
+        List<BusStop> stops, WorldGeometry geometry, int zoomLevel, int mapWidth, int mapHeight) {
+
+        float clusterDistance = BASE_CLUSTER_DISTANCE * CLUSTER_MULTIPLIERS[zoomLevel];
 
         List<StopWithPosition> stopsWithPos = new ArrayList<>();
         for (BusStop stop : stops) {
-            Vector2 pos = MapRasterTiles.getPixelPosition(
-                stop.geo.lat,
-                stop.geo.lng,
-                beginTile.x,
-                beginTile.y
-            );
+            Vector2 pos = geometry.getStop(stop);
 
             if (pos.x >= 0 && pos.y >= 0 &&
                 pos.x <= mapWidth && pos.y <= mapHeight) {
@@ -60,7 +64,7 @@ public class MarkerClusterer {
             for (StopWithPosition swp : stopsWithPos) {
                 individualMarkers.add(new MarkerCluster(swp.position, swp.stop));
             }
-            return animateTransition(individualMarkers, delta, zoomLevel, zoomChanged);
+            return individualMarkers;
         }
 
         List<MarkerCluster> clusters = initialClustering(stopsWithPos, clusterDistance);
@@ -69,10 +73,10 @@ public class MarkerClusterer {
             clusters = reclusterClusters(clusters, clusterDistance * 1.5f);
         }
 
-        return animateTransition(clusters, delta, zoomLevel, zoomChanged);
+        return clusters;
     }
 
-    private static List<MarkerCluster> animateTransition(List<MarkerCluster> newClusters, float delta, int zoomLevel, boolean zoomChanged) {
+    private static List<MarkerCluster> animateTransition(List<MarkerCluster> newClusters, float delta) {
         Map<String, MarkerCluster> newClusterMap = new HashMap<>();
 
         for (MarkerCluster cluster : newClusters) {
