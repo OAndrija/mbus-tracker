@@ -4,145 +4,48 @@ import com.mbus.app.utils.Geolocation;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
+/** A stop on one side of the road. */
 public class BusStop {
 
-    public final int idAvpost;
-    public final String idMarprom;
+    public final String id;
     public final String name;
-
-    public final double x3794;
-    public final double y3794;
-
     public final Geolocation geo;
 
-    private final List<Integer> lineIds;
+    private final List<BusLine> lines = new ArrayList<>();
+    private final List<StopCall> calls = new ArrayList<>();
 
-    public BusStop(int idAvpost,
-                   String idMarprom,
-                   String name,
-                   double x3794,
-                   double y3794,
-                   Geolocation geo,
-                   List<Integer> lineIds) {
-
-        this.idAvpost = idAvpost;
-        this.idMarprom = idMarprom;
+    public BusStop(String id, String name, Geolocation geo) {
+        this.id = id;
         this.name = name;
-
-        this.x3794 = x3794;
-        this.y3794 = y3794;
-
         this.geo = geo;
-
-        this.lineIds = lineIds != null
-            ? Collections.unmodifiableList(new ArrayList<>(lineIds))
-            : Collections.unmodifiableList(new ArrayList<>());
     }
 
-    public BusStop(int idAvpost,
-                   String idMarprom,
-                   String name,
-                   double x3794,
-                   double y3794,
-                   Geolocation geo) {
-        this(idAvpost, idMarprom, name, x3794, y3794, geo, null);
+    /** The lines that stop here, in display order. */
+    public List<BusLine> getLines() {
+        return Collections.unmodifiableList(lines);
     }
 
-    public List<Integer> getLineIds() {
-        return lineIds;
+    /** Every departure from this stop on any day, ordered by time. Arrivals at a terminus are not included. */
+    public List<StopCall> getCalls() {
+        return Collections.unmodifiableList(calls);
     }
 
-    public int getLineCount() {
-        return lineIds.size();
-    }
-
-    public boolean hasLine(int lineId) {
-        return lineIds.contains(lineId);
-    }
-
-    public String getLineIdsString() {
-        if (lineIds.isEmpty()) {
-            return "No lines";
+    void addCall(StopCall call) {
+        calls.add(call);
+        if (!lines.contains(call.trip.pattern.line)) {
+            lines.add(call.trip.pattern.line);
         }
-
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < lineIds.size(); i++) {
-            sb.append(lineIds.get(i));
-            if (i < lineIds.size() - 1) {
-                sb.append(", ");
-            }
-        }
-        return sb.toString();
     }
 
-    public List<StopArrival> getUpcomingArrivals(List<BusLine> lines, int currentTime, int dayType, int maxResults) {
-        List<StopArrival> arrivals = new ArrayList<>();
-
-        for (BusLine line : lines) {
-            if (!hasLine(line.lineId)) continue;
-
-            for (BusSchedule schedule : line.getSchedules()) {
-                if (schedule.dayType != dayType) continue;
-
-                int arrivalTime = schedule.getArrivalTimeAtStop(idAvpost);
-                if (arrivalTime >= currentTime) {
-                    arrivals.add(new StopArrival(line, schedule, arrivalTime));
-                }
-            }
-        }
-
-        arrivals.sort(new Comparator<StopArrival>() {
-            @Override
-            public int compare(StopArrival a1, StopArrival a2) {
-                return Integer.compare(a1.arrivalTime, a2.arrivalTime);
-            }
-        });
-
-        if (arrivals.size() > maxResults) {
-            return arrivals.subList(0, maxResults);
-        }
-
-        return arrivals;
+    void sortCalls() {
+        Collections.sort(calls, (a, b) -> Integer.compare(a.getTime(), b.getTime()));
+        Collections.sort(lines);
     }
 
     @Override
     public String toString() {
-        return "BusStop{" +
-            "idAvpost=" + idAvpost +
-            ", idMarprom='" + idMarprom + '\'' +
-            ", name='" + name + '\'' +
-            ", x3794=" + x3794 +
-            ", y3794=" + y3794 +
-            ", geo=(" + geo.lat + ", " + geo.lng + ")" +
-            ", lines=" + getLineIdsString() +
-            '}';
-    }
-
-    public static class StopArrival {
-        public final BusLine line;
-        public final BusSchedule schedule;
-        public final int arrivalTime;
-
-        public StopArrival(BusLine line, BusSchedule schedule, int arrivalTime) {
-            this.line = line;
-            this.schedule = schedule;
-            this.arrivalTime = arrivalTime;
-        }
-
-        public int getMinutesUntilArrival(int currentTime) {
-            return arrivalTime - currentTime;
-        }
-
-        public String getArrivalTimeFormatted() {
-            return BusSchedule.formatTime(arrivalTime);
-        }
-
-        @Override
-        public String toString() {
-            return "Line " + line.lineId + " at " + getArrivalTimeFormatted();
-        }
+        return name + " (" + id + ")";
     }
 }

@@ -8,8 +8,7 @@ import static org.junit.Assert.assertTrue;
 
 public class StopSearchTest {
 
-    private final BusStop stop =
-        new BusStop(135, "s216", "Betnavska - Žolgarjeva", 0, 0, new Geolocation(46.55, 15.64));
+    private final BusStop stop = new BusStop("135", "Betnavska - Žolgarjeva", new Geolocation(46.55, 15.64));
 
     @Test
     public void ignoresAccentsAndCase() {

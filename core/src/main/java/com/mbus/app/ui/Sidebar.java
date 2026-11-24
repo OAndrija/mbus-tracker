@@ -21,25 +21,27 @@ import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Align;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
+import com.mbus.app.model.Timetable;
+import com.mbus.app.model.Trip;
 import com.mbus.app.ui.theme.Icon;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
-import com.mbus.app.utils.BusLineColors;
-import com.mbus.app.utils.BusPositionCalculator;
+import com.mbus.app.utils.CityTime;
 import com.mbus.app.utils.StopSearch;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 
 /** The main panel: search, line filter and stop list. */
 public class Sidebar {
 
     public interface Listener {
-        void onVisibleLinesChanged(Set<Integer> visibleLineIds, List<BusStop> stopsOnThem);
+        void onVisibleLinesChanged(Set<BusLine> visibleLines, List<BusStop> stopsOnThem);
 
         void onShowStopsChanged(boolean show);
 
@@ -68,24 +70,28 @@ public class Sidebar {
     private final Label emptyLabel;
     private final StopListView stopList;
     private final ScrollPane stopScroll;
-    private final Map<Integer, TextButton> chips = new TreeMap<>();
+    private final Map<BusLine, TextButton> chips = new LinkedHashMap<>();
+    private final Label status;
+    private final Timetable timetable;
 
     private final List<BusStop> allStops;
-    private final Set<Integer> allLineIds = new HashSet<>();
-    private final Set<Integer> visibleLineIds = new HashSet<>();
+    private final List<BusLine> allLines;
+    private final Set<BusLine> visibleLines = new HashSet<>();
     private List<BusStop> stopsOnVisibleLines;
     private List<BusStop> listedStops = new ArrayList<>();
     private boolean collapsed = false;
     private int shownMinute = -1;
 
-    public Sidebar(Theme theme, List<BusStop> stops, List<BusLine> lines, Listener listener) {
+    public Sidebar(Theme theme, Timetable timetable, Listener listener) {
         this.theme = theme;
         this.listener = listener;
-        this.allStops = stops;
-        for (BusLine line : lines) allLineIds.add(line.lineId);
-        visibleLineIds.addAll(allLineIds);
+        this.timetable = timetable;
+        this.allStops = timetable.getStops();
+        this.allLines = timetable.getLines();
+        visibleLines.addAll(allLines);
         stopsOnVisibleLines = allStops;
 
+        status = theme.label("", theme.caption, Palette.MUTED);
         clock = theme.label("", theme.bodyStrong, Palette.TEXT);
         collapseButton = new IconButton(theme, Icon.CHEVRON_UP, 18, this::toggleCollapsed);
         searchField = createSearchField();
@@ -129,12 +135,11 @@ public class Sidebar {
 
     private Table createHeader() {
         Label name = theme.label("MBus", theme.brand, Palette.INK);
-        Label city = theme.label("Maribor", theme.caption, Palette.MUTED);
 
         Table names = new Table();
         names.left();
         names.add(name).left().row();
-        names.add(city).left().padTop(-2);
+        names.add(status).left().padTop(-2);
 
         Table header = new Table();
         header.add(new Image(theme.logo(40))).size(40).padRight(12);
@@ -170,7 +175,14 @@ public class Sidebar {
         empty.setTouchable(Touchable.disabled);
 
         Stack list = new Stack(stopScroll, empty);
-        content.add(list).grow().pad(0, 4, 8, 4);
+        content.add(list).grow().pad(0, 4, 0, 4).row();
+
+        boolean expired = timetable.isExpired(CityTime.today());
+        Label validity = theme.label(
+            (expired ? "Vozni red je potekel " : "Po voznem redu Marproma do ") + CityTime.format(timetable.getValidUntil()),
+            theme.caption, expired ? Palette.NOW : Palette.FAINT);
+        content.add(new Image(theme.fill(Palette.BORDER, 1, 1))).growX().height(1).row();
+        content.add(validity).left().pad(9, PADDING, 11, PADDING);
     }
 
     private Stack createSearch() {
@@ -234,24 +246,23 @@ public class Sidebar {
         Table table = new Table();
         table.defaults().height(34).growX().uniformX().pad(CHIP_GAP / 2f);
 
-        Set<Integer> sorted = new java.util.TreeSet<>(allLineIds);
         int column = 0;
-        for (final Integer lineId : sorted) {
-            final TextButton chip = new TextButton(String.valueOf(lineId), chipStyle(BusLineColors.getColor(lineId)));
+        for (final BusLine line : allLines) {
+            final TextButton chip = new TextButton(line.name, chipStyle(line));
             chip.setProgrammaticChangeEvents(false);
             chip.setChecked(true);
             chip.addListener(new ChangeListener() {
                 @Override
                 public void changed(ChangeEvent event, Actor actor) {
                     if (chip.isChecked()) {
-                        visibleLineIds.add(lineId);
+                        visibleLines.add(line);
                     } else {
-                        visibleLineIds.remove(lineId);
+                        visibleLines.remove(line);
                     }
                     onVisibleLinesChanged();
                 }
             });
-            chips.put(lineId, chip);
+            chips.put(line, chip);
             table.add(chip).minWidth(0).prefWidth(0);
             if (++column % CHIPS_PER_ROW == 0) table.row();
         }
@@ -259,14 +270,15 @@ public class Sidebar {
         return table;
     }
 
-    private TextButton.TextButtonStyle chipStyle(Color color) {
+    private TextButton.TextButtonStyle chipStyle(BusLine line) {
+        Color color = line.color;
         Color hover = new Color(color).lerp(Color.WHITE, 0.14f);
         TextButton.TextButtonStyle style = new TextButton.TextButtonStyle();
         style.font = theme.bodyStrong;
         style.fontColor = Palette.FAINT;
         style.overFontColor = Palette.TEXT;
-        style.checkedFontColor = Color.WHITE;
-        style.checkedOverFontColor = Color.WHITE;
+        style.checkedFontColor = line.textColor;
+        style.checkedOverFontColor = line.textColor;
         style.up = theme.roundRect(8, Palette.SURFACE, Palette.BORDER, 1);
         style.over = theme.roundRect(8, Palette.SUBTLE, Palette.BORDER, 1);
         style.checked = theme.roundRect(8, color);
@@ -335,35 +347,35 @@ public class Sidebar {
     // Lines
 
     private void toggleAllLines() {
-        boolean showAll = visibleLineIds.size() < allLineIds.size();
-        visibleLineIds.clear();
-        if (showAll) visibleLineIds.addAll(allLineIds);
+        boolean showAll = visibleLines.size() < allLines.size();
+        visibleLines.clear();
+        if (showAll) visibleLines.addAll(allLines);
         onVisibleLinesChanged();
     }
 
-    public void showOnlyLine(int lineId) {
-        visibleLineIds.clear();
-        visibleLineIds.add(lineId);
+    public void showOnlyLine(BusLine line) {
+        visibleLines.clear();
+        visibleLines.add(line);
         onVisibleLinesChanged();
     }
 
     public void showAllLines() {
-        visibleLineIds.addAll(allLineIds);
+        visibleLines.addAll(allLines);
         onVisibleLinesChanged();
     }
 
     private void onVisibleLinesChanged() {
-        for (Map.Entry<Integer, TextButton> chip : chips.entrySet()) {
-            chip.getValue().setChecked(visibleLineIds.contains(chip.getKey()));
+        for (Map.Entry<BusLine, TextButton> chip : chips.entrySet()) {
+            chip.getValue().setChecked(visibleLines.contains(chip.getKey()));
         }
-        boolean all = visibleLineIds.size() == allLineIds.size();
+        boolean all = visibleLines.size() == allLines.size();
         allLinesButton.setText(all ? "Skrij vse" : "Pokaži vse");
 
-        stopsOnVisibleLines = all || visibleLineIds.isEmpty() ? allStops : new ArrayList<>();
+        stopsOnVisibleLines = all || visibleLines.isEmpty() ? allStops : new ArrayList<>();
         if (stopsOnVisibleLines != allStops) {
             for (BusStop stop : allStops) {
-                for (Integer lineId : stop.getLineIds()) {
-                    if (visibleLineIds.contains(lineId)) {
+                for (BusLine line : stop.getLines()) {
+                    if (visibleLines.contains(line)) {
                         stopsOnVisibleLines.add(stop);
                         break;
                     }
@@ -371,11 +383,11 @@ public class Sidebar {
             }
         }
         refreshStops();
-        listener.onVisibleLinesChanged(getVisibleLineIds(), stopsOnVisibleLines);
+        listener.onVisibleLinesChanged(getVisibleLines(), stopsOnVisibleLines);
     }
 
-    public Set<Integer> getVisibleLineIds() {
-        return new HashSet<>(visibleLineIds);
+    public Set<BusLine> getVisibleLines() {
+        return new HashSet<>(visibleLines);
     }
 
     // Stops
@@ -399,10 +411,38 @@ public class Sidebar {
     }
 
     public void update() {
-        int minute = BusPositionCalculator.getCurrentTimeMinutes();
+        int minute = CityTime.minutes();
         if (minute != shownMinute) {
             shownMinute = minute;
-            clock.setText(BusPositionCalculator.formatTime(minute));
+            clock.setText(CityTime.format(minute));
+            status.setText(describeTraffic(minute));
+        }
+    }
+
+    private String describeTraffic(int minute) {
+        LocalDate today = CityTime.today();
+        int running = 0;
+        for (Trip trip : timetable.getTrips(today)) {
+            if (trip.getStart() > minute) {
+                if (running == 0) return "Naslednji avtobus ob " + CityTime.format(trip.getStart());
+                break;
+            }
+            if (trip.getEnd() >= minute) running++;
+        }
+        if (running > 0) return running + " " + buses(running) + " na poti";
+
+        List<Trip> tomorrow = timetable.getTrips(today.plusDays(1));
+        return tomorrow.isEmpty() ? "Maribor" : "Naslednji avtobus jutri ob " + CityTime.format(tomorrow.get(0).getStart());
+    }
+
+    /** Slovene has a singular, a dual and two plurals. */
+    static String buses(int count) {
+        switch (count % 100) {
+            case 1: return "avtobus";
+            case 2: return "avtobusa";
+            case 3:
+            case 4: return "avtobusi";
+            default: return "avtobusov";
         }
     }
 }

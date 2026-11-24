@@ -32,7 +32,7 @@ import java.util.Map;
 public class Theme implements Disposable {
 
     private static final String CHARACTERS = FreeTypeFontGenerator.DEFAULT_CHARS
-        + "čšžćđČŠŽĆĐ" + "–—·•…©";
+        + "čšžćđČŠŽĆĐ" + "–—·•…©»«";
     private static final int MARKER_PIXELS = 128;
     private static final float MARKER_SHADOW = 10f;
 
@@ -131,7 +131,7 @@ public class Theme implements Disposable {
     private BitmapFont mapFont(FreeTypeFontGenerator generator, int size) {
         FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
         parameter.size = Math.round(size * density);
-        parameter.characters = "0123456789";
+        parameter.characters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         // Room around the glyphs, so neighbors do not bleed in when scaled down
         parameter.padLeft = parameter.padRight = parameter.padTop = parameter.padBottom = 2;
 

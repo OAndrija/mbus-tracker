@@ -11,11 +11,11 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Align;
 import com.mbus.app.model.BusLine;
-import com.mbus.app.model.BusSchedule;
-import com.mbus.app.ui.theme.Palette;
+import com.mbus.app.model.RoutePattern;
+import com.mbus.app.model.Trip;
 import com.mbus.app.ui.theme.Theme;
-import com.mbus.app.utils.BusLineColors;
 
+import java.util.Collection;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +31,7 @@ public class BusRenderer {
     private static final float DISC_SIZE_NEAR = 28f;
     private static final float BUS_LENGTH = 64f;
     private static final float NUMBER_CAP_HEIGHT = 0.42f;   // of the disc
-    private static final float NUMBER_MAX_WIDTH = 0.74f;    // of the disc
+    private static final float NUMBER_MAX_WIDTH = 0.8f;    // of the disc
 
     /** Discs turn into buses below the first camera zoom, and back above the second. */
     private static final float BUS_ZOOM = 0.095f;
@@ -48,8 +48,8 @@ public class BusRenderer {
     private final Vector2 front = new Vector2();
     private final Vector2 rear = new Vector2();
 
-    private final Map<BusLine, LineMotion> motions = new IdentityHashMap<>();
-    private final Map<BusSchedule, Bus> buses = new IdentityHashMap<>();
+    private final Map<RoutePattern, PatternMotion> motions = new IdentityHashMap<>();
+    private final Map<Trip, Bus> buses = new IdentityHashMap<>();
     private WorldGeometry geometry;
     private long frame = 0;
     private boolean showBuses = false;
@@ -71,8 +71,8 @@ public class BusRenderer {
         buses.clear();
     }
 
-    /** Expects the batch to be set up for world coordinates, but not begun. */
-    public void render(List<BusLine> lines, double time, int dayType, Rectangle view,
+    /** Draws the buses of some lines out of a day's trips. Expects the batch to be set up for world coordinates, but not begun. */
+    public void render(List<Trip> trips, Collection<BusLine> lines, double time, Rectangle view,
                        float cameraZoom, float worldPerPixel, float closeness, float delta) {
         if (geometry == null) return;
 
@@ -87,11 +87,12 @@ public class BusRenderer {
         float length = BUS_LENGTH * worldPerPixel;
 
         spriteBatch.begin();
-        for (BusLine line : lines) {
-            LineMotion motion = motionOf(line);
-            for (BusSchedule trip : line.getSchedules()) {
-                if (trip.dayType != dayType || !motion.isRunning(trip, time)) continue;
-                renderBus(line, trip, motion, time, view, disc, length, busShare, delta);
+        for (Trip trip : trips) {
+            if (trip.getStart() > time) break; // ordered by start
+            if (!lines.contains(trip.pattern.line)) continue;
+            PatternMotion motion = motionOf(trip.pattern);
+            if (motion.isRunning(trip, time)) {
+                renderBus(trip, motion, time, view, disc, length, busShare, delta);
             }
         }
         spriteBatch.setColor(Color.WHITE);
@@ -102,17 +103,17 @@ public class BusRenderer {
         buses.values().removeIf(bus -> bus.lastFrame != frame);
     }
 
-    private LineMotion motionOf(BusLine line) {
-        LineMotion motion = motions.get(line);
+    private PatternMotion motionOf(RoutePattern pattern) {
+        PatternMotion motion = motions.get(pattern);
         if (motion == null) {
-            WorldGeometry.LinePath path = geometry.getLine(line);
-            motion = new LineMotion(line, new RouteTrack(path.x, path.y), geometry);
-            motions.put(line, motion);
+            WorldGeometry.Path path = geometry.getPattern(pattern);
+            motion = new PatternMotion(pattern, new RouteTrack(path.x, path.y), geometry);
+            motions.put(pattern, motion);
         }
         return motion;
     }
 
-    private void renderBus(BusLine line, BusSchedule trip, LineMotion motion, double time, Rectangle view,
+    private void renderBus(Trip trip, PatternMotion motion, double time, Rectangle view,
                            float disc, float length, float busShare, float delta) {
         // Front and rear both follow the road, which makes the bus turn like a real one.
         double along = motion.distanceAt(trip, time);
@@ -137,7 +138,8 @@ public class BusRenderer {
         if (x < view.x - length || x > view.x + view.width + length
             || y < view.y - length || y > view.y + view.height + length) return;
 
-        Color color = BusLineColors.getColor(line.lineId);
+        BusLine line = trip.pattern.line;
+        Color color = line.color;
         float alpha = motion.alphaAt(trip, time);
         if (busShare < 1f) {
             float size = disc / Theme.BUS_DISC_SCALE;
@@ -151,7 +153,7 @@ public class BusRenderer {
             draw(theme.busBodyFill, color, alpha * busShare, x, y, width, height, bus.angle);
             draw(theme.busBodyDetail, Color.WHITE, alpha * busShare, x, y, width, height, bus.angle);
         }
-        drawNumber(String.valueOf(line.lineId), x, y, disc, alpha);
+        drawNumber(line.name, line.textColor, x, y, disc, alpha);
     }
 
     /** The shortest way from one angle to another, in degrees. */
@@ -170,13 +172,13 @@ public class BusRenderer {
             0, 0, texture.getWidth(), texture.getHeight(), false, false);
     }
 
-    private void drawNumber(String number, float x, float y, float disc, float alpha) {
+    private void drawNumber(String number, Color color, float x, float y, float disc, float alpha) {
         BitmapFont font = theme.map;
         font.getData().setScale(1f);
         layout.setText(font, number);
         font.getData().setScale(Math.min(
             disc * NUMBER_MAX_WIDTH / layout.width, disc * NUMBER_CAP_HEIGHT / font.getCapHeight()));
-        tint.set(Palette.SURFACE).a = alpha;
+        tint.set(color).a = alpha;
         layout.setText(font, number, tint, 0, Align.left, false);
         font.draw(spriteBatch, layout, x - layout.width / 2f, y + font.getCapHeight() / 2f);
     }

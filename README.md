@@ -6,7 +6,7 @@
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Release](https://img.shields.io/github/v/release/OAndrija/mbus-tracker?include_prereleases)
 
-A desktop bus tracking application for the city of Maribor, Slovenia, built with **Java** and **LibGDX**. MBus visualizes local bus lines and stops on an interactive map, with animated real-time bus position simulation based on schedule data.
+A desktop bus tracking application for the city of Maribor, Slovenia, built with **Java** and **LibGDX**. MBus visualizes local bus lines and stops on an interactive map, with bus positions and departures from the official Marprom timetable. Positions follow the timetable; they are not live.
 
 ![Overview](docs/images/bus.png)
 
@@ -28,7 +28,7 @@ See the [Releases](../../releases) page to download the latest version.
 - **Interactive map** rendered from raster tiles (Geoapify / OpenStreetMap), with tile caching for offline use
 - **Bus line visualization** with per-line color coding, hover effects, and animated selection
 - **Bus stop markers** with dynamic clustering that adapts to zoom level
-- **Animated bus positions** for every visible line, calculated from schedule data: buses accelerate, brake at stops and turn along the road
+- **Animated bus positions** for every visible line, calculated from the timetable: buses accelerate, brake at stops and turn along the road
 - **Floating panels** for filtering lines and stops, with a searchable list (accents and case are ignored) and upcoming arrivals per stop
 - **Streamed map tiles** — only the visible area is kept in memory at full resolution
 - **Smooth camera** with drag-to-pan and zoom at the cursor, clamped to the map bounds, and animated fly-to on stop selection
@@ -65,7 +65,7 @@ See the [Releases](../../releases) page to download the latest version.
 | Framework | LibGDX |
 | Rendering | OrthographicCamera, SpriteBatch, ShapeRenderer, Texture streaming |
 | Map tiles | Geoapify REST API (OSM Bright) |
-| Map data | GeoJSON (bus stops and lines from public Maribor transit data) |
+| Transit data | GTFS (Marprom, via [derp-si/gtfs-generators](https://gitlab.com/derp-si/gtfs-generators)) |
 | UI | Scene2D with a custom theme; FreeType for text |
 | Build | Gradle (Desktop target via LWJGL3 + Construo) |
 
@@ -75,15 +75,14 @@ See the [Releases](../../releases) page to download the latest version.
 
 ```
 MBusTracker (Game)
-├── LoadingScreen          — Threaded tile download + GeoJSON parsing
+├── LoadingScreen          — Threaded tile download + timetable loading
 │   ├── MapRasterTiles     — Tile fetch, cache read/write, coordinate math
-│   ├── GeoJSONLoader      — Parses bus stop and line geometry
-│   └── ScheduleLoader     — Loads or generates bus schedules (the bundled ones are generated, not the official timetable)
+│   └── GtfsLoader         — Reads stops, lines, trips and calendars from the GTFS file
 └── RasterMapScreen        — Main application screen
     ├── MapTileLayer       — Low-resolution overview plus streamed full-resolution tiles
     ├── MapRenderer        — Bus lines, stop markers, labels
     ├── BusRenderer        — Draws the buses
-    │   ├── LineMotion      — Where a bus is at a given time
+    │   ├── PatternMotion   — Where a bus is at a given time
     │   └── RouteTrack      — Distance along a route to position
     ├── MarkerClusterer    — Zoom-aware stop clustering with animations
     ├── MapUi              — Layout of everything that floats above the map
@@ -122,6 +121,16 @@ cd mbus-tracker
 ```bash
 ./gradlew core:test
 ```
+
+### Update the timetable
+
+The bundled timetable is only valid for a few months; the app shows until when. To get the current one:
+
+```bash
+./gradlew updateTimetable
+```
+
+Run the tests afterwards, they check the new file too.
 
 ### Build a distributable JAR
 

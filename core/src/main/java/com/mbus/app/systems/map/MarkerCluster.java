@@ -73,12 +73,12 @@ public class MarkerCluster {
 
     private String generateId() {
         StringBuilder sb = new StringBuilder();
-        List<Integer> sortedIds = new ArrayList<>();
+        List<String> sortedIds = new ArrayList<>();
         for (BusStop stop : stops) {
-            sortedIds.add(stop.idAvpost);
+            sortedIds.add(stop.id);
         }
         java.util.Collections.sort(sortedIds);
-        for (Integer id : sortedIds) {
+        for (String id : sortedIds) {
             sb.append(id).append("-");
         }
         return sb.toString();

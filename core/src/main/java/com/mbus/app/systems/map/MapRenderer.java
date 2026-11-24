@@ -17,9 +17,9 @@ import com.badlogic.gdx.utils.Align;
 
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
+import com.mbus.app.model.Trip;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
-import com.mbus.app.utils.BusLineColors;
 import com.mbus.app.utils.Constants;
 
 import java.util.ArrayList;
@@ -67,16 +67,16 @@ public class MapRenderer {
     private static final float LINE_CASING = 2f;
     private static final float HOVERED_LINE_EXTRA = 2f;
     private static final float STOP_HIT_SLOP = 2f;
-    private static final float LINE_ALPHA = 0.9f;
+    private static final float LIGHT_LINE_EDGE = 1f;
 
     // Camera zoom at which the far and near sizes apply
     private static final float FAR_ZOOM = 0.3f;
     private static final float NEAR_ZOOM = 0.05f;
 
-    private Set<Integer> visibleLineIds;
+    private Set<BusLine> visibleLines = Collections.emptySet();
+    private List<Trip> trips = Collections.emptyList();
     private final BusRenderer busRenderer;
     private double currentTimeMinutes = 0;
-    private int currentDayType = 0;
 
     public MapRenderer(OrthographicCamera camera, Theme theme) {
         this.camera = camera;
@@ -87,9 +87,10 @@ public class MapRenderer {
         this.busRenderer = new BusRenderer(spriteBatch, theme);
     }
 
-    public void setCurrentTime(double timeMinutes, int dayType) {
+    /** The trips of the current day, ordered by start, and the time in minutes. */
+    public void setTrips(List<Trip> trips, double timeMinutes) {
+        this.trips = trips;
         this.currentTimeMinutes = timeMinutes;
-        this.currentDayType = dayType;
     }
 
     /** Takes ownership of the tile layer. */
@@ -157,7 +158,7 @@ public class MapRenderer {
 
         updateLinesWithBuses();
         spriteBatch.setProjectionMatrix(camera.combined);
-        busRenderer.render(linesWithBuses, currentTimeMinutes, currentDayType, view,
+        busRenderer.render(trips, linesWithBuses, currentTimeMinutes, view,
             camera.zoom, getWorldPerPixel(), getCloseness(), delta);
     }
 
@@ -179,17 +180,17 @@ public class MapRenderer {
     /** A selected line shows only its own buses, otherwise all visible lines show theirs. */
     private void updateLinesWithBuses() {
         linesWithBuses.clear();
-        if (busLines == null || visibleLineIds == null) return;
+        if (busLines == null) return;
 
         for (BusLine line : busLines) {
-            if (!visibleLineIds.contains(line.lineId)) continue;
+            if (!visibleLines.contains(line)) continue;
             if (selectedLine != null && line != selectedLine) continue;
             linesWithBuses.add(line);
         }
     }
 
     private void renderBusLines() {
-        if (visibleLineIds == null || visibleLineIds.isEmpty()) return;
+        if (visibleLines.isEmpty()) return;
 
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
@@ -199,10 +200,16 @@ public class MapRenderer {
         float pixel = getWorldPerPixel();
         float width = MathUtils.lerp(LINE_WIDTH_FAR, LINE_WIDTH_NEAR, getCloseness()) * pixel;
 
+        // Light lines would be lost on the map without a darker edge.
         for (BusLine line : busLines) {
-            if (!visibleLineIds.contains(line.lineId)) continue;
+            if (line.isLight() && visibleLines.contains(line)) {
+                renderLine(line, width + 2 * LIGHT_LINE_EDGE * pixel, tint.set(line.color).lerp(Color.BLACK, 0.35f));
+            }
+        }
+        for (BusLine line : busLines) {
+            if (!visibleLines.contains(line)) continue;
             if (line == hoveredLine || line == selectedLine) continue;
-            renderLine(line, width, BusLineColors.getColor(line.lineId), LINE_ALPHA);
+            renderLine(line, width, line.color);
         }
 
         if (selectedLine != null && selectedLine != hoveredLine) {
@@ -216,14 +223,20 @@ public class MapRenderer {
     }
 
     private void renderEmphasizedLine(BusLine line, float width, float pixel) {
-        if (!visibleLineIds.contains(line.lineId)) return;
+        if (!visibleLines.contains(line)) return;
         float wide = width + HOVERED_LINE_EXTRA * pixel;
-        renderLine(line, wide + 2 * LINE_CASING * pixel, Color.WHITE, 1f);
-        renderLine(line, wide, BusLineColors.getColor(line.lineId), 1f);
+        renderLine(line, wide + 2 * LINE_CASING * pixel, Color.WHITE);
+        renderLine(line, wide, line.color);
     }
 
-    private void renderLine(BusLine line, float lineWidth, Color color, float alpha) {
-        WorldGeometry.LinePath path = geometry.getLine(line);
+    private void renderLine(BusLine line, float lineWidth, Color color) {
+        shapeRenderer.setColor(color);
+        for (WorldGeometry.Path path : geometry.getLine(line)) {
+            renderPath(path, lineWidth);
+        }
+    }
+
+    private void renderPath(WorldGeometry.Path path, float lineWidth) {
         if (path.size() < 2) return;
 
         float pad = lineWidth;
@@ -237,7 +250,6 @@ public class MapRenderer {
         float minStep = worldPerPixel * 1.5f;
         int segments = MathUtils.clamp((int) (lineWidth / worldPerPixel), 6, 16);
 
-        shapeRenderer.setColor(color.r, color.g, color.b, alpha);
         float x1 = path.x[0], y1 = path.y[0];
         int last = path.size() - 1;
 
@@ -261,8 +273,8 @@ public class MapRenderer {
         }
     }
 
-    public void setVisibleLineIds(Set<Integer> lineIds) {
-        this.visibleLineIds = lineIds;
+    public void setVisibleLines(Set<BusLine> lines) {
+        this.visibleLines = lines;
     }
 
     public void dispose() {

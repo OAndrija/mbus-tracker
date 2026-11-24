@@ -14,7 +14,7 @@ public final class StopSearch {
     /** True if every word of the query occurs in the stop's name or is the start of its number. */
     public static boolean matches(BusStop stop, String query) {
         String name = normalize(stop.name);
-        String id = String.valueOf(stop.idAvpost);
+        String id = stop.id;
 
         for (String word : normalize(query).trim().split("\\s+")) {
             if (!name.contains(word) && !id.startsWith(word)) {

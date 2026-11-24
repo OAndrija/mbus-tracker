@@ -15,7 +15,7 @@ public class BusLineClickHandler {
 
     private final OrthographicCamera camera;
     private List<BusLine> busLines;
-    private Set<Integer> visibleLineIds;
+    private Set<BusLine> visibleLines;
     private WorldGeometry geometry;
 
     public BusLineClickHandler(OrthographicCamera camera) {
@@ -26,8 +26,8 @@ public class BusLineClickHandler {
         this.busLines = busLines;
     }
 
-    public void setVisibleLineIds(Set<Integer> visibleLineIds) {
-        this.visibleLineIds = visibleLineIds;
+    public void setVisibleLines(Set<BusLine> visibleLines) {
+        this.visibleLines = visibleLines;
     }
 
     public void setGeometry(WorldGeometry geometry) {
@@ -36,7 +36,7 @@ public class BusLineClickHandler {
 
     public BusLine checkLineClick(int screenX, int screenY) {
         if (busLines == null || busLines.isEmpty() || geometry == null ||
-            visibleLineIds == null || visibleLineIds.isEmpty()) {
+            visibleLines == null || visibleLines.isEmpty()) {
             return null;
         }
 
@@ -51,20 +51,19 @@ public class BusLineClickHandler {
         float closestDistance = Float.MAX_VALUE;
 
         for (BusLine line : busLines) {
-            if (!visibleLineIds.contains(line.lineId)) {
-                continue;
-            }
+            if (!visibleLines.contains(line)) continue;
 
-            WorldGeometry.LinePath path = geometry.getLine(line);
-            if (path.size() < 2 || !isNear(path, worldX, worldY, tolerance)) continue;
+            for (WorldGeometry.Path path : geometry.getLine(line)) {
+                if (path.size() < 2 || !isNear(path, worldX, worldY, tolerance)) continue;
 
-            for (int i = 0; i < path.size() - 1; i++) {
-                float distance = distanceToLineSegment(worldX, worldY,
-                    path.x[i], path.y[i], path.x[i + 1], path.y[i + 1]);
+                for (int i = 0; i < path.size() - 1; i++) {
+                    float distance = distanceToLineSegment(worldX, worldY,
+                        path.x[i], path.y[i], path.x[i + 1], path.y[i + 1]);
 
-                if (distance <= tolerance && distance < closestDistance) {
-                    closestLine = line;
-                    closestDistance = distance;
+                    if (distance <= tolerance && distance < closestDistance) {
+                        closestLine = line;
+                        closestDistance = distance;
+                    }
                 }
             }
         }
@@ -72,7 +71,7 @@ public class BusLineClickHandler {
         return closestLine;
     }
 
-    private boolean isNear(WorldGeometry.LinePath path, float x, float y, float tolerance) {
+    private boolean isNear(WorldGeometry.Path path, float x, float y, float tolerance) {
         return x >= path.bounds.x - tolerance && x <= path.bounds.x + path.bounds.width + tolerance
             && y >= path.bounds.y - tolerance && y <= path.bounds.y + path.bounds.height + tolerance;
     }

@@ -1,116 +1,77 @@
 package com.mbus.app.model;
 
-import com.mbus.app.utils.Geolocation;
+import com.badlogic.gdx.graphics.Color;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class BusLine {
+/** A bus line such as G6, with all its directions and variants. Ordered by name: G1 … G6, P7 … P19. */
+public class BusLine implements Comparable<BusLine> {
 
-    public final int lineId;
-    public final int variantId;
-    public final int direction;  // -1 or 1
-    public final double length;
+    private static final Color LIGHT_TEXT = Color.valueOf("ffffff");
+    private static final Color DARK_TEXT = Color.valueOf("0f172a");
+    private static final float DARK_TEXT_LUMINANCE = 0.3f;
+    private static final float LIGHT_LUMINANCE = 0.42f;
+
+    public final String id;
     public final String name;
-    public final String note;
-    public final String providerName;
-    public final String providerLink;
+    public final String description;
+    /** Do not modify. */
+    public final Color color;
+    /** Readable on {@link #color}. Do not modify. */
+    public final Color textColor;
 
-    private final List<Geolocation> path;
+    private final List<RoutePattern> patterns = new ArrayList<>();
 
-    private final List<double[]> originalCoordinates;
-
-    private final List<BusStop> stops;
-
-    private final List<BusSchedule> schedules;
-
-    public BusLine(int lineId,
-                   int variantId,
-                   int direction,
-                   double length,
-                   String name,
-                   String note,
-                   String providerName,
-                   String providerLink,
-                   List<Geolocation> path,
-                   List<double[]> originalCoordinates,
-                   List<BusStop> stops,
-                   List<BusSchedule> schedules) {
-
-        this.lineId = lineId;
-        this.variantId = variantId;
-        this.direction = direction;
-        this.length = length;
+    public BusLine(String id, String name, String description, Color color) {
+        this.id = id;
         this.name = name;
-        this.note = note;
-        this.providerName = providerName;
-        this.providerLink = providerLink;
-        this.path = Collections.unmodifiableList(new ArrayList<>(path));
-        this.originalCoordinates = originalCoordinates != null
-            ? Collections.unmodifiableList(new ArrayList<>(originalCoordinates))
-            : null;
-        this.stops = stops != null
-            ? Collections.unmodifiableList(new ArrayList<>(stops))
-            : Collections.unmodifiableList(new ArrayList<>());
-        this.schedules = schedules != null
-            ? Collections.unmodifiableList(new ArrayList<>(schedules))
-            : Collections.unmodifiableList(new ArrayList<>());
+        this.description = description;
+        this.color = color;
+        this.textColor = luminance() > DARK_TEXT_LUMINANCE ? DARK_TEXT : LIGHT_TEXT;
     }
 
-    public BusLine(int lineId,
-                   int variantId,
-                   int direction,
-                   double length,
-                   String name,
-                   String note,
-                   String providerName,
-                   String providerLink,
-                   List<Geolocation> path,
-                   List<double[]> originalCoordinates,
-                   List<BusStop> stops) {
-        this(lineId, variantId, direction, length, name, note, providerName,
-            providerLink, path, originalCoordinates, stops, null);
+    /** True if the color needs an outline on a light map. */
+    public boolean isLight() {
+        return luminance() > LIGHT_LUMINANCE;
     }
 
-    public List<Geolocation> getPath() {
-        return path;
+    private float luminance() {
+        return 0.2126f * linear(color.r) + 0.7152f * linear(color.g) + 0.0722f * linear(color.b);
     }
 
-    public List<double[]> getOriginalCoordinates() {
-        return originalCoordinates;
+    private static float linear(float channel) {
+        return channel <= 0.04045f ? channel / 12.92f : (float) Math.pow((channel + 0.055f) / 1.055f, 2.4);
     }
 
-    public List<BusStop> getStops() {
-        return stops;
+    public List<RoutePattern> getPatterns() {
+        return Collections.unmodifiableList(patterns);
     }
 
-    public List<BusSchedule> getSchedules() {
-        return schedules;
+    void addPattern(RoutePattern pattern) {
+        patterns.add(pattern);
     }
 
-    public int getPointCount() {
-        return path.size();
+    @Override
+    public int compareTo(BusLine other) {
+        int byLetters = letters().compareTo(other.letters());
+        if (byLetters != 0) return byLetters;
+        int byNumber = Integer.compare(number(), other.number());
+        return byNumber != 0 ? byNumber : name.compareTo(other.name);
     }
 
-    public int getStopCount() {
-        return stops.size();
+    private String letters() {
+        return name.replaceAll("\\d", "");
     }
 
-    public int getScheduleCount() {
-        return schedules.size();
+    private int number() {
+        String digits = name.replaceAll("\\D", "");
+        return digits.isEmpty() || digits.length() > 9 ? 0 : Integer.parseInt(digits);
     }
 
     @Override
     public String toString() {
-        return "BusLine{" +
-            "lineId=" + lineId +
-            ", variantId=" + variantId +
-            ", direction=" + direction +
-            ", name='" + name + '\'' +
-            ", points=" + path.size() +
-            ", stops=" + stops.size() +
-            ", schedules=" + schedules.size() +
-            '}';
+        return name;
     }
 }

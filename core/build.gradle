@@ -10,8 +10,6 @@ dependencies {
   api "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"
   api "com.badlogicgames.gdx:gdx:$gdxVersion"
   api "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
-  implementation 'org.json:json:20250517'
-  implementation 'org.locationtech.proj4j:proj4j:1.4.1'
 
   testImplementation 'junit:junit:4.13.2'
   testImplementation "com.badlogicgames.gdx:gdx-backend-headless:$gdxVersion"

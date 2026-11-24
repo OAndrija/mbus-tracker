@@ -12,11 +12,11 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.Cullable;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Align;
+import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
 import com.mbus.app.ui.theme.Icon;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
-import com.mbus.app.utils.BusLineColors;
 
 import java.util.Collections;
 import java.util.List;
@@ -140,7 +140,7 @@ class StopListView extends Widget implements Cullable {
         text(batch, theme.bodyStrong, stop.name, isSelected ? Palette.BRAND : Palette.INK,
             x + PADDING, y + ROW_HEIGHT - 20, textWidth, Align.left, alpha);
 
-        text(batch, theme.caption, String.valueOf(stop.idAvpost), Palette.FAINT,
+        text(batch, theme.caption, stop.id, Palette.FAINT,
             x + width - RIGHT_SPACE, y + ROW_HEIGHT / 2f, RIGHT_SPACE - 30, Align.right, alpha);
 
         (isSelected ? chevronSelected : chevron)
@@ -150,7 +150,7 @@ class StopListView extends Widget implements Cullable {
     }
 
     private void drawPills(Batch batch, BusStop stop, float x, float y, float width, float alpha) {
-        List<Integer> lines = stop.getLineIds();
+        List<BusLine> lines = stop.getLines();
         if (lines.isEmpty()) {
             text(batch, theme.caption, "Brez linij", Palette.FAINT,
                 x, y + PILL_HEIGHT / 2f, width, Align.left, alpha);
@@ -159,7 +159,8 @@ class StopListView extends Widget implements Cullable {
 
         float left = x;
         for (int i = 0; i < lines.size(); i++) {
-            String label = String.valueOf(lines.get(i));
+            BusLine line = lines.get(i);
+            String label = line.name;
             layout.setText(theme.captionStrong, label);
             float pillWidth = Math.max(24f, (float) Math.ceil(layout.width) + 10f);
 
@@ -172,8 +173,8 @@ class StopListView extends Widget implements Cullable {
             }
 
             batch.setColor(1, 1, 1, alpha);
-            theme.roundRect(5, BusLineColors.getColor(lines.get(i))).draw(batch, left, y, pillWidth, PILL_HEIGHT);
-            text(batch, theme.captionStrong, label, Color.WHITE,
+            theme.roundRect(5, line.color).draw(batch, left, y, pillWidth, PILL_HEIGHT);
+            text(batch, theme.captionStrong, label, line.textColor,
                 left, y + PILL_HEIGHT / 2f, pillWidth, Align.center, alpha);
             left += pillWidth + PILL_GAP;
         }

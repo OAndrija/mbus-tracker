@@ -7,14 +7,11 @@ import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
-import com.mbus.app.model.BusLine;
-import com.mbus.app.model.BusStop;
+import com.mbus.app.model.Timetable;
 import com.mbus.app.screens.LoadingScreen;
 import com.mbus.app.systems.input.CameraController;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.Constants;
-
-import java.util.List;
 
 public class MBusTracker extends Game {
     public OrthographicCamera camera;
@@ -23,8 +20,7 @@ public class MBusTracker extends Game {
     public InputMultiplexer inputMultiplexer;
     private Theme theme;
 
-    private List<BusStop> busStops;
-    private List<BusLine> busLines;
+    private Timetable timetable;
 
     @Override
     public void create() {
@@ -66,16 +62,11 @@ public class MBusTracker extends Game {
         return theme;
     }
 
-    public void setBusData(List<BusStop> stops, List<BusLine> lines) {
-        this.busStops = stops;
-        this.busLines = lines;
+    public void setTimetable(Timetable timetable) {
+        this.timetable = timetable;
     }
 
-    public List<BusStop> getBusStops() {
-        return busStops;
-    }
-
-    public List<BusLine> getBusLines() {
-        return busLines;
+    public Timetable getTimetable() {
+        return timetable;
     }
 }

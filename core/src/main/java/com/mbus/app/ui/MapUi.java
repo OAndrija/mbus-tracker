@@ -15,11 +15,10 @@ import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
+import com.mbus.app.model.Timetable;
 import com.mbus.app.ui.theme.Icon;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
-
-import java.util.List;
 
 /** Everything that floats above the map, and where it goes. */
 public class MapUi implements Disposable {
@@ -33,7 +32,7 @@ public class MapUi implements Disposable {
     }
 
     private static final String ATTRIBUTION =
-        "Powered by Geoapify  ·  © OpenMapTiles  ·  © OpenStreetMap contributors";
+        "Vozni red: Marprom  ·  Powered by Geoapify  ·  © OpenMapTiles  ·  © OpenStreetMap contributors";
 
     private static final float MARGIN = 16f;
     private static final float GAP = 12f;
@@ -54,10 +53,10 @@ public class MapUi implements Disposable {
     private final Table attribution = new Table();
     private Cursor.SystemCursor cursor = Cursor.SystemCursor.Arrow;
 
-    public MapUi(Theme theme, List<BusStop> stops, List<BusLine> lines, Sidebar.Listener listener,
+    public MapUi(Theme theme, Timetable timetable, Sidebar.Listener listener,
                  final MapActions actions, Runnable onStopPanelClosed) {
-        sidebar = new Sidebar(theme, stops, lines, listener);
-        stopPanel = new StopPanel(theme, lines, onStopPanelClosed);
+        sidebar = new Sidebar(theme, timetable, listener);
+        stopPanel = new StopPanel(theme, timetable, onStopPanelClosed);
         tooltip = new MapTooltip(theme);
 
         zoomControls = new Card(theme);

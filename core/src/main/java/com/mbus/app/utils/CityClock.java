@@ -18,7 +18,7 @@ public final class CityClock {
     public double minutes() {
         double now = anchorMinutes + (System.nanoTime() - anchorNanos) / 60e9;
         // Also takes care of midnight, sleep and changes of the system clock
-        if (Math.abs(now - BusPositionCalculator.getCurrentTimeMinutesPrecise()) > MAX_DRIFT_MINUTES) {
+        if (Math.abs(now - CityTime.preciseMinutes()) > MAX_DRIFT_MINUTES) {
             anchor();
             return anchorMinutes;
         }
@@ -26,7 +26,7 @@ public final class CityClock {
     }
 
     private void anchor() {
-        anchorMinutes = BusPositionCalculator.getCurrentTimeMinutesPrecise();
+        anchorMinutes = CityTime.preciseMinutes();
         anchorNanos = System.nanoTime();
     }
 }

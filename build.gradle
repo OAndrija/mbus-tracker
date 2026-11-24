@@ -55,3 +55,25 @@ subprojects {
 }
 
 eclipse.project.name = 'MBus' + '-parent'
+
+tasks.register('updateTimetable') {
+  group = 'mbus'
+  description = 'Downloads the current Marprom timetable into the assets.'
+  doLast {
+    def source = 'https://gitlab.com/api/v4/projects/derp-si%2Fgtfs-generators/packages/generic/marprom_official/latest/marprom_gtfs.zip'
+    def target = file('assets/data/marprom_gtfs.zip')
+    def download = File.createTempFile('marprom_gtfs', '.zip')
+    try {
+      new URL(source).withInputStream { input -> download.withOutputStream { it << input } }
+      // Replace the bundled timetable only with something that is one.
+      def names = []
+      new java.util.zip.ZipFile(download).withCloseable { zip -> zip.entries().each { names << it.name } }
+      def missing = ['stops.txt', 'routes.txt', 'trips.txt', 'stop_times.txt', 'shapes.txt', 'calendar.txt'] - names
+      if (missing) throw new GradleException("The download is not a complete timetable, missing: $missing")
+      target.bytes = download.bytes
+      logger.quiet("Updated ${target.name} (${target.length()} bytes). Run the tests before you release it.")
+    } finally {
+      download.delete()
+    }
+  }
+}

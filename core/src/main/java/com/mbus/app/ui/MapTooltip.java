@@ -10,8 +10,6 @@ import com.mbus.app.model.BusStop;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 
-import java.util.List;
-
 /** Names the stop or line under the pointer. */
 class MapTooltip {
 
@@ -43,8 +41,8 @@ class MapTooltip {
         if (stop != null) {
             addText(stop.name, 12);
         } else if (line != null) {
-            table.add(StopPanel.linePill(theme, line.lineId)).minWidth(34).height(24).pad(6, 6, 6, 0);
-            addText(describe(line), 8);
+            table.add(StopPanel.linePill(theme, line)).minWidth(34).height(24).pad(6, 6, 6, 0);
+            addText(line.description, 8);
         }
     }
 
@@ -52,12 +50,6 @@ class MapTooltip {
         Label label = theme.label(text, theme.body, Color.WHITE);
         label.setEllipsis(true);
         table.add(label).width(Math.min(label.getPrefWidth(), MAX_TEXT_WIDTH)).pad(8, padLeft, 8, 12);
-    }
-
-    private static String describe(BusLine line) {
-        List<BusStop> stops = line.getStops();
-        if (stops.isEmpty()) return "Linija " + line.lineId;
-        return stops.get(0).name + "  –  " + stops.get(stops.size() - 1).name;
     }
 
     /** Keeps the tooltip next to the pointer and inside the window. */

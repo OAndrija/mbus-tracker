@@ -9,5 +9,6 @@
 - **OpenStreetMap** — [openstreetmap.org](https://www.openstreetmap.org) — [ODbL](https://opendatacommons.org/licenses/odbl/)
 - **Geoapify** — [geoapify.com](https://www.geoapify.com)
 
-### Bus Stop & Line Data
-- **Marprom / City of Maribor** — Public transit open data
+### Timetable, Stops & Lines
+- **Marprom** — official timetable data of [Marprom](https://www.marprom.si), in GTFS format
+- **derp-si** — published with corrections in [gtfs-generators](https://gitlab.com/derp-si/gtfs-generators)

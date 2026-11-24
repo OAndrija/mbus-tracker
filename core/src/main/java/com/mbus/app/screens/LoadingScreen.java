@@ -11,21 +11,16 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.mbus.app.MBusTracker;
-import com.mbus.app.model.BusLine;
-import com.mbus.app.model.BusSchedule;
-import com.mbus.app.model.BusStop;
+import com.mbus.app.model.Timetable;
 import com.mbus.app.utils.Geolocation;
 import com.mbus.app.utils.ZoomXY;
-import com.mbus.app.systems.data.GeoJSONLoader;
-import com.mbus.app.systems.data.ScheduleLoader;
+import com.mbus.app.systems.data.GtfsLoader;
 import com.mbus.app.systems.map.MapRasterTiles;
 import com.mbus.app.systems.map.TileOverview;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
-import com.mbus.app.utils.BusLineStopRelationshipBuilder;
 import com.mbus.app.utils.Constants;
 
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -33,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class LoadingScreen implements Screen {
     private static final String TAG = "LoadingScreen";
+    private static final String TIMETABLE_FILE = "data/marprom_gtfs.zip";
 
     private final MBusTracker app;
     private Stage stage;
@@ -44,8 +40,7 @@ public class LoadingScreen implements Screen {
 
     private Thread dataLoadingThread;
     private volatile boolean dataLoadingComplete = false;
-    private List<BusStop> loadedStops;
-    private List<BusLine> loadedLines;
+    private volatile Timetable timetable;
 
     private ZoomXY beginTile;
     private Pixmap overview;
@@ -146,66 +141,10 @@ public class LoadingScreen implements Screen {
     private void startDataLoading() {
         dataLoadingThread = new Thread(() -> {
             try {
-                Gdx.app.log(TAG, "Loading bus stops...");
-                List<BusStop> rawStops = GeoJSONLoader.loadBusStopsFromFile("data/int_mob_marprom_postaje.json");
-                Gdx.app.log(TAG, "Loaded " + rawStops.size() + " bus stops");
-
-                Gdx.app.log(TAG, "Loading bus lines...");
-                List<BusLine> rawLines = GeoJSONLoader.loadBusLinesFromFile("data/int_mob_marprom_linije.json");
-                Gdx.app.log(TAG, "Loaded " + rawLines.size() + " bus lines");
-
-                Gdx.app.log(TAG, "Building relationships...");
-                double proximityThreshold = 50.0;
-                BusLineStopRelationshipBuilder.RelationshipResult result =
-                    BusLineStopRelationshipBuilder.buildRelationships(rawLines, rawStops, proximityThreshold);
-
-                Gdx.app.log(TAG, "Loading schedules...");
-                List<BusSchedule> schedules;
-
-                schedules = ScheduleLoader.loadSchedulesFromFile("data/schedules.json");
-
-                if (schedules.isEmpty()) {
-                    Gdx.app.log(TAG, "No schedule file found, generating example schedules...");
-                    schedules = ScheduleLoader.generateExampleSchedules(result.lines);
-                }
-
-                Gdx.app.log(TAG, "Loaded/generated " + schedules.size() + " schedules");
-
-                Gdx.app.log(TAG, "Assigning schedules to lines...");
-                List<BusLine> linesWithSchedules = ScheduleLoader.assignSchedulesToLines(result.lines, schedules);
-
-                int totalStopsWithLines = 0;
-                int totalLinesWithStops = 0;
-                int totalLinesWithSchedules = 0;
-
-                for (BusStop stop : result.stops) {
-                    if (stop.getLineCount() > 0) {
-                        totalStopsWithLines++;
-                    }
-                }
-
-                for (BusLine line : linesWithSchedules) {
-                    if (line.getStopCount() > 0) {
-                        totalLinesWithStops++;
-                    }
-                    if (line.getScheduleCount() > 0) {
-                        totalLinesWithSchedules++;
-                    }
-                }
-
-                Gdx.app.log(TAG, "Built relationships: " + totalStopsWithLines + "/" +
-                    result.stops.size() + " stops have lines");
-                Gdx.app.log(TAG, totalLinesWithStops + "/" + linesWithSchedules.size() + " lines have stops");
-                Gdx.app.log(TAG, totalLinesWithSchedules + "/" + linesWithSchedules.size() + " lines have schedules");
-
-                loadedStops = result.stops;
-                loadedLines = linesWithSchedules;
+                timetable = GtfsLoader.load(Gdx.files.internal(TIMETABLE_FILE).read(8192));
                 dataLoadingComplete = true;
-
-                Gdx.app.log(TAG, "Data loading complete");
-
             } catch (final Exception e) {
-                Gdx.app.error(TAG, "Error loading data", e);
+                Gdx.app.error(TAG, "Error loading the timetable", e);
                 dataError = String.valueOf(e.getMessage());
             }
         });
@@ -237,7 +176,7 @@ public class LoadingScreen implements Screen {
 
         if (dataError == null && dataLoadingComplete && tilesLoaded >= totalTiles) {
             Gdx.app.log(TAG, "Everything loaded, transitioning to map screen");
-            app.setBusData(loadedStops, loadedLines);
+            app.setTimetable(timetable);
             app.setScreen(new RasterMapScreen(app, overview, beginTile));
             dispose();
         }
