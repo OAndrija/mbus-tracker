@@ -16,6 +16,7 @@ import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.AppClock;
 import com.mbus.app.utils.CityTime;
+import com.mbus.app.utils.Texts;
 
 import java.time.LocalDate;
 
@@ -25,6 +26,7 @@ public class TimeBar extends FloatingPanel {
     static final float HEIGHT = 108f;
     private static final int[] SPEEDS = {1, 10, 60};
     private static final int SLOTS = 96;
+    private static final int DAYS_AFTER_EXPIRY = 30;
 
     private final Timetable timetable;
     private final AppClock clock;
@@ -52,11 +54,11 @@ public class TimeBar extends FloatingPanel {
         previous = new IconButton(theme, Icon.CHEVRON_LEFT, 16, () -> moveDay(-1));
         next = new IconButton(theme, Icon.CHEVRON_RIGHT, 16, () -> moveDay(1));
         speed = new LinkButton(theme, "", this::cycleSpeed);
-        now = new LinkButton(theme, "Zdaj", clock::goLive);
-        Tips.attach(theme, previous, "Dan prej");
-        Tips.attach(theme, next, "Dan kasneje");
-        Tips.attach(theme, speed, "Hitrost časa");
-        Tips.attach(theme, now, "Nazaj na trenutni čas");
+        now = new LinkButton(theme, Texts.get("now"), clock::goLive);
+        Tips.attach(theme, previous, Texts.get("previousDay"));
+        Tips.attach(theme, next, Texts.get("nextDay"));
+        Tips.attach(theme, speed, Texts.get("timeSpeed"));
+        Tips.attach(theme, now, Texts.get("backToNow"));
     }
 
     public void show() {
@@ -84,13 +86,13 @@ public class TimeBar extends FloatingPanel {
     public void update() {
         LocalDate date = clock.getDate();
         LocalDate today = clock.getRealDate();
-        day.setText(CityTime.describe(date, today));
+        day.setText(Texts.day(date, today));
         time.setText(CityTime.format(clock.getMinute()));
         time.getStyle().fontColor = clock.isLive() ? Palette.INK : Palette.BRAND;
         speed.setText(clock.getSpeed() + "×");
         now.setVisible(!clock.isLive());
         previous.setDisabled(!date.isAfter(today));
-        next.setDisabled(!date.isBefore(timetable.getValidUntil()));
+        next.setDisabled(!date.isBefore(getLastDay()));
 
         if (!date.equals(countedDate)) {
             countedDate = date;
@@ -100,9 +102,14 @@ public class TimeBar extends FloatingPanel {
         }
     }
 
+    private LocalDate getLastDay() {
+        LocalDate today = clock.getRealDate();
+        return timetable.isExpired(today) ? today.plusDays(DAYS_AFTER_EXPIRY) : timetable.getValidUntil();
+    }
+
     private void moveDay(int days) {
         LocalDate date = clock.getDate().plusDays(days);
-        if (date.isBefore(clock.getRealDate()) || date.isAfter(timetable.getValidUntil())) return;
+        if (date.isBefore(clock.getRealDate()) || date.isAfter(getLastDay())) return;
         clock.travelTo(date, clock.getMinutes());
     }
 

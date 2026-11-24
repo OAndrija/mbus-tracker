@@ -4,6 +4,7 @@
 ![LibGDX](https://img.shields.io/badge/LibGDX-1.13.1-red?logo=libgdx)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
+![Build](https://github.com/OAndrija/mbus-tracker/actions/workflows/build.yml/badge.svg)
 ![Release](https://img.shields.io/github/v/release/OAndrija/mbus-tracker?include_prereleases)
 
 A desktop bus tracking application for the city of Maribor, Slovenia, built with **Java** and **LibGDX**. MBus visualizes local bus lines and stops on an interactive map, with bus positions and departures from the official Marprom timetable. Positions follow the timetable; they are not live.
@@ -34,11 +35,13 @@ See the [Releases](../../releases) page to download the latest version.
 - **Favorite stops**, kept at the top of the list
 - **Trip view**: click a bus or a departure to see its stops and times, and follow the bus on the map
 - **Time travel**: look at any time of any day the timetable covers, at up to 60× speed
+- **English and Slovene**, following the language of the computer until you choose one
+- **Updates its timetable** by itself, and goes on with the last known week if it has expired
 - **Remembers** favorites, hidden lines, the map position and the window size
 - **Streamed map tiles** — only the visible area is kept in memory at full resolution
 - **Smooth camera** with drag-to-pan and zoom at the cursor, clamped to the map bounds, and animated fly-to on stop selection
 - **Background loading screen** with threaded tile downloads and data parsing, showing live progress
-- **Offline-first design** — ships with a pre-built tile cache; API key is optional and loaded gracefully via reflection if absent
+- **Offline-first design** — ships with a pre-built tile cache and a timetable, and works without a network; API key is optional and loaded gracefully via reflection if absent
 
 ---
 
@@ -65,6 +68,7 @@ See the [Releases](../../releases) page to download the latest version.
 | F | Add the open stop to the favorites, or remove it |
 | T | Choose the time |
 | D | Switch between light and dark |
+| L | Switch between English and Slovene |
 | Home | Show the whole network |
 | Esc | Close the open panel |
 
@@ -90,7 +94,8 @@ See the [Releases](../../releases) page to download the latest version.
 MBusTracker (Game)
 ├── LoadingScreen          — Threaded tile download + timetable loading
 │   ├── MapRasterTiles     — Tile fetch, cache read/write, coordinate math
-│   └── GtfsLoader         — Reads stops, lines, trips and calendars from the GTFS file
+│   ├── GtfsLoader         — Reads stops, lines, trips and calendars from the GTFS file
+│   └── TimetableUpdater   — Looks for a newer timetable
 └── RasterMapScreen        — Main application screen
     ├── MapTileLayer       — Low-resolution overview plus streamed full-resolution tiles
     ├── MapRenderer        — Bus lines, stop markers, labels
@@ -141,7 +146,9 @@ cd mbus-tracker
 
 ### Update the timetable
 
-The bundled timetable is only valid for a few months; the app shows until when. To get the current one:
+Once a week the app asks GitLab, where the timetable is published, whether there is a new one. The request only contains the name of the app; as with any web request, the server sees your IP address. A new timetable is checked before it is used and kept in `.mbus` in your home folder.
+
+To renew the timetable that comes with the app:
 
 ```bash
 ./gradlew updateTimetable
@@ -166,6 +173,10 @@ Output: `lwjgl3/build/libs/`
 Output: `lwjgl3/build/construo/`
 
 The JAR and EXE both include all assets and the pre-cached map tiles, so no network connection or API key is required for normal use.
+
+### Release
+
+Set `projectVersion` in `gradle.properties`, commit, then push a tag of the same name. GitHub builds the downloads and puts them into a draft release.
 
 ### API Key (optional)
 

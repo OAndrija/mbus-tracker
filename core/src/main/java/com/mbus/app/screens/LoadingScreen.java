@@ -14,12 +14,12 @@ import com.mbus.app.MBusTracker;
 import com.mbus.app.model.Timetable;
 import com.mbus.app.utils.Geolocation;
 import com.mbus.app.utils.ZoomXY;
-import com.mbus.app.systems.data.GtfsLoader;
 import com.mbus.app.systems.map.MapRasterTiles;
 import com.mbus.app.systems.map.TileOverview;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.Constants;
+import com.mbus.app.utils.Texts;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -28,7 +28,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class LoadingScreen implements Screen {
     private static final String TAG = "LoadingScreen";
-    private static final String TIMETABLE_FILE = "data/marprom_gtfs.zip";
 
     private final MBusTracker app;
     private Stage stage;
@@ -141,7 +140,7 @@ public class LoadingScreen implements Screen {
     private void startDataLoading() {
         dataLoadingThread = new Thread(() -> {
             try {
-                timetable = GtfsLoader.load(Gdx.files.internal(TIMETABLE_FILE).read(8192));
+                timetable = app.getTimetableFiles().load();
                 dataLoadingComplete = true;
             } catch (final Exception e) {
                 Gdx.app.error(TAG, "Error loading the timetable", e);
@@ -164,11 +163,11 @@ public class LoadingScreen implements Screen {
 
         progressBar.setValue(Math.max(progress, 0.04f)); // never narrower than its round ends
         if (dataError != null) {
-            statusLabel.setText("Podatkov ni mogoče naložiti: " + dataError);
+            statusLabel.setText(Texts.format("loadingFailed", dataError));
         } else if (tilesLoaded < totalTiles) {
-            statusLabel.setText("Nalaganje zemljevida  ·  " + Math.round(progress * 100) + " %");
+            statusLabel.setText(Texts.format("loadingMap", Math.round(progress * 100)));
         } else {
-            statusLabel.setText("Nalaganje voznih redov  ·  " + Math.round(progress * 100) + " %");
+            statusLabel.setText(Texts.format("loadingTimetable", Math.round(progress * 100)));
         }
 
         stage.act(delta);

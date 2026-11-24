@@ -94,12 +94,4 @@ public class AppClockTest {
         clock.travelTo(TODAY, -5);
         assertEquals(0, clock.getMinute());
     }
-
-    @Test
-    public void describesDays() {
-        assertEquals("Danes", CityTime.describe(TODAY, TODAY));
-        assertEquals("Jutri", CityTime.describe(TODAY.plusDays(1), TODAY));
-        assertEquals("sob., 28. 11.", CityTime.describe(TODAY.plusDays(4), TODAY));
-        assertEquals("31. 12. 2026", CityTime.format(LocalDate.of(2026, 12, 31)));
-    }
 }

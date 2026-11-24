@@ -30,6 +30,7 @@ import com.mbus.app.utils.AppClock;
 import com.mbus.app.utils.CityTime;
 import com.mbus.app.utils.Settings;
 import com.mbus.app.utils.StopSearch;
+import com.mbus.app.utils.Texts;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -63,6 +64,7 @@ public class Sidebar {
     private final Card card;
     private final Table content = new Table();
     private final Cell<?> contentCell;
+    private Cell<?> footerCell;
 
     private final Label clock;
     private final IconButton collapseButton;
@@ -110,7 +112,7 @@ public class Sidebar {
         searchField = createSearchField();
         clearButton = new IconButton(theme, Icon.CLOSE, 14, this::clearSearch);
         clearButton.setVisible(false);
-        allLinesButton = new LinkButton(theme, allVisible() ? "Skrij vse" : "Pokaži vse", this::toggleAllLines);
+        allLinesButton = new LinkButton(theme, Texts.get(allVisible() ? "hideAll" : "showAll"), this::toggleAllLines);
         showStopsSwitch = new Switch(theme, settings.isShowStops());
         showStopsSwitch.addListener(new ChangeListener() {
             @Override
@@ -187,7 +189,7 @@ public class Sidebar {
         content.add(createSearch()).growX().height(42).pad(0, PADDING, 20, PADDING).row();
 
         Table linesHeader = new Table();
-        linesHeader.add(theme.label("Linije", theme.bodyStrong, Palette.INK)).left().expandX();
+        linesHeader.add(theme.label(Texts.get("lines"), theme.bodyStrong, Palette.INK)).left().expandX();
         linesHeader.add(allLinesButton);
         content.add(linesHeader).growX().pad(0, PADDING, 10, PADDING).row();
         content.add(createChips()).growX().pad(0, PADDING - CHIP_GAP / 2f, 18, PADDING - CHIP_GAP / 2f).row();
@@ -195,9 +197,9 @@ public class Sidebar {
         content.add(new Image(theme.fill(Palette.BORDER, 1, 1))).growX().height(1).row();
 
         Table stopsHeader = new Table();
-        stopsHeader.add(theme.label("Postaje", theme.bodyStrong, Palette.INK)).padRight(8);
+        stopsHeader.add(theme.label(Texts.get("stops"), theme.bodyStrong, Palette.INK)).padRight(8);
         stopsHeader.add(stopCount).left().expandX();
-        stopsHeader.add(theme.label("Na zemljevidu", theme.caption, Palette.MUTED)).padRight(8);
+        stopsHeader.add(theme.label(Texts.get("onMap"), theme.caption, Palette.MUTED)).padRight(8);
         stopsHeader.add(showStopsSwitch);
         content.add(stopsHeader).growX().pad(16, PADDING, 8, PADDING).row();
 
@@ -210,10 +212,10 @@ public class Sidebar {
 
         boolean expired = timetable.isExpired(appClock.getRealDate());
         Label validity = theme.label(
-            (expired ? "Vozni red je potekel " : "Po voznem redu Marproma do ") + CityTime.format(timetable.getValidUntil()),
+            Texts.format(expired ? "expired" : "validUntil", Texts.date(timetable.getValidUntil())),
             theme.caption, expired ? Palette.NOW : Palette.FAINT);
         content.add(new Image(theme.fill(Palette.BORDER, 1, 1))).growX().height(1).row();
-        content.add(validity).left().pad(9, PADDING, 11, PADDING);
+        footerCell = content.add(validity).left().pad(9, PADDING, 11, PADDING);
     }
 
     private Stack createSearch() {
@@ -239,7 +241,7 @@ public class Sidebar {
         style.selection = theme.fill(Palette.SELECTION, 1, 1);
 
         final TextField field = new TextField("", style);
-        field.setMessageText("Išči postajo, številko ali linijo");
+        field.setMessageText(Texts.get("search"));
         field.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -317,6 +319,11 @@ public class Sidebar {
         return style;
     }
 
+    /** Offers to use a new timetable. */
+    public void showUpdateAvailable(Runnable use) {
+        footerCell.setActor(new LinkButton(theme, Texts.get("updateAvailable"), use));
+    }
+
     public void layout(float x, float top, float width, float maxHeight) {
         float height = collapsed ? card.getPrefHeight() : maxHeight;
         card.setBounds(x, top - height, width, height);
@@ -374,9 +381,9 @@ public class Sidebar {
         clearButton.setVisible(!query.isEmpty());
         stopCount.setText(listedStops.size() == allStops.size()
             ? String.valueOf(allStops.size())
-            : listedStops.size() + " od " + allStops.size());
+            : Texts.format("countOf", listedStops.size(), allStops.size()));
         emptyLabel.setText(!listedStops.isEmpty() ? ""
-            : searching ? "Ni zadetkov za »" + query.trim() + "«" : "Na izbranih linijah ni postaj");
+            : searching ? Texts.format("noResults", query.trim()) : Texts.get("noStopsOnLines"));
     }
 
     public void startSearch() {
@@ -416,7 +423,7 @@ public class Sidebar {
         for (Map.Entry<BusLine, TextButton> chip : chips.entrySet()) {
             chip.getValue().setChecked(visibleLines.contains(chip.getKey()));
         }
-        allLinesButton.setText(allVisible() ? "Skrij vse" : "Pokaži vse");
+        allLinesButton.setText(Texts.get(allVisible() ? "hideAll" : "showAll"));
         stopsOnVisibleLines = findStopsOnVisibleLines();
         refreshStops();
 
@@ -517,25 +524,14 @@ public class Sidebar {
         int running = 0;
         for (Trip trip : timetable.getTrips(date)) {
             if (trip.getStart() > minute) {
-                if (running == 0) return "Naslednji avtobus ob " + CityTime.format(trip.getStart());
+                if (running == 0) return Texts.format("nextBusAt", CityTime.format(trip.getStart()));
                 break;
             }
             if (trip.getEnd() >= minute) running++;
         }
-        if (running > 0) return running + " " + buses(running) + " na poti";
+        if (running > 0) return Texts.format("busesRunning", running, Texts.buses(running));
 
         List<Trip> nextDay = timetable.getTrips(date.plusDays(1));
-        return nextDay.isEmpty() ? "Maribor" : "Prvi avtobus zjutraj ob " + CityTime.format(nextDay.get(0).getStart());
-    }
-
-    /** Slovene has a singular, a dual and two plurals. */
-    static String buses(int count) {
-        switch (count % 100) {
-            case 1: return "avtobus";
-            case 2: return "avtobusa";
-            case 3:
-            case 4: return "avtobusi";
-            default: return "avtobusov";
-        }
+        return nextDay.isEmpty() ? "Maribor" : Texts.format("firstBusAt", CityTime.format(nextDay.get(0).getStart()));
     }
 }

@@ -21,6 +21,7 @@ import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.AppClock;
 import com.mbus.app.utils.Settings;
+import com.mbus.app.utils.Texts;
 
 /** Everything that floats above the map, and where it goes. */
 public class MapUi implements Disposable {
@@ -35,10 +36,9 @@ public class MapUi implements Disposable {
         void toggleTimeBar();
 
         void toggleDark();
-    }
 
-    private static final String ATTRIBUTION =
-        "Vozni red: Marprom  ·  Powered by Geoapify  ·  © OpenMapTiles  ·  © OpenStreetMap contributors";
+        void switchLanguage();
+    }
 
     private static final float MARGIN = 16f;
     private static final float GAP = 12f;
@@ -62,6 +62,7 @@ public class MapUi implements Disposable {
     private final Card fitControl;
     private final Card timeControl;
     private final Card darkControl;
+    private final Card languageControl;
     private final IconButton timeButton;
     private final AppClock clock;
     private boolean shownLive = true;
@@ -81,10 +82,10 @@ public class MapUi implements Disposable {
         IconButton zoomOut = new IconButton(theme, Icon.MINUS, 18, actions::zoomOut);
         IconButton fit = new IconButton(theme, Icon.FIT, 18, actions::showWholeNetwork);
         timeButton = new IconButton(theme, Icon.CLOCK, 18, actions::toggleTimeBar);
-        Tips.attach(theme, zoomIn, "Približaj");
-        Tips.attach(theme, zoomOut, "Oddalji");
-        Tips.attach(theme, fit, "Celotno omrežje");
-        Tips.attach(theme, timeButton, "Izberi čas (T)");
+        Tips.attach(theme, zoomIn, Texts.get("zoomIn"));
+        Tips.attach(theme, zoomOut, Texts.get("zoomOut"));
+        Tips.attach(theme, fit, Texts.get("wholeNetwork"));
+        Tips.attach(theme, timeButton, Texts.get("chooseTime"));
 
         zoomControls = new Card(theme);
         zoomControls.setBackground(theme.card(12));
@@ -101,20 +102,30 @@ public class MapUi implements Disposable {
         timeControl.add(timeButton).size(CONTROL_SIZE);
 
         IconButton darkButton = new IconButton(theme, Palette.isDark() ? Icon.SUN : Icon.MOON, 18, actions::toggleDark);
-        Tips.attach(theme, darkButton, Palette.isDark() ? "Svetel prikaz (D)" : "Temen prikaz (D)");
+        Tips.attach(theme, darkButton, Texts.get(Palette.isDark() ? "lightMode" : "darkMode"));
         darkControl = new Card(theme);
         darkControl.setBackground(theme.card(12));
         darkControl.add(darkButton).size(CONTROL_SIZE);
 
+        LinkButton languageButton = new LinkButton(theme, Texts.get("languageCode"), actions::switchLanguage);
+        languageButton.getStyle().fontColor = Palette.MUTED;
+        languageButton.getStyle().overFontColor = Palette.INK;
+        languageButton.getStyle().over = theme.roundRect(8, Palette.SUBTLE);
+        Tips.attach(theme, languageButton, Texts.get("language"));
+        languageControl = new Card(theme);
+        languageControl.setBackground(theme.card(12));
+        languageControl.add(languageButton).size(CONTROL_SIZE);
+
         attribution.setTouchable(Touchable.disabled);
         attribution.setBackground(theme.roundRect(4, withAlpha(Palette.SURFACE, 0.8f)));
-        attribution.add(theme.label(ATTRIBUTION, theme.caption, Palette.MUTED)).pad(2, 8, 2, 8);
+        attribution.add(theme.label(Texts.get("attribution"), theme.caption, Palette.MUTED)).pad(2, 8, 2, 8);
 
         stage.addActor(attribution);
         stage.addActor(zoomControls);
         stage.addActor(fitControl);
         stage.addActor(timeControl);
         stage.addActor(darkControl);
+        stage.addActor(languageControl);
         stage.addActor(timeBar.getActor());
         stage.addActor(sidebar.getActor());
         stage.addActor(stopPanel.getActor());
@@ -178,6 +189,8 @@ public class MapUi implements Disposable {
         timeControl.setPosition(zoomControls.getX(), fitControl.getTop() + GAP);
         darkControl.pack();
         darkControl.setPosition(zoomControls.getX(), timeControl.getTop() + GAP);
+        languageControl.pack();
+        languageControl.setPosition(zoomControls.getX(), darkControl.getTop() + GAP);
         layoutTimeBar();
     }
 

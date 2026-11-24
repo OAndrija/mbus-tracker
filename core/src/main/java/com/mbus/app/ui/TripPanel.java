@@ -18,6 +18,7 @@ import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.AppClock;
 import com.mbus.app.utils.CityTime;
+import com.mbus.app.utils.Texts;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -128,7 +129,7 @@ public class TripPanel extends FloatingPanel {
         Table header = new Table();
         if (openedFromStop) {
             IconButton back = new IconButton(theme, Icon.CHEVRON_LEFT, 18, listener::onTripPanelClosed);
-            Tips.attach(theme, back, "Nazaj na postajo");
+            Tips.attach(theme, back, Texts.get("backToStop"));
             header.add(back).size(32).padRight(2).top();
         }
         header.add(StopPanel.linePill(theme, trip.pattern.line)).minWidth(46).height(28).padRight(10).padTop(2).padLeft(4).top();
@@ -136,7 +137,7 @@ public class TripPanel extends FloatingPanel {
         if (isRunning()) {
             IconButton follow = new IconButton(theme, Icon.FOLLOW, 18, () -> listener.onFollowChanged(!following));
             if (following) follow.setIcon(Icon.FOLLOW, Palette.BRAND, Palette.BRAND_STRONG);
-            Tips.attach(theme, follow, following ? "Ne sledi avtobusu" : "Sledi avtobusu");
+            Tips.attach(theme, follow, Texts.get(following ? "unfollow" : "follow"));
             header.add(follow).size(32).top();
         }
         if (!openedFromStop) {
@@ -148,11 +149,12 @@ public class TripPanel extends FloatingPanel {
     private String describeState() {
         int state = getState();
         if (state < 0) {
-            String day = date.equals(clock.getDate()) ? "" : CityTime.describe(date, clock.getRealDate()) + " ";
-            return day + (day.isEmpty() ? "Odhod ob " : "ob ") + CityTime.format(trip.getStart());
+            String start = CityTime.format(trip.getStart());
+            return date.equals(clock.getDate()) ? Texts.format("tripAt", start)
+                : Texts.format("tripOn", Texts.day(date, clock.getRealDate()), start);
         }
-        if (state > 0) return "Vožnja je končana";
-        return "Na poti  ·  do " + CityTime.format(trip.getEnd());
+        if (state > 0) return Texts.get("tripOver");
+        return Texts.format("tripRunning", CityTime.format(trip.getEnd()));
     }
 
     private Button createStop(final int index, int next) {

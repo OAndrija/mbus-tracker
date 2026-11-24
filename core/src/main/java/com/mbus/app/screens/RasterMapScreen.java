@@ -18,6 +18,7 @@ import com.mbus.app.model.BusStop;
 import com.mbus.app.model.Timetable;
 import com.mbus.app.model.Trip;
 import com.mbus.app.utils.ZoomXY;
+import com.mbus.app.systems.data.TimetableUpdater;
 import com.mbus.app.systems.input.MapGestureListener;
 import com.mbus.app.systems.map.MapRenderer;
 import com.mbus.app.systems.map.MapTileLayer;
@@ -61,6 +62,7 @@ public class RasterMapScreen implements Screen {
     /** The stop to go back to when the trip is closed, or null. */
     private BusStop tripStop;
     private boolean following = false;
+    private boolean updateAvailable = false;
 
     private boolean animatingCamera = false;
     private float animationProgress = 0f;
@@ -97,6 +99,40 @@ public class RasterMapScreen implements Screen {
         }
 
         setupInput();
+        lookForUpdate();
+    }
+
+    /** In the background, as the app is usable without. */
+    private void lookForUpdate() {
+        LocalDate today = clock.getRealDate();
+        boolean expired = timetable.isExpired(today);
+        TimetableUpdater updater = new TimetableUpdater(
+            TimetableUpdater.SOURCE, app.getTimetableFiles(), app.getSettings());
+        if (!updater.isDue(today, expired)) return;
+
+        Thread thread = new Thread(() -> {
+            try {
+                if (updater.update(today)) Gdx.app.postRunnable(() -> onUpdate(expired));
+            } catch (Exception e) {
+                Gdx.app.log("RasterMapScreen", "No timetable update: " + e.getMessage());
+            }
+        }, "timetable-updater");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void onUpdate(boolean expired) {
+        if (app.getScreen() != this) return;
+        if (expired) {
+            reload();
+        } else {
+            updateAvailable = true;
+            ui.getSidebar().showUpdateAvailable(this::reload);
+        }
+    }
+
+    private void reload() {
+        Gdx.app.postRunnable(app::reload);
     }
 
     private MapUi createUi() {
@@ -104,16 +140,26 @@ public class RasterMapScreen implements Screen {
             createStopListener(), createTripListener(), createMapActions());
     }
 
-    /** Changes the colors. All widgets are made anew and put back into the state the old ones were in. */
     private void switchTheme() {
-        TooltipManager.getInstance().hideAll();
         Theme oldTheme = app.switchTheme(!Palette.isDark());
+        mapRenderer.setTheme(app.getTheme());
+        rebuildUi();
+        oldTheme.dispose();
+    }
+
+    private void switchLanguage() {
+        app.switchLanguage();
+        rebuildUi();
+    }
+
+    /** Makes all widgets anew and puts them into the state the old ones were in. */
+    private void rebuildUi() {
+        TooltipManager.getInstance().hideAll();
         MapUi oldUi = ui;
         BusStop openStop = oldUi.getStopPanel().isOpen() ? oldUi.getStopPanel().getStop() : null;
         boolean timeBarOpen = oldUi.getTimeBar().isOpen();
 
         ui = createUi();
-        mapRenderer.setTheme(app.getTheme());
         ui.getSidebar().setSearch(oldUi.getSidebar().getSearch());
         ui.getSidebar().setCollapsed(oldUi.getSidebar().isCollapsed());
         if (openStop != null) {
@@ -124,13 +170,13 @@ public class RasterMapScreen implements Screen {
             ui.getTripPanel().show(selectedTrip, selectedTripDate, tripStop != null, following);
         }
         if (timeBarOpen) ui.getTimeBar().show();
+        if (updateAvailable) ui.getSidebar().showUpdateAvailable(this::reload);
         ui.layout();
 
         int index = app.inputMultiplexer.getProcessors().indexOf(oldUi.getStage(), true);
         app.inputMultiplexer.removeProcessor(oldUi.getStage());
         app.inputMultiplexer.addProcessor(index, ui.getStage());
         oldUi.dispose();
-        oldTheme.dispose();
     }
 
     private Sidebar.Listener createSidebarListener() {
@@ -244,6 +290,11 @@ public class RasterMapScreen implements Screen {
             public void toggleDark() {
                 // Not while the button that was clicked is still handling the click
                 Gdx.app.postRunnable(RasterMapScreen.this::switchTheme);
+            }
+
+            @Override
+            public void switchLanguage() {
+                Gdx.app.postRunnable(RasterMapScreen.this::switchLanguage);
             }
         };
     }
@@ -529,6 +580,9 @@ public class RasterMapScreen implements Screen {
                         return true;
                     case Input.Keys.D:
                         createMapActions().toggleDark();
+                        return true;
+                    case Input.Keys.L:
+                        createMapActions().switchLanguage();
                         return true;
                     case Input.Keys.HOME:
                         createMapActions().showWholeNetwork();

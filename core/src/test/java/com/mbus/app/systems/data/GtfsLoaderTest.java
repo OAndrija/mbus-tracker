@@ -131,6 +131,19 @@ public class GtfsLoaderTest {
     }
 
     @Test
+    public void goesOnWithANormalWeekAfterExpiry() {
+        LocalDate expired = timetable.getValidUntil().plusDays(1);
+        for (int i = 0; i < 14; i++) {
+            LocalDate date = expired.plusDays(i);
+            assertTrue(timetable.isExpired(date));
+            assertEquals(date.getDayOfWeek() + " " + date,
+                timetable.getTrips(day(date.getDayOfWeek())).size(), timetable.getTrips(date).size());
+        }
+        BusStop stop = timetable.getStops().get(0);
+        assertFalse(timetable.getDepartures(stop, expired.plusDays(30), 0, null, 5).isEmpty());
+    }
+
+    @Test
     public void allStopsAreOnTheMap() {
         ZoomXY center = MapTestSupport.beginTile();
         for (BusStop stop : timetable.getStops()) {

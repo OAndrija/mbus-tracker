@@ -9,6 +9,7 @@ import com.mbus.app.model.BusLine;
 import com.mbus.app.model.Trip;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
+import com.mbus.app.utils.Texts;
 
 /** Names the stop or line under the pointer. */
 class MapTooltip {
@@ -40,7 +41,7 @@ class MapTooltip {
         table.setVisible(target != null);
         if (trip != null) {
             table.add(StopPanel.linePill(theme, trip.pattern.line)).minWidth(34).height(24).pad(6, 6, 6, 0);
-            addText("Smer " + trip.pattern.getDestination(), 8);
+            addText(Texts.format("towards", trip.pattern.getDestination()), 8);
         } else if (stopName != null) {
             addText(stopName, 12);
         } else if (line != null) {

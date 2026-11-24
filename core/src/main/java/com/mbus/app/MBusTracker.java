@@ -4,16 +4,19 @@ import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputMultiplexer;
+import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.mbus.app.model.Timetable;
 import com.mbus.app.screens.LoadingScreen;
+import com.mbus.app.systems.data.TimetableFiles;
 import com.mbus.app.systems.input.CameraController;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.Constants;
 import com.mbus.app.utils.Settings;
+import com.mbus.app.utils.Texts;
 
 public class MBusTracker extends Game {
     public OrthographicCamera camera;
@@ -22,6 +25,7 @@ public class MBusTracker extends Game {
     public InputMultiplexer inputMultiplexer;
     private Theme theme;
     private Settings settings;
+    private TimetableFiles timetableFiles;
 
     private Timetable timetable;
 
@@ -36,6 +40,9 @@ public class MBusTracker extends Game {
 
         settings = new Settings(Gdx.app.getPreferences("mbus"));
         Palette.setDark(settings.isDark());
+        Texts.load(Gdx.files.internal("i18n/texts"), settings.getLanguage());
+        timetableFiles = new TimetableFiles(
+            Gdx.files.internal("data/marprom_gtfs.zip"), Gdx.files.external(".mbus/marprom_gtfs.zip"));
         theme = new Theme();
 
         camera.zoom = 0.20f;
@@ -74,6 +81,22 @@ public class MBusTracker extends Game {
         Theme previous = theme;
         theme = new Theme();
         return previous;
+    }
+
+    public void switchLanguage() {
+        settings.setLanguage(Texts.getOtherLanguage());
+        Texts.load(Gdx.files.internal("i18n/texts"), settings.getLanguage());
+    }
+
+    public TimetableFiles getTimetableFiles() {
+        return timetableFiles;
+    }
+
+    /** Starts over with the timetable that is now the best one. */
+    public void reload() {
+        Screen previous = getScreen();
+        setScreen(new LoadingScreen(this));
+        previous.dispose();
     }
 
     public Settings getSettings() {

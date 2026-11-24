@@ -17,6 +17,7 @@ import com.mbus.app.model.BusStop;
 import com.mbus.app.ui.theme.Icon;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
+import com.mbus.app.utils.Texts;
 
 import java.util.Collections;
 import java.util.List;
@@ -148,9 +149,9 @@ class StopListView extends Widget implements Cullable {
         float alpha = getColor().a * parentAlpha;
 
         if (favoriteCount > 0) {
-            drawSection(batch, "Priljubljene", 0, alpha);
+            drawSection(batch, Texts.get("favorites"), 0, alpha);
             if (favoriteCount < stops.size()) {
-                drawSection(batch, "Vse postaje", topOf(favoriteCount) - SECTION_HEIGHT, alpha);
+                drawSection(batch, Texts.get("allStops"), topOf(favoriteCount) - SECTION_HEIGHT, alpha);
             }
         }
 
@@ -202,7 +203,7 @@ class StopListView extends Widget implements Cullable {
     private void drawPills(Batch batch, BusStop stop, float x, float y, float width, float alpha) {
         List<BusLine> lines = stop.getLines();
         if (lines.isEmpty()) {
-            text(batch, theme.caption, "Brez linij", Palette.FAINT,
+            text(batch, theme.caption, Texts.get("noLines"), Palette.FAINT,
                 x, y + PILL_HEIGHT / 2f, width, Align.left, alpha);
             return;
         }

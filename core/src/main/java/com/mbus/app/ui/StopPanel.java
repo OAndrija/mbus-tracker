@@ -20,6 +20,7 @@ import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.AppClock;
 import com.mbus.app.utils.CityTime;
 import com.mbus.app.utils.Settings;
+import com.mbus.app.utils.Texts;
 
 import java.time.LocalDate;
 import java.util.Collections;
@@ -99,11 +100,16 @@ public class StopPanel extends FloatingPanel {
         card.add(new Image(theme.fill(Palette.BORDER, 1, 1))).growX().height(1).row();
 
         Table departuresHeader = new Table();
-        departuresHeader.add(theme.label("Odhodi", theme.bodyStrong, Palette.INK)).left().expandX();
-        departuresHeader.add(clock.isLive()
-            ? theme.label("Po voznem redu", theme.caption, Palette.MUTED)
-            : theme.label(CityTime.describe(date, clock.getRealDate()) + " ob " + CityTime.format(now),
+        departuresHeader.add(theme.label(Texts.get("departures"), theme.bodyStrong, Palette.INK)).left().expandX();
+        if (!clock.isLive()) {
+            departuresHeader.add(theme.label(
+                Texts.format("dayAt", Texts.day(date, clock.getRealDate()), CityTime.format(now)),
                 theme.captionStrong, Palette.BRAND));
+        } else if (timetable.isExpired(date)) {
+            departuresHeader.add(theme.label(Texts.get("lastKnown"), theme.captionStrong, Palette.SOON));
+        } else {
+            departuresHeader.add(theme.label(Texts.get("byTimetable"), theme.caption, Palette.MUTED));
+        }
         card.add(departuresHeader).growX().pad(14, PADDING, 4, PADDING).row();
 
         List<StopCall> departures = timetable.getDepartures(stop, date, now, filter, MAX_DEPARTURES);
@@ -111,7 +117,7 @@ public class StopPanel extends FloatingPanel {
             : timetable.getDepartures(stop, date.plusDays(1), 0, filter, TOMORROW_DEPARTURES);
 
         if (departures.isEmpty() && nextDay.isEmpty()) {
-            card.add(createEmptyState(date)).growX().pad(28, PADDING, 36, PADDING);
+            card.add(createEmptyState()).growX().pad(28, PADDING, 36, PADDING);
         } else {
             addScrolling(createDepartures(departures, nextDay, now, date));
         }
@@ -124,12 +130,12 @@ public class StopPanel extends FloatingPanel {
         Table text = new Table();
         text.left();
         text.add(name).growX().left().row();
-        text.add(theme.label("Postaja " + stop.id, theme.caption, Palette.MUTED)).left().padTop(2);
+        text.add(theme.label(Texts.format("stop", stop.id), theme.caption, Palette.MUTED)).left().padTop(2);
 
         boolean favorite = settings.isFavorite(stop.id);
         IconButton star = new IconButton(theme, Icon.STAR, 18, this::toggleFavorite);
         if (favorite) star.setIcon(Icon.STAR_FILLED, Palette.STAR, Palette.STAR);
-        Tips.attach(theme, star, favorite ? "Odstrani iz priljubljenih (F)" : "Dodaj med priljubljene (F)");
+        Tips.attach(theme, star, Texts.get(favorite ? "removeFavorite" : "addFavorite"));
 
         Table header = new Table();
         header.add(text).growX().top();
@@ -170,8 +176,8 @@ public class StopPanel extends FloatingPanel {
         addRows(table, today, now, 0, date);
         if (!nextDay.isEmpty()) {
             LocalDate next = date.plusDays(1);
-            String day = CityTime.describe(next, clock.getRealDate());
-            table.add(theme.label(today.isEmpty() ? "Ni več odhodov  ·  " + day : day,
+            String day = Texts.day(next, clock.getRealDate());
+            table.add(theme.label(today.isEmpty() ? Texts.format("noMoreDepartures", day) : day,
                 theme.captionStrong, Palette.MUTED)).left().pad(14, PADDING, 4, PADDING).row();
             addRows(table, nextDay, now, AppClock.MINUTES_PER_DAY, next);
         }
@@ -198,7 +204,7 @@ public class StopPanel extends FloatingPanel {
         if (minutes > 60) {
             time.add(theme.label(clockTime, theme.bodyStrong, timeColor)).right();
         } else {
-            time.add(theme.label(minutes == 0 ? "Zdaj" : minutes + " min", theme.bodyStrong, timeColor)).right().row();
+            time.add(theme.label(minutes == 0 ? Texts.get("now") : Texts.format("minutes", minutes), theme.bodyStrong, timeColor)).right().row();
             time.add(theme.label(clockTime, theme.caption, Palette.FAINT)).right();
         }
 
@@ -222,10 +228,8 @@ public class StopPanel extends FloatingPanel {
         return pill;
     }
 
-    private Table createEmptyState(LocalDate date) {
-        Label message = theme.label(
-            timetable.isExpired(date) ? "Vozni red je potekel" : "Danes in jutri ni odhodov",
-            theme.body, Palette.MUTED);
+    private Table createEmptyState() {
+        Label message = theme.label(Texts.get("noDepartures"), theme.body, Palette.MUTED);
         message.setAlignment(Align.center);
 
         Table empty = new Table();
