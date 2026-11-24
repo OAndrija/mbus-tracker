@@ -9,9 +9,6 @@ import java.util.List;
 /** A bus line such as G6, with all its directions and variants. Ordered by name: G1 … G6, P7 … P19. */
 public class BusLine implements Comparable<BusLine> {
 
-    private static final Color LIGHT_TEXT = Color.valueOf("ffffff");
-    private static final Color DARK_TEXT = Color.valueOf("0f172a");
-    private static final float DARK_TEXT_LUMINANCE = 0.3f;
     private static final float LIGHT_LUMINANCE = 0.42f;
     private static final float DARK_LUMINANCE = 0.07f;
 
@@ -20,9 +17,6 @@ public class BusLine implements Comparable<BusLine> {
     public final String description;
     /** Do not modify. */
     public final Color color;
-    /** Readable on {@link #color}. Do not modify. */
-    public final Color textColor;
-
     private final List<RoutePattern> patterns = new ArrayList<>();
 
     public BusLine(String id, String name, String description, Color color) {
@@ -30,20 +24,20 @@ public class BusLine implements Comparable<BusLine> {
         this.name = name;
         this.description = description;
         this.color = color;
-        this.textColor = luminance() > DARK_TEXT_LUMINANCE ? DARK_TEXT : LIGHT_TEXT;
     }
 
     /** True if the color needs an outline on a light map. */
     public boolean isLight() {
-        return luminance() > LIGHT_LUMINANCE;
+        return luminance(color) > LIGHT_LUMINANCE;
     }
 
     /** True if the color needs an outline on a dark map. */
     public boolean isDark() {
-        return luminance() < DARK_LUMINANCE;
+        return luminance(color) < DARK_LUMINANCE;
     }
 
-    private float luminance() {
+    /** How bright a color looks, from 0 to 1. */
+    public static float luminance(Color color) {
         return 0.2126f * linear(color.r) + 0.7152f * linear(color.g) + 0.0722f * linear(color.b);
     }
 

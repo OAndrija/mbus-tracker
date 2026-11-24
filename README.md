@@ -1,197 +1,52 @@
-# MBus — Maribor Bus Tracker
+# MBus
 
-![Java](https://img.shields.io/badge/Java-17-orange?logo=openjdk)
-![LibGDX](https://img.shields.io/badge/LibGDX-1.13.1-red?logo=libgdx)
-![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
+**Every city bus in Maribor, Slovenia, on one animated map.** A desktop app in Java and LibGDX that plays the official timetable: 19 lines, 456 stops and about 1,100 trips on a weekday.
+
+[![Build](https://github.com/OAndrija/mbus-tracker/actions/workflows/build.yml/badge.svg)](https://github.com/OAndrija/mbus-tracker/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/OAndrija/mbus-tracker?include_prereleases)](../../releases)
+![Java 17](https://img.shields.io/badge/Java-17-orange)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Build](https://github.com/OAndrija/mbus-tracker/actions/workflows/build.yml/badge.svg)
-![Release](https://img.shields.io/github/v/release/OAndrija/mbus-tracker?include_prereleases)
 
-A desktop bus tracking application for the city of Maribor, Slovenia, built with **Java** and **LibGDX**. MBus visualizes local bus lines and stops on an interactive map, with bus positions and departures from the official Marprom timetable. Positions follow the timetable; they are not live.
+![Demo: time at 60x speed, a highlighted line, departures, a followed bus and dark mode](docs/images/demo.webp)
 
-![Overview](docs/images/bus.png)
+**[Download](../../releases)** for Windows (no Java needed) or as a JAR for any system with Java 17.
 
----
+## What it does
 
-## Download
+- **See** every bus move along its route, speeding up, braking at stops and turning with the road
+- **Find** a stop by name, number or line, and see its next departures
+- **Follow** a bus and all its upcoming stops
+- **Travel in time** to any minute the timetable covers, at up to 60× speed
+- Favorites, dark mode, English and Slovene, works offline
 
-| File                     | Description |
-|--------------------------|-------------|
-| `mbus-vX.X.X-winX64.zip` | Windows 64-bit — no Java required, just extract and run the .exe |
-| `mbus-vX.X.X.jar`        | Cross-platform — requires Java 17+ |
+Positions come from the timetable; they are not live.
 
-See the [Releases](../../releases) page to download the latest version.
+| Overview | Trip | Dark mode |
+|---|---|---|
+| ![Overview](docs/images/overview.png) | ![Trip](docs/images/trip.png) | ![Dark mode](docs/images/dark.png) |
 
----
+## Engineering highlights
 
-## Features
+| Problem | Solution | Result |
+|---|---|---|
+| Up to 11 lines share one street and hide each other | Match routes by distance and direction, give each line a lane, draw them in a shader ([`LineLayout`](core/src/main/java/com/mbus/app/systems/map/LineLayout.java), [`LineLayer`](core/src/main/java/com/mbus/app/systems/map/LineLayer.java)) | All lines visible; CPU per frame 2.6 → 0.9 ms |
+| Buses stuttered and spun | Distance along the route with easing; front and rear both follow the road ([`PatternMotion`](core/src/main/java/com/mbus/app/systems/map/PatternMotion.java), [`RouteTrack`](core/src/main/java/com/mbus/app/systems/map/RouteTrack.java)) | Frames without movement while driving 90% → 0.2% |
+| 841 map tiles filled the memory | One small overview plus streamed, cached tiles for the visible area ([`MapTileLayer`](core/src/main/java/com/mbus/app/systems/map/MapTileLayer.java)) | Memory 1.1 → 0.4 GB |
+| The timetable expires | Background updates that are validated before use, and a stand-in week ([`TimetableUpdater`](core/src/main/java/com/mbus/app/systems/data/TimetableUpdater.java)) | Keeps working after the last day |
+| Blurry, stock-looking interface | Fonts, shapes and icons rendered at startup for the screen's density ([`Theme`](core/src/main/java/com/mbus/app/ui/theme/Theme.java)) | No image assets in the interface |
 
-- **Interactive map** rendered from raster tiles (Geoapify / OpenStreetMap), with tile caching for offline use
-- **Lines side by side**: lines that share a street each get their own lane, in their own color
-- **Dark mode**, including the map
-- **Bus stop markers** with dynamic clustering that adapts to zoom level
-- **Animated bus positions** for every visible line, calculated from the timetable: buses accelerate, brake at stops and turn along the road
-- **Floating panels** for filtering lines and stops, with a searchable list (accents and case are ignored) and upcoming arrivals per stop
-- **Favorite stops**, kept at the top of the list
-- **Trip view**: click a bus or a departure to see its stops and times, and follow the bus on the map
-- **Time travel**: look at any time of any day the timetable covers, at up to 60× speed
-- **English and Slovene**, following the language of the computer until you choose one
-- **Updates its timetable** by itself, and goes on with the last known week if it has expired
-- **Remembers** favorites, hidden lines, the map position and the window size
-- **Streamed map tiles** — only the visible area is kept in memory at full resolution
-- **Smooth camera** with drag-to-pan and zoom at the cursor, clamped to the map bounds, and animated fly-to on stop selection
-- **Background loading screen** with threaded tile downloads and data parsing, showing live progress
-- **Offline-first design** — ships with a pre-built tile cache and a timetable, and works without a network; API key is optional and loaded gracefully via reflection if absent
+60 tests run on Linux, Windows and macOS with every push. They follow a bus of every route frame by frame and check the real timetable.
 
----
-
-## Screenshots
-
-![Overview](docs/images/overview.png)
-![Line Selection](docs/images/line_selection.png)
-![Dark Mode](docs/images/dark.png)
-
----
-
-## Controls
-
-| Input | Action |
-|---|---|
-| Drag / arrow keys | Move the map |
-| Mouse wheel / Q, A | Zoom in and out |
-| Click a stop | Show upcoming departures |
-| Click a bus or a departure | Show the whole trip |
-| Click a cluster | Zoom in on it |
-| Click a line | Show only that line; click again to show all |
-| Enter / Esc in the search box | Open the first result / clear the search |
-| Ctrl+F | Search |
-| F | Add the open stop to the favorites, or remove it |
-| T | Choose the time |
-| D | Switch between light and dark |
-| L | Switch between English and Slovene |
-| Home | Show the whole network |
-| Esc | Close the open panel |
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Language | Java 17 |
-| Framework | LibGDX |
-| Rendering | OrthographicCamera, SpriteBatch, ShapeRenderer, Texture streaming |
-| Map tiles | Geoapify REST API (OSM Bright) |
-| Transit data | GTFS (Marprom, via [derp-si/gtfs-generators](https://gitlab.com/derp-si/gtfs-generators)) |
-| UI | Scene2D with a custom theme; FreeType for text |
-| Build | Gradle (Desktop target via LWJGL3 + Construo) |
-
----
-
-## Architecture
-
-```
-MBusTracker (Game)
-├── LoadingScreen          — Threaded tile download + timetable loading
-│   ├── MapRasterTiles     — Tile fetch, cache read/write, coordinate math
-│   ├── GtfsLoader         — Reads stops, lines, trips and calendars from the GTFS file
-│   └── TimetableUpdater   — Looks for a newer timetable
-└── RasterMapScreen        — Main application screen
-    ├── MapTileLayer       — Low-resolution overview plus streamed full-resolution tiles
-    ├── MapRenderer        — Bus lines, stop markers, labels
-    ├── LineLayer          — Draws the lines with a shader
-    │   └── LineLayout      — Gives every line a lane on the streets it shares
-    ├── BusRenderer        — Draws the buses
-    │   ├── PatternMotion   — Where a bus is at a given time
-    │   └── RouteTrack      — Distance along a route to position
-    ├── MarkerClusterer    — Zoom-aware stop clustering with animations
-    ├── MapUi              — Layout of everything that floats above the map
-    │   ├── Sidebar         — Search, line filter and stop list
-    │   ├── StopPanel       — Upcoming departures from one stop
-    │   ├── TripPanel       — All stops of one trip
-    │   ├── TimeBar         — Day and time to show
-    │   └── Theme           — Fonts, colors, shapes and icons, rendered for the screen's density
-    └── Input
-        ├── MapGestureListener  — Pan, zoom, tap handling
-        └── BusLineClickHandler — Line segment hit testing
-```
-
----
-
-## Getting Started (Developers)
-
-### Prerequisites
-
-- Java 17+
-- Gradle (wrapper included)
-
-### Clone the repository
+## Run it
 
 ```bash
 git clone https://github.com/OAndrija/mbus-tracker.git
 cd mbus-tracker
-```
-
-### Run from source
-
-```bash
 ./gradlew lwjgl3:run
 ```
 
-### Run the tests
-
-```bash
-./gradlew core:test
-```
-
-### Update the timetable
-
-Once a week the app asks GitLab, where the timetable is published, whether there is a new one. The request only contains the name of the app; as with any web request, the server sees your IP address. A new timetable is checked before it is used and kept in `.mbus` in your home folder.
-
-To renew the timetable that comes with the app:
-
-```bash
-./gradlew updateTimetable
-```
-
-Run the tests afterwards, they check the new file too.
-
-### Build a distributable JAR
-
-```bash
-./gradlew lwjgl3:jar
-```
-
-Output: `lwjgl3/build/libs/`
-
-### Build a Windows executable
-
-```bash
-./gradlew lwjgl3:packageWinX64
-```
-
-Output: `lwjgl3/build/construo/`
-
-The JAR and EXE both include all assets and the pre-cached map tiles, so no network connection or API key is required for normal use.
-
-### Release
-
-Set `projectVersion` in `gradle.properties`, commit, then push a tag of the same name. GitHub builds the downloads and puts them into a draft release.
-
-### API Key (optional)
-
-If you want the app to re-download tiles on cache miss, create `core/src/main/java/com/mbus/app/utils/Keys.java`:
-
-```java
-public class Keys {
-    public static final String GEOAPIFY = "your_key_here";
-}
-```
-
-If this file is absent the app runs in cache-only mode — no errors, no crashes.
-
----
+**Built with** Java 17, LibGDX (Scene2D, GLSL, FreeType), GTFS and Gradle. Architecture, shortcuts and build details are in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+[MIT](LICENSE) for the code. Data, map and font sources are in [CREDITS.md](CREDITS.md).

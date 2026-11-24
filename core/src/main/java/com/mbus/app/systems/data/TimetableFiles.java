@@ -3,7 +3,14 @@ package com.mbus.app.systems.data;
 import com.badlogic.gdx.files.FileHandle;
 import com.mbus.app.model.Timetable;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.zip.CRC32;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /** The timetable that comes with the app, and a newer one if it was downloaded. */
 public class TimetableFiles {
@@ -32,13 +39,32 @@ public class TimetableFiles {
         }
     }
 
-    /** True if this is the content of one of the two files. */
-    boolean isKnown(byte[] content) {
-        return hasContent(bundled, content) || (downloaded.exists() && hasContent(downloaded, content));
+    /**
+     * True if one of the two files has the same content. The source is built anew every night, so the
+     * bytes of the zip file differ even if nothing has changed.
+     */
+    boolean isKnown(byte[] content) throws IOException {
+        Map<String, Long> sums = checksums(new ByteArrayInputStream(content));
+        if (sums.equals(checksums(bundled.read()))) return true;
+        try {
+            return downloaded.exists() && sums.equals(checksums(downloaded.read()));
+        } catch (IOException e) {
+            return false; // damaged, so it is worth replacing
+        }
     }
 
-    private static boolean hasContent(FileHandle file, byte[] content) {
-        return java.util.Arrays.equals(file.readBytes(), content);
+    /** Of every file in a zip file. Closes the stream. */
+    private static Map<String, Long> checksums(InputStream zip) throws IOException {
+        Map<String, Long> sums = new HashMap<>();
+        byte[] buffer = new byte[16384];
+        try (ZipInputStream in = new ZipInputStream(zip)) {
+            for (ZipEntry entry = in.getNextEntry(); entry != null; entry = in.getNextEntry()) {
+                CRC32 sum = new CRC32();
+                for (int n = in.read(buffer); n > 0; n = in.read(buffer)) sum.update(buffer, 0, n);
+                sums.put(entry.getName(), sum.getValue());
+            }
+        }
+        return sums;
     }
 
     /** Replaces the downloaded timetable in one step, so that it is never half written. */

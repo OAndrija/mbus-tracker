@@ -13,6 +13,7 @@ import com.badlogic.gdx.utils.Align;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.RoutePattern;
 import com.mbus.app.model.Trip;
+import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 
 import java.util.Collection;
@@ -212,7 +213,7 @@ public class BusRenderer {
             || y < view.y - length || y > view.y + view.height + length) return;
 
         BusLine line = trip.pattern.line;
-        Color color = line.color;
+        Color color = Palette.line(line);
         float alpha = bus.alpha;
         if (trip == highlighted || trip == hovered) {
             float pulse = trip == highlighted ? 0.5f + 0.5f * MathUtils.sin(this.time * 3f) : 0f;
@@ -231,7 +232,7 @@ public class BusRenderer {
             draw(theme.busBodyFill, color, alpha * busShare, x, y, width, height, bus.angle);
             draw(theme.busBodyDetail, Color.WHITE, alpha * busShare, x, y, width, height, bus.angle);
         }
-        drawNumber(line.name, line.textColor, x, y, disc, alpha);
+        drawNumber(line.name, Palette.onLine(line), x, y, disc, alpha);
     }
 
     /** The shortest way from one angle to another, in degrees. */

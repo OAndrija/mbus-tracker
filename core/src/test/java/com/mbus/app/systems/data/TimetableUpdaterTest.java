@@ -132,6 +132,14 @@ public class TimetableUpdaterTest {
     }
 
     @Test
+    public void ignoresTheSameTimetableInANewZipFile() throws IOException {
+        served = bundledInYear(today.getYear()); // rebuilt, but every date stays the same
+        assertFalse(java.util.Arrays.equals(served, BUNDLED.readBytes()));
+        assertFalse(updater.update(today));
+        assertFalse(downloaded.exists());
+    }
+
+    @Test
     public void keepsTheOldTimetableIfTheNewOneIsBroken() throws IOException {
         served = bundledInYear(today.getYear() + 1);
         assertTrue(updater.update(today));

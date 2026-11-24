@@ -304,14 +304,14 @@ public class Sidebar {
     }
 
     private TextButton.TextButtonStyle chipStyle(BusLine line) {
-        Color color = line.color;
+        Color color = Palette.line(line);
         Color hover = new Color(color).lerp(Color.WHITE, 0.14f);
         TextButton.TextButtonStyle style = new TextButton.TextButtonStyle();
         style.font = theme.bodyStrong;
         style.fontColor = Palette.FAINT;
         style.overFontColor = Palette.TEXT;
-        style.checkedFontColor = line.textColor;
-        style.checkedOverFontColor = line.textColor;
+        style.checkedFontColor = Palette.onLine(line);
+        style.checkedOverFontColor = Palette.onLine(line);
         style.up = theme.roundRect(8, Palette.SURFACE, Palette.BORDER, 1);
         style.over = theme.roundRect(8, Palette.SUBTLE, Palette.BORDER, 1);
         style.checked = theme.linePill(8, line);

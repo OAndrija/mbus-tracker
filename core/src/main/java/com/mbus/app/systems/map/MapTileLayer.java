@@ -66,8 +66,8 @@ public class MapTileLayer implements Disposable {
         + "  vec3 c = vec3(1.0) - texture2D(u_texture, v_texCoords).rgb;\n"
         + "  float light = dot(c, vec3(0.213, 0.715, 0.072));\n"
         + "  c = clamp(2.0 * light - c, 0.0, 1.0);\n"
-        + "  c = mix(vec3(light), c, 0.75);\n"
-        + "  c = vec3(0.066, 0.086, 0.12) + c * vec3(0.66, 0.69, 0.74);\n"
+        + "  c = mix(vec3(light), c, 0.3);\n"
+        + "  c = vec3(0.095, 0.096, 0.1) + c * 0.6;\n"
         + "  gl_FragColor = vec4(c, 1.0);\n"
         + "}\n";
 

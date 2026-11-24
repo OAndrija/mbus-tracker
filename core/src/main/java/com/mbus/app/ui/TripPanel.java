@@ -195,10 +195,10 @@ public class TripPanel extends FloatingPanel {
             last = index == trip.getStopCount() - 1;
             passed = index < next;
             isNext = index == next && isRunning();
-            Color past = new Color(busLine.color).lerp(Palette.SURFACE, 0.65f);
-            line = theme.fill(busLine.color, 1, 1);
+            Color past = new Color(Palette.line(busLine)).lerp(Palette.SURFACE, 0.65f);
+            line = theme.fill(Palette.line(busLine), 1, 1);
             pastLine = theme.fill(past, 1, 1);
-            dot = theme.roundRect(isNext ? 8 : 6, passed ? past : busLine.color);
+            dot = theme.roundRect(isNext ? 8 : 6, passed ? past : Palette.line(busLine));
             dotCenter = theme.roundRect(isNext ? 4.5f : 3, Palette.SURFACE);
         }
 

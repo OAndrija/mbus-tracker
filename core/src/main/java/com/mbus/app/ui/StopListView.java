@@ -225,7 +225,7 @@ class StopListView extends Widget implements Cullable {
 
             batch.setColor(1, 1, 1, alpha);
             theme.linePill(5, line).draw(batch, left, y, pillWidth, PILL_HEIGHT);
-            text(batch, theme.captionStrong, label, line.textColor,
+            text(batch, theme.captionStrong, label, Palette.onLine(line),
                 left, y + PILL_HEIGHT / 2f, pillWidth, Align.center, alpha);
             left += pillWidth + PILL_GAP;
         }

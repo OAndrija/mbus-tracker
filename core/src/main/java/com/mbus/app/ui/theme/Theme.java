@@ -189,8 +189,8 @@ public class Theme implements Disposable {
     /** A rounded rectangle in the color of a line, outlined if it would be lost on a dark surface. */
     public Drawable linePill(float radius, BusLine line) {
         return Palette.isDark() && line.isDark()
-            ? roundRect(radius, line.color, new Color(line.color).lerp(Color.WHITE, 0.35f), 1f)
-            : roundRect(radius, line.color);
+            ? roundRect(radius, Palette.line(line), new Color(Palette.line(line)).lerp(Color.WHITE, 0.3f), 1f)
+            : roundRect(radius, Palette.line(line));
     }
 
     /** A plain rectangle of one color. */
@@ -296,7 +296,7 @@ public class Theme implements Disposable {
 
     /** Windshield, rear window and the edges of the roof. */
     private Texture busDetail() {
-        Color glass = new Color(0.06f, 0.09f, 0.16f, 0.85f);
+        Color glass = new Color(0.08f, 0.09f, 0.11f, 0.85f);
         Color shade = new Color(0f, 0f, 0f, 0.16f);
         Color light = new Color(1f, 1f, 1f, 0.9f);
         Pixmap pixmap = Shapes.transparent(256, 128);

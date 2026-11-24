@@ -239,14 +239,14 @@ public class MapRenderer {
         // Lines as light or dark as the map would be lost without an edge.
         for (BusLine line : busLines) {
             if (!fade && visibleLines.contains(line) && needsEdge(line)) {
-                tint.set(line.color).lerp(Palette.isDark() ? Color.WHITE : Color.BLACK, 0.35f);
+                tint.set(Palette.line(line)).lerp(Palette.isDark() ? Color.WHITE : Color.BLACK, 0.35f);
                 lineLayer.draw(line, tint, 2 * LINE_EDGE);
             }
         }
         for (BusLine line : busLines) {
             if (!visibleLines.contains(line) || line == hoveredLine || line == selectedLine) continue;
             // Everything else steps back while a line is pointed at.
-            tint.set(line.color);
+            tint.set(Palette.line(line));
             // Mixed with the map rather than transparent, as routes of a line overlap.
             if (fade) tint.lerp(Palette.MAP_BACKGROUND, FADE);
             lineLayer.draw(line, tint, 0f);
@@ -260,7 +260,7 @@ public class MapRenderer {
         }
         if (selectedTrip != null) {
             lineLayer.draw(selectedTrip.pattern, Palette.SURFACE, HOVERED_LINE_EXTRA + 2 * LINE_CASING);
-            lineLayer.draw(selectedTrip.pattern, selectedTrip.pattern.line.color, HOVERED_LINE_EXTRA);
+            lineLayer.draw(selectedTrip.pattern, Palette.line(selectedTrip.pattern.line), HOVERED_LINE_EXTRA);
         }
     }
 
@@ -271,7 +271,7 @@ public class MapRenderer {
     private void renderEmphasizedLine(BusLine line) {
         if (!visibleLines.contains(line)) return;
         lineLayer.draw(line, Palette.SURFACE, HOVERED_LINE_EXTRA + 2 * LINE_CASING);
-        lineLayer.draw(line, line.color, HOVERED_LINE_EXTRA);
+        lineLayer.draw(line, Palette.line(line), HOVERED_LINE_EXTRA);
     }
 
     public void setVisibleLines(Set<BusLine> lines) {
