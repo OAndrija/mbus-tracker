@@ -2,6 +2,7 @@ package com.mbus.app.systems.journey;
 
 import com.mbus.app.model.BusStop;
 import com.mbus.app.model.Timetable;
+import com.mbus.app.systems.streets.Addresses;
 import com.mbus.app.utils.Geolocation;
 
 import java.util.ArrayList;
@@ -12,15 +13,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** All places that have a name. Stops of the same name are one place if they are close to each other. */
+/** All places that have a name: stops and addresses. Stops of the same name are one place if they are close to each other. */
 public final class Places {
 
     private static final double SAME_PLACE_METERS = 250;
+    private static final double NEXT_TO_METERS = 60;
 
     private final List<Place> places = new ArrayList<>();
     private final Map<BusStop, Place> byStop = new IdentityHashMap<>();
+    private final Addresses addresses;
 
-    public Places(Timetable timetable) {
+    /** The addresses may be null. */
+    public Places(Timetable timetable, Addresses addresses) {
+        this.addresses = addresses;
         List<Set<BusStop>> groups = new ArrayList<>();
         for (BusStop stop : timetable.getStops()) { // ordered by name
             Set<BusStop> group = groups.isEmpty() ? null : find(groups, stop);
@@ -57,11 +62,27 @@ public final class Places {
         return byStop.get(stop);
     }
 
+    /** Addresses that match what the user types. */
+    public List<Addresses.Match> searchAddresses(String query, int max) {
+        return addresses == null ? Collections.emptyList() : addresses.search(query, max);
+    }
+
+    public Place of(Addresses.Address address) {
+        return Place.ofAddress(address.geo, address.getName());
+    }
+
     public Place of(Geolocation point) {
+        Addresses.Address address = addresses == null ? null : addresses.findNear(point, NEXT_TO_METERS);
+        if (address != null) return Place.ofPoint(point, address.getName());
+
+        return Place.ofPoint(point, getNearestStop(point).name);
+    }
+
+    public Place getNearestStop(Geolocation point) {
         Place nearest = places.get(0);
         for (Place place : places) {
             if (Walking.meters(place.geo, point) < Walking.meters(nearest.geo, point)) nearest = place;
         }
-        return Place.ofPoint(point, nearest.name);
+        return nearest;
     }
 }

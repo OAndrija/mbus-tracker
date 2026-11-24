@@ -28,10 +28,12 @@ import com.mbus.app.systems.journey.JourneySearch;
 import com.mbus.app.systems.journey.JourneyState;
 import com.mbus.app.systems.journey.Place;
 import com.mbus.app.systems.journey.Places;
+import com.mbus.app.systems.journey.Walking;
 import com.mbus.app.systems.map.MapRenderer;
 import com.mbus.app.systems.map.MapTileLayer;
 import com.mbus.app.systems.map.MarkerCluster;
 import com.mbus.app.systems.map.WorldGeometry;
+import com.mbus.app.systems.streets.Streets;
 import com.mbus.app.ui.JourneyPanel;
 import com.mbus.app.ui.MapUi;
 import com.mbus.app.ui.Sidebar;
@@ -108,8 +110,10 @@ public class RasterMapScreen implements Screen {
         mapRenderer.setStops(timetable.getStops());
         mapRenderer.setBusLines(timetable.getLines());
 
-        places = new Places(timetable);
-        journeySearch = new JourneySearch(new JourneyPlanner(timetable));
+        Streets streets = app.getStreets();
+        places = new Places(timetable, streets == null ? null : streets.addresses);
+        journeySearch = new JourneySearch(() -> new JourneyPlanner(timetable,
+            new Walking(streets == null ? null : streets.network, timetable.getStops())));
 
         Settings settings = app.getSettings();
         ui = createUi();
@@ -363,7 +367,7 @@ public class RasterMapScreen implements Screen {
     private void flyToJourney(Journey journey) {
         Rectangle bounds = null;
         for (Journey.Leg leg : journey.getLegs()) {
-            for (Geolocation geo : new Geolocation[]{leg.from, leg.to}) {
+            for (Geolocation geo : leg.getPath()) {
                 Vector2 point = geometry.project(geo);
                 if (bounds == null) bounds = new Rectangle(point.x, point.y, 0, 0);
                 else bounds.merge(point);

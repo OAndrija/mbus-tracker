@@ -27,6 +27,7 @@ import com.mbus.app.systems.journey.Journey;
 import com.mbus.app.systems.journey.JourneyState;
 import com.mbus.app.systems.journey.Place;
 import com.mbus.app.systems.journey.Places;
+import com.mbus.app.systems.streets.Addresses;
 import com.mbus.app.ui.theme.Icon;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
@@ -57,7 +58,9 @@ public class JourneyPanel extends FloatingPanel {
         void onJourneyTimeClicked();
     }
 
-    private static final int MAX_SUGGESTIONS = 7;
+    private static final int MAX_SUGGESTIONS = 8;
+    /** The rest of the suggestions are addresses. */
+    private static final int MAX_STOPS = 4;
     private static final float TIME_WIDTH = 44f;
 
     private final Places places;
@@ -343,25 +346,46 @@ public class JourneyPanel extends FloatingPanel {
 
     private void addSuggestions() {
         String query = typed ? (editingStart ? fromField : toField).getText() : "";
-        suggestions = new ArrayList<>();
+        boolean empty = query.trim().isEmpty();
+        List<Place> stops = new ArrayList<>();
         // Favorites first, and without a query only those
         for (boolean favorites : new boolean[]{true, false}) {
             for (Place place : places.getAll()) {
-                if (suggestions.size() == MAX_SUGGESTIONS) break;
+                if (stops.size() == (empty ? MAX_SUGGESTIONS : MAX_STOPS)) break;
                 if (isFavorite(place) != favorites || place == state.get(!editingStart)) continue;
-                if (query.trim().isEmpty() ? favorites : matches(place, query)) suggestions.add(place);
+                if (empty ? favorites : matches(place, query)) stops.add(place);
             }
         }
+        List<Addresses.Match> addresses = empty
+            ? new ArrayList<>() : places.searchAddresses(query, MAX_SUGGESTIONS - stops.size());
 
+        suggestions = new ArrayList<>();
         body.add().height(6).row();
-        for (Place place : suggestions) {
-            body.add(createSuggestion(place)).growX().height(40).padLeft(PADDING - 8).padRight(PADDING - 8).row();
+        // Who types a house number wants the address, whatever is called similarly.
+        boolean addressesFirst = Addresses.hasNumber(query);
+        if (addressesFirst) addAddresses(addresses);
+        for (Place place : stops) {
+            boolean favorite = isFavorite(place);
+            addSuggestion(place, favorite ? Icon.STAR_FILLED : Icon.BUS, favorite ? Palette.STAR : Palette.FAINT, "");
         }
+        if (!addressesFirst) addAddresses(addresses);
         Label hint = theme.label(
-            suggestions.isEmpty() && !query.trim().isEmpty() ? Texts.format("noResults", query.trim()) : Texts.get("orClickMap"),
+            suggestions.isEmpty() && !empty ? Texts.format("noResults", query.trim()) : Texts.get("orClickMap"),
             theme.caption, Palette.MUTED);
         hint.setWrap(true);
         body.add(hint).growX().pad(8, PADDING, 10, PADDING);
+    }
+
+    private void addAddresses(List<Addresses.Match> addresses) {
+        for (Addresses.Match match : addresses) {
+            addSuggestion(places.of(match.address), Icon.PIN, Palette.FAINT, describe(match));
+        }
+    }
+
+    private void addSuggestion(Place place, Icon icon, Color iconColor, String note) {
+        suggestions.add(place);
+        body.add(createSuggestion(place, icon, iconColor, note))
+            .growX().height(note.isEmpty() ? 40 : 46).padLeft(PADDING - 8).padRight(PADDING - 8).row();
     }
 
     private boolean isFavorite(Place place) {
@@ -378,14 +402,32 @@ public class JourneyPanel extends FloatingPanel {
         return false;
     }
 
-    private Button createSuggestion(final Place place) {
+    /** Where an address is, and what is used if it is not exactly the one asked for. */
+    private String describe(Addresses.Match match) {
+        Addresses.Address address = match.address;
+        String where = address.city.isEmpty()
+            ? Texts.format("near", places.getNearestStop(address.geo).name) : address.city;
+        String instead;
+        if (address.number.isEmpty()) instead = Texts.get(match.insteadOf.isEmpty() ? "streetMiddle" : "numberUnknown");
+        else if (!match.insteadOf.isEmpty()) instead = Texts.format("closestNumber", match.insteadOf);
+        else return where;
+        return instead + "  ·  " + where; // in this order, as the end may not fit
+    }
+
+    private Button createSuggestion(final Place place, Icon icon, Color iconColor, String note) {
         Button row = new RowButton(theme);
-        boolean favorite = isFavorite(place);
-        row.add(new Image(theme.icon(favorite ? Icon.STAR_FILLED : Icon.PIN, 16, favorite ? Palette.STAR : Palette.FAINT)))
-            .size(16).padLeft(8).padRight(10);
+        row.add(new Image(theme.icon(icon, 16, iconColor))).size(16).padLeft(8).padRight(10);
         Label name = theme.label(place.name, theme.body, Palette.INK);
         name.setEllipsis(true);
-        row.add(name).growX().minWidth(0).prefWidth(0).left().padRight(8);
+        Table text = new Table();
+        text.left();
+        text.add(name).growX().minWidth(0).prefWidth(0).left().row();
+        if (!note.isEmpty()) {
+            Label noteLabel = theme.label(note, theme.caption, Palette.MUTED);
+            noteLabel.setEllipsis(true);
+            text.add(noteLabel).growX().minWidth(0).prefWidth(0).left();
+        }
+        row.add(text).growX().padRight(8);
         row.addListener(new InputListener() {
             @Override
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {

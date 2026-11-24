@@ -32,7 +32,8 @@ public final class StopSearch {
         return false;
     }
 
-    static String normalize(String text) {
+    /** In lower case and without accents. */
+    public static String normalize(String text) {
         return Normalizer.normalize(text, Normalizer.Form.NFD)
             .replaceAll("\\p{M}+", "")
             .toLowerCase(Locale.ROOT);

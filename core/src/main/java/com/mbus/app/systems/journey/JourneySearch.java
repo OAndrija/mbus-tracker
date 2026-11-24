@@ -7,21 +7,24 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /** Runs the planner in the background. Only the latest search is answered. */
 public class JourneySearch {
 
-    private final JourneyPlanner planner;
+    /** Only used in the background. */
+    private JourneyPlanner planner;
     private final ExecutorService executor;
     private volatile int latest = 0;
 
-    public JourneySearch(JourneyPlanner planner) {
-        this.planner = planner;
+    /** Makes the planner in the background, as that takes a moment. */
+    public JourneySearch(Supplier<JourneyPlanner> createPlanner) {
         executor = Executors.newSingleThreadExecutor(task -> {
             Thread thread = new Thread(task, "journey-search");
             thread.setDaemon(true);
             return thread;
         });
+        executor.execute(() -> planner = createPlanner.get());
     }
 
     /** Answers on the main thread. */

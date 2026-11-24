@@ -6,6 +6,7 @@ import com.mbus.app.utils.Geolocation;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -22,6 +23,7 @@ public final class Journey {
         public final BusStop fromStop, toStop;
         public final Geolocation from, to;
         public final int start, end;
+        private List<Geolocation> path;
 
         private Leg(Trip trip, int boardIndex, int alightIndex, BusStop fromStop, BusStop toStop,
                     Geolocation from, Geolocation to, int start, int end) {
@@ -34,6 +36,16 @@ public final class Journey {
             this.to = to;
             this.start = start;
             this.end = end;
+            this.path = Arrays.asList(from, to);
+        }
+
+        void setPath(List<Geolocation> path) {
+            this.path = path;
+        }
+
+        /** The way of a walk. */
+        public List<Geolocation> getPath() {
+            return path;
         }
 
         static Leg ride(Trip trip, int boardIndex, int alightIndex) {

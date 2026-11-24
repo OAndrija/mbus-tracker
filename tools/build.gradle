@@ -1,0 +1,12 @@
+apply plugin: 'application'
+
+application {
+  mainClass = 'com.mbus.tools.ExtractStreets'
+}
+
+run {
+  workingDir = rootProject.projectDir
+  // ./gradlew tools:run -Posm=path/to/slovenia-latest.osm.pbf
+  args = [project.findProperty('osm') ?: '', 'assets/data/maribor_streets.txt.gz']
+  maxHeapSize = '2g'
+}

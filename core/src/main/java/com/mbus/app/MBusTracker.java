@@ -12,6 +12,7 @@ import com.mbus.app.model.Timetable;
 import com.mbus.app.screens.LoadingScreen;
 import com.mbus.app.systems.data.TimetableFiles;
 import com.mbus.app.systems.input.CameraController;
+import com.mbus.app.systems.streets.Streets;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.Constants;
@@ -28,6 +29,7 @@ public class MBusTracker extends Game {
     private TimetableFiles timetableFiles;
 
     private Timetable timetable;
+    private Streets streets;
 
     @Override
     public void create() {
@@ -110,6 +112,15 @@ public class MBusTracker extends Game {
 
     public void setTimetable(Timetable timetable) {
         this.timetable = timetable;
+    }
+
+    /** Null if they could not be loaded. */
+    public Streets getStreets() {
+        return streets;
+    }
+
+    public void setStreets(Streets streets) {
+        this.streets = streets;
     }
 
     public Timetable getTimetable() {

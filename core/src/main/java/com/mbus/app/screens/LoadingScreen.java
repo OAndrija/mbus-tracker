@@ -16,6 +16,7 @@ import com.mbus.app.utils.Geolocation;
 import com.mbus.app.utils.ZoomXY;
 import com.mbus.app.systems.map.MapRasterTiles;
 import com.mbus.app.systems.map.TileOverview;
+import com.mbus.app.systems.streets.Streets;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.Constants;
@@ -42,6 +43,7 @@ public class LoadingScreen implements Screen {
     private Thread dataLoadingThread;
     private volatile boolean dataLoadingComplete = false;
     private volatile Timetable timetable;
+    private volatile Streets streets;
 
     private ZoomXY beginTile;
     private Pixmap overview;
@@ -141,10 +143,21 @@ public class LoadingScreen implements Screen {
         }
     }
 
+    /** The app is usable without them, with walks as straight lines and without addresses. */
+    private static Streets loadStreets() {
+        try {
+            return Streets.load(Gdx.files.internal("data/maribor_streets.txt.gz").read());
+        } catch (Exception e) {
+            Gdx.app.error(TAG, "Streets not available: " + e.getMessage());
+            return null;
+        }
+    }
+
     private void startDataLoading() {
         dataLoadingThread = new Thread(() -> {
             try {
                 timetable = app.getTimetableFiles().load();
+                if (app.getStreets() == null) streets = loadStreets();
                 dataLoadingComplete = true;
             } catch (final Exception e) {
                 Gdx.app.error(TAG, "Error loading the timetable", e);
@@ -180,6 +193,7 @@ public class LoadingScreen implements Screen {
         if (dataError == null && dataLoadingComplete && tilesLoaded >= totalTiles) {
             Gdx.app.log(TAG, "Everything loaded, transitioning to map screen");
             app.setTimetable(timetable);
+            if (streets != null) app.setStreets(streets);
             app.setScreen(new RasterMapScreen(app, overview, beginTile));
             dispose();
         }

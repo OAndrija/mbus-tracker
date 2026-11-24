@@ -22,6 +22,7 @@ import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.Constants;
 import com.mbus.app.utils.Display;
+import com.mbus.app.utils.Geolocation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -317,15 +318,29 @@ public class MapRenderer {
     }
 
     private void renderWalk(Journey.Leg leg, float pixel) {
-        Vector2 from = geometry.project(leg.from);
-        Vector2 to = geometry.project(leg.to);
-        int dots = Math.max(1, Math.round(from.dst(to) / (WALK_DOT_GAP * pixel)));
+        List<Vector2> way = new ArrayList<>();
+        for (Geolocation geo : leg.getPath()) way.add(geometry.project(geo));
+
+        // Evenly along the whole way, whatever the length of its parts
+        float gap = WALK_DOT_GAP * pixel;
+        List<Vector2> dots = new ArrayList<>();
+        dots.add(way.get(0));
+        float untilNext = gap;
+        for (int i = 1; i < way.size(); i++) {
+            Vector2 from = way.get(i - 1);
+            float length = from.dst(way.get(i));
+            while (untilNext <= length) {
+                dots.add(new Vector2(from).lerp(way.get(i), untilNext / length));
+                untilNext += gap;
+            }
+            untilNext -= length;
+        }
+
         for (int pass = 0; pass < 2; pass++) { // an edge around all dots first
             spriteBatch.setColor(pass == 0 ? Palette.SURFACE : Palette.TEXT);
             float size = (WALK_DOT_SIZE + (pass == 0 ? 3f : 0f)) * pixel / Theme.HALO_SCALE;
-            for (int i = 0; i <= dots; i++) {
-                point.set(from).lerp(to, i / (float) dots);
-                spriteBatch.draw(theme.halo, point.x - size / 2f, point.y - size / 2f, size, size);
+            for (Vector2 dot : dots) {
+                spriteBatch.draw(theme.halo, dot.x - size / 2f, dot.y - size / 2f, size, size);
             }
         }
     }

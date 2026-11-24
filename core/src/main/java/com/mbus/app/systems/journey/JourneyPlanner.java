@@ -24,14 +24,14 @@ import java.util.TreeSet;
  */
 public final class JourneyPlanner {
 
-    private static final int INFINITE = Integer.MAX_VALUE / 2;
+    private static final int INFINITE = Walking.TOO_FAR;
     static final int MAX_RIDES = 4;
     /** To get from one bus to the next at the same stop, or after a walk to another stop. */
     static final int CHANGE_MINUTES = 1;
-    static final double MAX_TRANSFER_METERS = 400;
-    static final double MAX_ACCESS_METERS = 1000;
+    static final int MAX_TRANSFER_WALK = 7;
+    static final int MAX_ACCESS_WALK = 17;
     /** Used where there is no stop closer. */
-    private static final double MAX_FAR_ACCESS_METERS = 2500;
+    private static final int MAX_FAR_ACCESS_WALK = 45;
     private static final int FAR_ACCESS_STOPS = 3;
 
     private static final int MINUTES_PER_DAY = 24 * 60;
@@ -42,9 +42,13 @@ public final class JourneyPlanner {
     private static final int WORTH_A_CHANGE = 3;
     private static final int MUCH_LATER = 10;
     private static final int MAX_WALK_ALL_THE_WAY = 30;
+    /** How far to look for the way on foot, to leave out journeys that are slower. */
+    private static final int MAX_WALK = 120;
     private static final int CACHED_DAYS = 4;
+    private static final int CACHED_PLACES = 8;
 
     private final Timetable timetable;
+    private final Walking walking;
     private final List<BusStop> stops;
     private final Map<BusStop, Integer> stopIndex = new IdentityHashMap<>();
     /** Stops one can walk to from every stop, and the minutes. */
@@ -57,8 +61,17 @@ public final class JourneyPlanner {
         }
     };
 
-    public JourneyPlanner(Timetable timetable) {
+    private final Map<Place, int[]> walksByPlace = new LinkedHashMap<Place, int[]>() {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<Place, int[]> eldest) {
+            return size() > CACHED_PLACES;
+        }
+    };
+
+    /** Takes a moment, as it finds all walks between stops. */
+    public JourneyPlanner(Timetable timetable, Walking walking) {
         this.timetable = timetable;
+        this.walking = walking;
         this.stops = timetable.getStops();
         int n = stops.size();
         for (int i = 0; i < n; i++) stopIndex.put(stops.get(i), i);
@@ -69,11 +82,11 @@ public final class JourneyPlanner {
             int[] found = new int[n];
             int[] minutes = new int[n];
             int count = 0;
+            int[] walks = walking.toStops(stops.get(i).geo, stops, MAX_TRANSFER_WALK);
             for (int j = 0; j < n; j++) {
-                double meters = Walking.meters(stops.get(i).geo, stops.get(j).geo);
-                if (i == j || meters > MAX_TRANSFER_METERS) continue;
+                if (i == j || walks[j] == INFINITE) continue;
                 found[count] = j;
-                minutes[count++] = Walking.minutes(meters);
+                minutes[count++] = walks[j];
             }
             neighbors[i] = Arrays.copyOf(found, count);
             neighborMinutes[i] = Arrays.copyOf(minutes, count);
@@ -84,58 +97,67 @@ public final class JourneyPlanner {
 
     /** The next journeys from a time on, ordered by departure. Looks at the next day if there are none. */
     public List<Journey> leaveAt(Place from, Place to, LocalDate date, int time) {
+        int walk = walkAllTheWay(from, to);
         List<Journey> found = Collections.emptyList();
         for (int period : PERIODS) {
-            found = withoutWaste(from, to, search(from, to, date, time, Math.min(MINUTES_PER_DAY, time + period)));
+            found = withoutWaste(walk, search(from, to, date, time, Math.min(MINUTES_PER_DAY, time + period)));
             if (found.size() >= ENOUGH) break;
         }
         if (found.isEmpty()) {
             for (int period : PERIODS) {
-                found = withoutWaste(from, to, search(from, to, date.plusDays(1), 0, period + 240));
+                found = withoutWaste(walk, search(from, to, date.plusDays(1), 0, period + 240));
                 if (found.size() >= ENOUGH) break;
             }
         }
         List<Journey> result = new ArrayList<>(found.subList(0, Math.min(MAX_RESULTS, found.size())));
-        addWalk(result, from, to, date, time);
+        addWalk(result, from, to, date, time, walk);
+        addPaths(result);
         return result;
     }
 
     /** The last journeys that arrive by a time, the latest first. */
     public List<Journey> arriveBy(Place from, Place to, LocalDate date, int time) {
+        int walk = walkAllTheWay(from, to);
         List<Journey> found = Collections.emptyList();
         for (int period : PERIODS) {
             List<Journey> inTime = new ArrayList<>();
             for (Journey journey : search(from, to, date, Math.max(0, time - period), time)) {
                 if (journey.getArrival() <= time) inTime.add(journey);
             }
-            found = withoutWaste(from, to, inTime);
+            found = withoutWaste(walk, inTime);
             if (found.size() >= ENOUGH) break;
         }
         List<Journey> result = new ArrayList<>(
             found.subList(Math.max(0, found.size() - MAX_RESULTS), found.size()));
         Collections.reverse(result);
-        int walk = walkAllTheWay(from, to);
-        if (time - walk >= 0) addWalk(result, from, to, date, time - walk);
+        if (time - walk >= 0) addWalk(result, from, to, date, time - walk, walk);
+        addPaths(result);
         return result;
     }
 
-    private static int walkAllTheWay(Place from, Place to) {
-        return Walking.minutes(Walking.meters(from.geo, to.geo));
+    private int walkAllTheWay(Place from, Place to) {
+        return walking.between(from.geo, to.geo, MAX_WALK);
     }
 
-    private static void addWalk(List<Journey> journeys, Place from, Place to, LocalDate date, int start) {
-        int minutes = walkAllTheWay(from, to);
+    private void addWalk(List<Journey> journeys, Place from, Place to, LocalDate date, int start, int minutes) {
         if (minutes == 0 || minutes > MAX_WALK_ALL_THE_WAY) return;
         journeys.add(0, new Journey(date, from, to, Collections.singletonList(
             Journey.Leg.walk(null, from.geo, null, to.geo, start, minutes))));
+    }
+
+    private void addPaths(List<Journey> journeys) {
+        for (Journey journey : journeys) {
+            for (Journey.Leg leg : journey.getLegs()) {
+                if (!leg.isRide()) leg.setPath(walking.path(leg.from, leg.to));
+            }
+        }
     }
 
     /**
      * Leaves out what nobody would do: be slower than on foot, change to save a minute or two, or leave a
      * minute or two later to arrive much later.
      */
-    private static List<Journey> withoutWaste(Place from, Place to, List<Journey> journeys) {
-        int walk = walkAllTheWay(from, to);
+    private static List<Journey> withoutWaste(int walk, List<Journey> journeys) {
         List<Journey> result = new ArrayList<>();
         for (Journey journey : journeys) {
             boolean waste = journey.getMinutes() >= walk;
@@ -205,26 +227,38 @@ public final class JourneyPlanner {
     }
 
     /** Minutes from a place to every stop in walking distance, infinite for the others. */
-    int[] walksFrom(Place place) {
-        int[] minutes = new int[stops.size()];
-        Arrays.fill(minutes, INFINITE);
-        double[] meters = new double[stops.size()];
+    synchronized int[] walksFrom(Place place) {
+        return walksByPlace.computeIfAbsent(place, this::findWalks);
+    }
+
+    private int[] findWalks(Place place) {
+        int[] minutes = walking.toStops(place.geo, stops, MAX_ACCESS_WALK);
         boolean found = false;
         for (int i = 0; i < minutes.length; i++) {
-            meters[i] = Walking.meters(place.geo, stops.get(i).geo);
             if (place.stops.contains(stops.get(i))) minutes[i] = 0;
-            else if (meters[i] <= MAX_ACCESS_METERS) minutes[i] = Walking.minutes(meters[i]);
             found |= minutes[i] < INFINITE;
         }
-        for (int far = 0; !found && far < FAR_ACCESS_STOPS; far++) {
-            int nearest = -1;
-            for (int i = 0; i < minutes.length; i++) {
-                if (minutes[i] == INFINITE && (nearest < 0 || meters[i] < meters[nearest])) nearest = i;
+        if (found) return minutes;
+
+        int[] far = walking.toStops(place.geo, stops, MAX_FAR_ACCESS_WALK);
+        for (int count = 0; count < FAR_ACCESS_STOPS; count++) {
+            int nearest = 0;
+            for (int i = 1; i < far.length; i++) {
+                if (far[i] < far[nearest]) nearest = i;
             }
-            if (nearest < 0 || meters[nearest] > MAX_FAR_ACCESS_METERS) break;
-            minutes[nearest] = Walking.minutes(meters[nearest]);
+            if (far[nearest] == INFINITE) break;
+            minutes[nearest] = far[nearest];
+            far[nearest] = INFINITE;
         }
         return minutes;
+    }
+
+    /** Minutes to walk from one stop to another to change, or infinite. */
+    int getTransferWalk(int from, int to) {
+        for (int i = 0; i < neighbors[from].length; i++) {
+            if (neighbors[from][i] == to) return neighborMinutes[from][i];
+        }
+        return INFINITE;
     }
 
     // Trips of a day

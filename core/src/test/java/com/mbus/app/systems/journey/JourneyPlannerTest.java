@@ -8,6 +8,7 @@ import com.mbus.app.model.Service;
 import com.mbus.app.model.Timetable;
 import com.mbus.app.model.Trip;
 import com.mbus.app.systems.data.GtfsLoader;
+import com.mbus.app.systems.streets.Streets;
 import com.mbus.app.utils.Geolocation;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -40,8 +41,9 @@ public class JourneyPlannerTest {
     @BeforeClass
     public static void load() throws IOException {
         timetable = GtfsLoader.load(new FileInputStream("data/marprom_gtfs.zip"));
-        planner = new JourneyPlanner(timetable);
-        places = new Places(timetable);
+        Streets streets = Streets.load(new FileInputStream("data/maribor_streets.txt.gz"));
+        planner = new JourneyPlanner(timetable, new Walking(streets.network, timetable.getStops()));
+        places = new Places(timetable, streets.addresses);
         LocalDate day = timetable.getValidUntil().minusWeeks(4);
         // A whole week, the last days with their holidays, and a day after expiry
         dates = new LocalDate[]{day, day.plusDays(1), day.plusDays(2), day.plusDays(3), day.plusDays(4),
@@ -84,11 +86,8 @@ public class JourneyPlannerTest {
                 if (ride[s] == NEVER) continue;
                 if (egress[s] < NEVER) best[k] = Math.min(best[k], ride[s] + egress[s]);
                 for (int other = 0; other < next.length; other++) {
-                    double meters = Walking.meters(stops.get(s).geo, stops.get(other).geo);
-                    if (s == other) next[s] = Math.min(next[s], ride[s]);
-                    else if (meters <= JourneyPlanner.MAX_TRANSFER_METERS) {
-                        next[other] = Math.min(next[other], ride[s] + Walking.minutes(meters));
-                    }
+                    int walk = s == other ? 0 : planner.getTransferWalk(s, other);
+                    next[other] = Math.min(next[other], Math.min(NEVER, ride[s] + walk));
                 }
             }
             ready = next;
@@ -165,6 +164,15 @@ public class JourneyPlannerTest {
                 assertEquals(leg.trip.getArrival(leg.alightIndex), leg.end);
             } else {
                 assertTrue("not too fast", Walking.minutes(Walking.meters(leg.from, leg.to)) <= leg.getMinutes());
+                double meters = 0;
+                for (int i = 1; i < leg.getPath().size(); i++) {
+                    meters += Walking.meters(leg.getPath().get(i - 1), leg.getPath().get(i));
+                }
+                // Outside of the known streets, it is the straight line and takes longer.
+                double factor = leg.getPath().size() == 2 ? 1.3 : 1;
+                assertEquals("takes as long as the way that is drawn", meters * factor / 75, leg.getMinutes(), 1.01);
+                assertTrue(Walking.meters(leg.from, leg.getPath().get(0)) < 1);
+                assertTrue(Walking.meters(leg.to, leg.getPath().get(leg.getPath().size() - 1)) < 1);
             }
             if (previous != null) {
                 assertSame("starts where the last one ended", previous.toStop, leg.fromStop);
@@ -270,9 +278,9 @@ public class JourneyPlannerTest {
         second.addTrip(daily(), new int[]{613, 630}, new int[]{613, 630});
         second.addTrip(daily(), new int[]{614, 631}, new int[]{614, 631});
         Timetable small = timetable(Arrays.asList(a, b, c, d), first, second);
-        Places smallPlaces = new Places(small);
+        Places smallPlaces = new Places(small, null);
 
-        List<Journey> found = new JourneyPlanner(small).leaveAt(smallPlaces.of(a), smallPlaces.of(d), DAY, 590);
+        List<Journey> found = new JourneyPlanner(small, new Walking(null, small.getStops())).leaveAt(smallPlaces.of(a), smallPlaces.of(d), DAY, 590);
         assertEquals(1, found.size());
         Journey journey = found.get(0);
         assertEquals(631, journey.getArrival());
@@ -288,9 +296,9 @@ public class JourneyPlannerTest {
         pattern.addTrip(daily(), new int[]{600, 660}, new int[]{600, 660});
         pattern.addTrip(daily(), new int[]{605, 620}, new int[]{605, 620});
         Timetable small = timetable(Arrays.asList(a, b), pattern);
-        Places smallPlaces = new Places(small);
+        Places smallPlaces = new Places(small, null);
 
-        List<Journey> found = new JourneyPlanner(small).search(smallPlaces.of(a), smallPlaces.of(b), DAY, 590, 700);
+        List<Journey> found = new JourneyPlanner(small, new Walking(null, small.getStops())).search(smallPlaces.of(a), smallPlaces.of(b), DAY, 590, 700);
         assertEquals(1, found.size());
         assertEquals(620, found.get(0).getArrival());
         assertEquals(605, found.get(0).getDeparture());
@@ -302,12 +310,28 @@ public class JourneyPlannerTest {
         RoutePattern pattern = pattern("1", a, b);
         pattern.addTrip(daily(), new int[]{600, 640}, new int[]{600, 640});
         Timetable small = timetable(Arrays.asList(a, b), pattern);
-        Places smallPlaces = new Places(small);
+        Places smallPlaces = new Places(small, null);
 
-        List<Journey> found = new JourneyPlanner(small).leaveAt(smallPlaces.of(a), smallPlaces.of(b), DAY, 590);
+        List<Journey> found = new JourneyPlanner(small, new Walking(null, small.getStops())).leaveAt(smallPlaces.of(a), smallPlaces.of(b), DAY, 590);
         assertEquals(1, found.size());
         assertEquals(0, found.get(0).getRides());
         assertEquals(11, found.get(0).getMinutes());
+    }
+
+    @Test
+    public void walksFurtherWhereThereIsOnlyOneStop() {
+        BusStop a = stop("A", 0), b = stop("B", 50_000);
+        RoutePattern pattern = pattern("1", a, b);
+        pattern.addTrip(daily(), new int[]{600, 640}, new int[]{600, 640});
+        Timetable small = timetable(Arrays.asList(a, b), pattern);
+        Places smallPlaces = new Places(small, null);
+
+        Place house = smallPlaces.of(stop("house", -2000).geo);
+        List<Journey> found = new JourneyPlanner(small, new Walking(null, small.getStops()))
+            .leaveAt(house, smallPlaces.of(b), DAY, 500);
+        assertEquals(1, found.size());
+        assertEquals(35, found.get(0).getWalkMinutes());
+        assertEquals(565, found.get(0).getDeparture());
     }
 
     @Test
@@ -315,7 +339,7 @@ public class JourneyPlannerTest {
         BusStop left = new BusStop("1", "Same", new Geolocation(46.55, 15.64));
         BusStop right = new BusStop("2", "Same", new Geolocation(46.5502, 15.64));
         BusStop far = new BusStop("3", "Same", new Geolocation(46.56, 15.64));
-        Places named = new Places(new Timetable(Arrays.asList(left, right, far), new ArrayList<>(), DAY));
+        Places named = new Places(new Timetable(Arrays.asList(left, right, far), new ArrayList<>(), DAY), null);
         assertSame(named.of(left), named.of(right));
         assertNotSame(named.of(left), named.of(far));
         assertEquals(2, named.getAll().size());
