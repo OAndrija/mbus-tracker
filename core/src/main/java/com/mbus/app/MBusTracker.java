@@ -10,6 +10,7 @@ import com.badlogic.gdx.utils.viewport.Viewport;
 import com.mbus.app.model.Timetable;
 import com.mbus.app.screens.LoadingScreen;
 import com.mbus.app.systems.input.CameraController;
+import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.Constants;
 import com.mbus.app.utils.Settings;
@@ -33,8 +34,9 @@ public class MBusTracker extends Game {
         viewport = new ExtendViewport(Constants.MAP_WIDTH, Constants.MAP_HEIGHT, camera);
         viewport.update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
 
-        theme = new Theme();
         settings = new Settings(Gdx.app.getPreferences("mbus"));
+        Palette.setDark(settings.isDark());
+        theme = new Theme();
 
         camera.zoom = 0.20f;
         camera.position.set(Constants.MAP_WIDTH / 2f, Constants.MAP_HEIGHT / 2f, 0);
@@ -63,6 +65,15 @@ public class MBusTracker extends Game {
 
     public Theme getTheme() {
         return theme;
+    }
+
+    /** Switches between the light and the dark theme. Returns the previous theme, to be disposed once it is not used any more. */
+    public Theme switchTheme(boolean dark) {
+        settings.setDark(dark);
+        Palette.setDark(dark);
+        Theme previous = theme;
+        theme = new Theme();
+        return previous;
     }
 
     public Settings getSettings() {

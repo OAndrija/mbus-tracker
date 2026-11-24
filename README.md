@@ -26,7 +26,8 @@ See the [Releases](../../releases) page to download the latest version.
 ## Features
 
 - **Interactive map** rendered from raster tiles (Geoapify / OpenStreetMap), with tile caching for offline use
-- **Bus line visualization** with per-line color coding, hover effects, and animated selection
+- **Lines side by side**: lines that share a street each get their own lane, in their own color
+- **Dark mode**, including the map
 - **Bus stop markers** with dynamic clustering that adapts to zoom level
 - **Animated bus positions** for every visible line, calculated from the timetable: buses accelerate, brake at stops and turn along the road
 - **Floating panels** for filtering lines and stops, with a searchable list (accents and case are ignored) and upcoming arrivals per stop
@@ -45,6 +46,7 @@ See the [Releases](../../releases) page to download the latest version.
 
 ![Overview](docs/images/overview.png)
 ![Line Selection](docs/images/line_selection.png)
+![Dark Mode](docs/images/dark.png)
 
 ---
 
@@ -62,6 +64,7 @@ See the [Releases](../../releases) page to download the latest version.
 | Ctrl+F | Search |
 | F | Add the open stop to the favorites, or remove it |
 | T | Choose the time |
+| D | Switch between light and dark |
 | Home | Show the whole network |
 | Esc | Close the open panel |
 
@@ -91,6 +94,8 @@ MBusTracker (Game)
 └── RasterMapScreen        — Main application screen
     ├── MapTileLayer       — Low-resolution overview plus streamed full-resolution tiles
     ├── MapRenderer        — Bus lines, stop markers, labels
+    ├── LineLayer          — Draws the lines with a shader
+    │   └── LineLayout      — Gives every line a lane on the streets it shares
     ├── BusRenderer        — Draws the buses
     │   ├── PatternMotion   — Where a bus is at a given time
     │   └── RouteTrack      — Distance along a route to position

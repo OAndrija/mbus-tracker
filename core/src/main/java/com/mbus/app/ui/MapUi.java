@@ -14,7 +14,6 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.mbus.app.model.BusLine;
-import com.mbus.app.model.BusStop;
 import com.mbus.app.model.Timetable;
 import com.mbus.app.model.Trip;
 import com.mbus.app.ui.theme.Icon;
@@ -34,6 +33,8 @@ public class MapUi implements Disposable {
         void showWholeNetwork();
 
         void toggleTimeBar();
+
+        void toggleDark();
     }
 
     private static final String ATTRIBUTION =
@@ -60,9 +61,10 @@ public class MapUi implements Disposable {
     private final Card zoomControls;
     private final Card fitControl;
     private final Card timeControl;
+    private final Card darkControl;
     private final IconButton timeButton;
     private final AppClock clock;
-    private Color shownTimeColor = Palette.MUTED;
+    private boolean shownLive = true;
     private final Table attribution = new Table();
     private Cursor.SystemCursor cursor = Cursor.SystemCursor.Arrow;
 
@@ -98,20 +100,31 @@ public class MapUi implements Disposable {
         timeControl.setBackground(theme.card(12));
         timeControl.add(timeButton).size(CONTROL_SIZE);
 
+        IconButton darkButton = new IconButton(theme, Palette.isDark() ? Icon.SUN : Icon.MOON, 18, actions::toggleDark);
+        Tips.attach(theme, darkButton, Palette.isDark() ? "Svetel prikaz (D)" : "Temen prikaz (D)");
+        darkControl = new Card(theme);
+        darkControl.setBackground(theme.card(12));
+        darkControl.add(darkButton).size(CONTROL_SIZE);
+
         attribution.setTouchable(Touchable.disabled);
-        attribution.setBackground(theme.roundRect(4, new Color(1f, 1f, 1f, 0.8f)));
+        attribution.setBackground(theme.roundRect(4, withAlpha(Palette.SURFACE, 0.8f)));
         attribution.add(theme.label(ATTRIBUTION, theme.caption, Palette.MUTED)).pad(2, 8, 2, 8);
 
         stage.addActor(attribution);
         stage.addActor(zoomControls);
         stage.addActor(fitControl);
         stage.addActor(timeControl);
+        stage.addActor(darkControl);
         stage.addActor(timeBar.getActor());
         stage.addActor(sidebar.getActor());
         stage.addActor(stopPanel.getActor());
         stage.addActor(tripPanel.getActor());
         stage.addActor(tooltip.getActor());
         layout();
+    }
+
+    private static Color withAlpha(Color color, float alpha) {
+        return new Color(color.r, color.g, color.b, alpha);
     }
 
     public Stage getStage() {
@@ -163,6 +176,8 @@ public class MapUi implements Disposable {
         fitControl.setPosition(zoomControls.getX(), zoomControls.getTop() + GAP);
         timeControl.pack();
         timeControl.setPosition(zoomControls.getX(), fitControl.getTop() + GAP);
+        darkControl.pack();
+        darkControl.setPosition(zoomControls.getX(), timeControl.getTop() + GAP);
         layoutTimeBar();
     }
 
@@ -195,7 +210,7 @@ public class MapUi implements Disposable {
     }
 
     /** Updates everything that depends on the pointer. */
-    public void updatePointer(Trip hoveredTrip, BusStop hoveredStop, BusLine hoveredLine, boolean overCluster) {
+    public void updatePointer(Trip hoveredTrip, String hoveredStop, BusLine hoveredLine, boolean overCluster) {
         int x = Gdx.input.getX();
         int y = Gdx.input.getY();
 
@@ -231,10 +246,10 @@ public class MapUi implements Disposable {
             timeBar.update();
             layoutTimeBar();
         }
-        Color timeColor = clock.isLive() ? Palette.MUTED : Palette.BRAND;
-        if (timeColor != shownTimeColor) {
-            shownTimeColor = timeColor;
-            timeButton.setIcon(Icon.CLOCK, timeColor, clock.isLive() ? Palette.INK : Palette.BRAND_DARK);
+        if (clock.isLive() != shownLive) {
+            shownLive = clock.isLive();
+            timeButton.setIcon(Icon.CLOCK, shownLive ? Palette.MUTED : Palette.BRAND,
+                shownLive ? Palette.INK : Palette.BRAND_STRONG);
         }
         stage.getViewport().apply();
         stage.act(delta);

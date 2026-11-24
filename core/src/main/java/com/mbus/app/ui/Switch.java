@@ -22,9 +22,9 @@ class Switch extends Button {
 
     Switch(Theme theme, boolean checked) {
         super(new ButtonStyle());
-        trackOff = theme.roundRect(HEIGHT / 2f, Color.valueOf("cbd5e1"));
-        trackOn = theme.roundRect(HEIGHT / 2f, Palette.BRAND);
-        knob = theme.roundRect(KNOB / 2f, Palette.SURFACE);
+        trackOff = theme.roundRect(HEIGHT / 2f, Palette.QUIET);
+        trackOn = theme.roundRect(HEIGHT / 2f, Palette.LOGO);
+        knob = theme.roundRect(KNOB / 2f, Palette.ON_COLOR);
         setChecked(checked);
         position = checked ? 1f : 0f;
     }

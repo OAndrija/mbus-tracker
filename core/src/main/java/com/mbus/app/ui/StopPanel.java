@@ -148,7 +148,7 @@ public class StopPanel extends FloatingPanel {
             TextButton.TextButtonStyle style = new TextButton.TextButtonStyle();
             style.font = theme.captionStrong;
             style.fontColor = on ? line.textColor : Palette.FAINT;
-            style.up = on ? theme.roundRect(6, line.color) : theme.roundRect(6, Palette.SURFACE, Palette.BORDER, 1);
+            style.up = on ? theme.linePill(6, line) : theme.roundRect(6, Palette.SURFACE, Palette.BORDER, 1);
 
             TextButton chip = new TextButton(line.name, style);
             chip.addListener(new ChangeListener() {
@@ -217,7 +217,7 @@ public class StopPanel extends FloatingPanel {
 
     static Table linePill(Theme theme, BusLine line) {
         Table pill = new Table();
-        pill.setBackground(theme.roundRect(7, line.color));
+        pill.setBackground(theme.linePill(7, line));
         pill.add(theme.label(line.name, theme.bodyStrong, line.textColor)).padLeft(6).padRight(6);
         return pill;
     }

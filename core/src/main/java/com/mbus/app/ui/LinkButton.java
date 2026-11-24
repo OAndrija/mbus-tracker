@@ -23,7 +23,7 @@ class LinkButton extends TextButton {
         TextButtonStyle style = new TextButtonStyle();
         style.font = theme.captionStrong;
         style.fontColor = Palette.BRAND;
-        style.overFontColor = Palette.BRAND_DARK;
+        style.overFontColor = Palette.BRAND_STRONG;
         return style;
     }
 }

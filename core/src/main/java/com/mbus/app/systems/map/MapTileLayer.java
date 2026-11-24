@@ -1,12 +1,15 @@
 package com.mbus.app.systems.map;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Disposable;
+import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.mbus.app.utils.Constants;
 import com.mbus.app.utils.MipMaps;
 import com.mbus.app.utils.ZoomXY;
@@ -41,6 +44,36 @@ public class MapTileLayer implements Disposable {
     private final ConcurrentLinkedQueue<DecodedTile> decoded = new ConcurrentLinkedQueue<>();
     private final ExecutorService executor;
 
+    private static final String VERTEX_SHADER = ""
+        + "attribute vec4 a_position;\n"
+        + "attribute vec4 a_color;\n"
+        + "attribute vec2 a_texCoord0;\n"
+        + "uniform mat4 u_projTrans;\n"
+        + "varying vec2 v_texCoords;\n"
+        + "void main() {\n"
+        + "  v_texCoords = a_texCoord0;\n"
+        + "  gl_Position = u_projTrans * a_position;\n"
+        + "}\n";
+
+    /** Inverts the light map, turns the hues back and lowers the contrast. */
+    private static final String DARK_FRAGMENT_SHADER = ""
+        + "#ifdef GL_ES\n"
+        + "precision mediump float;\n"
+        + "#endif\n"
+        + "varying vec2 v_texCoords;\n"
+        + "uniform sampler2D u_texture;\n"
+        + "void main() {\n"
+        + "  vec3 c = vec3(1.0) - texture2D(u_texture, v_texCoords).rgb;\n"
+        + "  float light = dot(c, vec3(0.213, 0.715, 0.072));\n"
+        + "  c = clamp(2.0 * light - c, 0.0, 1.0);\n"
+        + "  c = mix(vec3(light), c, 0.75);\n"
+        + "  c = vec3(0.066, 0.086, 0.12) + c * vec3(0.66, 0.69, 0.74);\n"
+        + "  gl_FragColor = vec4(c, 1.0);\n"
+        + "}\n";
+
+    private final ShaderProgram darkShader;
+    private boolean dark = false;
+
     private volatile VisibleRange visible = VisibleRange.NONE;
     private volatile boolean disposed = false;
 
@@ -52,6 +85,9 @@ public class MapTileLayer implements Disposable {
         this.overview = MipMaps.create(overviewPixels);
         overviewPixels.dispose();
 
+        darkShader = new ShaderProgram(VERTEX_SHADER, DARK_FRAGMENT_SHADER);
+        if (!darkShader.isCompiled()) throw new GdxRuntimeException("Map shader: " + darkShader.getLog());
+
         this.executor = Executors.newFixedThreadPool(2, task -> {
             Thread thread = new Thread(task, "tile-decoder");
             thread.setDaemon(true);
@@ -59,9 +95,15 @@ public class MapTileLayer implements Disposable {
         });
     }
 
+    public void setDark(boolean dark) {
+        this.dark = dark;
+    }
+
     public void render(SpriteBatch batch) {
         uploadDecodedTiles();
 
+        batch.setShader(dark ? darkShader : null);
+        batch.setColor(Color.WHITE);
         batch.disableBlending();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
@@ -77,6 +119,7 @@ public class MapTileLayer implements Disposable {
 
         batch.end();
         batch.enableBlending();
+        batch.setShader(null);
         dropUnusedTiles();
     }
 
@@ -171,6 +214,7 @@ public class MapTileLayer implements Disposable {
         }
         tiles.clear();
         overview.dispose();
+        darkShader.dispose();
     }
 
     private static class DecodedTile {

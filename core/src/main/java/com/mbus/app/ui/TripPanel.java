@@ -135,7 +135,7 @@ public class TripPanel extends FloatingPanel {
         header.add(text).growX().top();
         if (isRunning()) {
             IconButton follow = new IconButton(theme, Icon.FOLLOW, 18, () -> listener.onFollowChanged(!following));
-            if (following) follow.setIcon(Icon.FOLLOW, Palette.BRAND, Palette.BRAND_DARK);
+            if (following) follow.setIcon(Icon.FOLLOW, Palette.BRAND, Palette.BRAND_STRONG);
             Tips.attach(theme, follow, following ? "Ne sledi avtobusu" : "Sledi avtobusu");
             header.add(follow).size(32).top();
         }
@@ -193,7 +193,7 @@ public class TripPanel extends FloatingPanel {
             last = index == trip.getStopCount() - 1;
             passed = index < next;
             isNext = index == next && isRunning();
-            Color past = new Color(busLine.color).lerp(Color.WHITE, 0.65f);
+            Color past = new Color(busLine.color).lerp(Palette.SURFACE, 0.65f);
             line = theme.fill(busLine.color, 1, 1);
             pastLine = theme.fill(past, 1, 1);
             dot = theme.roundRect(isNext ? 8 : 6, passed ? past : busLine.color);

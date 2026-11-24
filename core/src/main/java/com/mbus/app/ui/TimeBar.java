@@ -127,7 +127,7 @@ public class TimeBar extends FloatingPanel {
         private final Drawable knob = theme.roundRect(KNOB, Palette.BRAND);
         private final Drawable knobCenter = theme.roundRect(KNOB - 3, Palette.SURFACE);
         private final Drawable bar = theme.fill(Palette.BORDER, 1, 1);
-        private final Drawable pastBar = theme.fill(new Color(Palette.BRAND).lerp(Color.WHITE, 0.7f), 1, 1);
+        private final Drawable pastBar = theme.fill(new Color(Palette.BRAND).lerp(Palette.SURFACE, 0.7f), 1, 1);
         private final GlyphLayout layout = new GlyphLayout();
 
         Slider() {

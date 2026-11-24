@@ -26,7 +26,7 @@ final class Tips {
         }
 
         Tooltip<Label> tooltip = new Tooltip<>(theme.label(text, theme.caption, Color.WHITE), manager);
-        tooltip.getContainer().background(theme.roundRect(6, Palette.INK)).pad(5, 9, 5, 9);
+        tooltip.getContainer().background(theme.roundRect(6, Palette.TOOLTIP)).pad(5, 9, 5, 9);
         actor.addListener(tooltip);
     }
 }

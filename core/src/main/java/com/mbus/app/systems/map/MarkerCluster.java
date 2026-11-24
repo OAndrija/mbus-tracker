@@ -59,6 +59,15 @@ public class MarkerCluster {
         return animatedPosition;
     }
 
+    /** The name all stops share, such as the two sides of a road, or null. */
+    public String getCommonName() {
+        String name = stops.get(0).name;
+        for (BusStop stop : stops) {
+            if (!stop.name.equals(name)) return null;
+        }
+        return name;
+    }
+
     public BusStop getSingleStop() {
         return isCluster ? null : stops.get(0);
     }

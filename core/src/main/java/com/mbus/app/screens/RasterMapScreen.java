@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.input.GestureDetector;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.scenes.scene2d.ui.TooltipManager;
 import com.badlogic.gdx.utils.ScreenUtils;
 
 import com.mbus.app.MBusTracker;
@@ -17,7 +18,6 @@ import com.mbus.app.model.BusStop;
 import com.mbus.app.model.Timetable;
 import com.mbus.app.model.Trip;
 import com.mbus.app.utils.ZoomXY;
-import com.mbus.app.systems.input.BusLineClickHandler;
 import com.mbus.app.systems.input.MapGestureListener;
 import com.mbus.app.systems.map.MapRenderer;
 import com.mbus.app.systems.map.MapTileLayer;
@@ -28,6 +28,7 @@ import com.mbus.app.ui.Sidebar;
 import com.mbus.app.ui.StopPanel;
 import com.mbus.app.ui.TripPanel;
 import com.mbus.app.ui.theme.Palette;
+import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.AppClock;
 import com.mbus.app.utils.Constants;
 import com.mbus.app.utils.Settings;
@@ -53,7 +54,6 @@ public class RasterMapScreen implements Screen {
     private MapUi ui;
 
     private GestureDetector gestureDetector;
-    private BusLineClickHandler lineClickHandler;
     private InputProcessor shortcuts;
 
     private Trip selectedTrip;
@@ -85,8 +85,7 @@ public class RasterMapScreen implements Screen {
         mapRenderer.setBusLines(timetable.getLines());
 
         Settings settings = app.getSettings();
-        ui = new MapUi(app.getTheme(), timetable, clock, settings, createSidebarListener(),
-            createStopListener(), createTripListener(), createMapActions());
+        ui = createUi();
         mapRenderer.setVisibleLines(ui.getSidebar().getVisibleLines());
         mapRenderer.setFilteredStops(ui.getSidebar().getStopsOnVisibleLines());
         mapRenderer.setShowMarkers(settings.isShowStops());
@@ -100,13 +99,46 @@ public class RasterMapScreen implements Screen {
         setupInput();
     }
 
+    private MapUi createUi() {
+        return new MapUi(app.getTheme(), timetable, clock, app.getSettings(), createSidebarListener(),
+            createStopListener(), createTripListener(), createMapActions());
+    }
+
+    /** Changes the colors. All widgets are made anew and put back into the state the old ones were in. */
+    private void switchTheme() {
+        TooltipManager.getInstance().hideAll();
+        Theme oldTheme = app.switchTheme(!Palette.isDark());
+        MapUi oldUi = ui;
+        BusStop openStop = oldUi.getStopPanel().isOpen() ? oldUi.getStopPanel().getStop() : null;
+        boolean timeBarOpen = oldUi.getTimeBar().isOpen();
+
+        ui = createUi();
+        mapRenderer.setTheme(app.getTheme());
+        ui.getSidebar().setSearch(oldUi.getSidebar().getSearch());
+        ui.getSidebar().setCollapsed(oldUi.getSidebar().isCollapsed());
+        if (openStop != null) {
+            ui.getSidebar().setSelectedStop(openStop);
+            ui.getStopPanel().show(openStop);
+        }
+        if (selectedTrip != null) {
+            ui.getTripPanel().show(selectedTrip, selectedTripDate, tripStop != null, following);
+        }
+        if (timeBarOpen) ui.getTimeBar().show();
+        ui.layout();
+
+        int index = app.inputMultiplexer.getProcessors().indexOf(oldUi.getStage(), true);
+        app.inputMultiplexer.removeProcessor(oldUi.getStage());
+        app.inputMultiplexer.addProcessor(index, ui.getStage());
+        oldUi.dispose();
+        oldTheme.dispose();
+    }
+
     private Sidebar.Listener createSidebarListener() {
         return new Sidebar.Listener() {
             @Override
             public void onVisibleLinesChanged(Set<BusLine> visibleLines, List<BusStop> stopsOnThem) {
                 mapRenderer.setVisibleLines(visibleLines);
                 mapRenderer.setFilteredStops(stopsOnThem);
-                lineClickHandler.setVisibleLines(visibleLines);
 
                 BusLine selected = mapRenderer.getSelectedLine();
                 if (selected != null
@@ -206,6 +238,12 @@ public class RasterMapScreen implements Screen {
                     ui.getTimeBar().show();
                     ui.layout();
                 }
+            }
+
+            @Override
+            public void toggleDark() {
+                // Not while the button that was clicked is still handling the click
+                Gdx.app.postRunnable(RasterMapScreen.this::switchTheme);
             }
         };
     }
@@ -334,21 +372,24 @@ public class RasterMapScreen implements Screen {
         Trip trip = null;
         BusStop stop = null;
         BusLine line = null;
-        boolean overCluster = false;
+        MarkerCluster cluster = null;
 
-        if (!animatingCamera && !ui.isOver(x, y)) {
+        boolean overUi = ui.isOver(x, y);
+        if (!animatingCamera && !overUi) {
             trip = mapRenderer.findBus(x, y);
-            overCluster = trip == null && mapRenderer.findCluster(x, y) != null;
-            if (trip == null && !overCluster) {
+            if (trip == null) cluster = mapRenderer.findCluster(x, y);
+            if (trip == null && cluster == null) {
                 stop = mapRenderer.findStop(x, y);
-                if (stop == null) line = lineClickHandler.checkLineClick(x, y);
+                if (stop == null) line = mapRenderer.findLine(x, y);
             }
         }
+        String stopName = stop != null ? stop.name : cluster != null ? cluster.getCommonName() : null;
 
         mapRenderer.setHoveredTrip(trip);
         mapRenderer.setHoveredStop(stop);
-        mapRenderer.setHoveredLine(line);
-        ui.updatePointer(trip, stop, line, overCluster);
+        mapRenderer.setHoveredCluster(cluster);
+        mapRenderer.setHoveredLine(overUi ? ui.getSidebar().getHoveredLine() : line);
+        ui.updatePointer(trip, stopName, line, cluster != null);
     }
 
     private void updateCameraAnimation(float delta) {
@@ -412,12 +453,7 @@ public class RasterMapScreen implements Screen {
     private void setupInput() {
         MapGestureListener gestures = new MapGestureListener(app.camera);
 
-        lineClickHandler = new BusLineClickHandler(app.camera);
-        lineClickHandler.setBusLines(timetable.getLines());
-        lineClickHandler.setGeometry(geometry);
-        lineClickHandler.setVisibleLines(ui.getSidebar().getVisibleLines());
-        gestures.setLineClickHandler(lineClickHandler);
-
+        gestures.setLineFinder(mapRenderer::findLine);
         gestures.setStopFinder(mapRenderer::findStop);
         gestures.setBusStopClickCallback(this::selectStop);
 
@@ -452,10 +488,10 @@ public class RasterMapScreen implements Screen {
             app.cameraController.stopZooming();
             setFollowing(false);
         });
-        gestures.setUiHitTest(ui::isOver);
+        gestures.setUiHitTest((x, y) -> ui.isOver(x, y));
 
         app.cameraController.setUserInputListener(cancelAnimation);
-        app.cameraController.setUiHitTest(ui::isOver);
+        app.cameraController.setUiHitTest((x, y) -> ui.isOver(x, y));
 
         gestureDetector = new GestureDetector(gestures);
         gestureDetector.setTapSquareSize(8f);
@@ -490,6 +526,9 @@ public class RasterMapScreen implements Screen {
                         return true;
                     case Input.Keys.T:
                         createMapActions().toggleTimeBar();
+                        return true;
+                    case Input.Keys.D:
+                        createMapActions().toggleDark();
                         return true;
                     case Input.Keys.HOME:
                         createMapActions().showWholeNetwork();

@@ -1,5 +1,6 @@
 package com.mbus.app.utils;
 
+import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
 
 import java.text.Normalizer;
@@ -11,17 +12,24 @@ public final class StopSearch {
     private StopSearch() {
     }
 
-    /** True if every word of the query occurs in the stop's name or is the start of its number. */
+    /** True if every word of the query occurs in the stop's name, starts its number or is a line that stops there. */
     public static boolean matches(BusStop stop, String query) {
         String name = normalize(stop.name);
         String id = stop.id;
 
         for (String word : normalize(query).trim().split("\\s+")) {
-            if (!name.contains(word) && !id.startsWith(word)) {
+            if (!name.contains(word) && !id.startsWith(word) && !isServedBy(stop, word)) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean isServedBy(BusStop stop, String lineName) {
+        for (BusLine line : stop.getLines()) {
+            if (line.name.equalsIgnoreCase(lineName)) return true;
+        }
+        return false;
     }
 
     static String normalize(String text) {

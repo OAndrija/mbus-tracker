@@ -13,6 +13,7 @@ public class BusLine implements Comparable<BusLine> {
     private static final Color DARK_TEXT = Color.valueOf("0f172a");
     private static final float DARK_TEXT_LUMINANCE = 0.3f;
     private static final float LIGHT_LUMINANCE = 0.42f;
+    private static final float DARK_LUMINANCE = 0.07f;
 
     public final String id;
     public final String name;
@@ -35,6 +36,11 @@ public class BusLine implements Comparable<BusLine> {
     /** True if the color needs an outline on a light map. */
     public boolean isLight() {
         return luminance() > LIGHT_LUMINANCE;
+    }
+
+    /** True if the color needs an outline on a dark map. */
+    public boolean isDark() {
+        return luminance() < DARK_LUMINANCE;
     }
 
     private float luminance() {

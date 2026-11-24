@@ -13,7 +13,7 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     private float initialZoom = 1f;
 
     private StopFinder stopFinder;
-    private BusLineClickHandler lineClickHandler;
+    private LineFinder lineFinder;
     private BusStopClickCallback stopClickCallback;
     private BusLineClickCallback lineClickCallback;
     private ClusterClickHandler clusterClickHandler;
@@ -26,7 +26,6 @@ public class MapGestureListener implements GestureDetector.GestureListener {
 
     public MapGestureListener(OrthographicCamera camera) {
         this.camera = camera;
-        this.lineClickHandler = new BusLineClickHandler(camera);
     }
 
     public void setUiHitTest(UiHitTest uiHitTest) {
@@ -65,8 +64,8 @@ public class MapGestureListener implements GestureDetector.GestureListener {
         this.stopFinder = stopFinder;
     }
 
-    public void setLineClickHandler(BusLineClickHandler handler) {
-        this.lineClickHandler = handler;
+    public void setLineFinder(LineFinder lineFinder) {
+        this.lineFinder = lineFinder;
     }
 
     @Override
@@ -133,8 +132,8 @@ public class MapGestureListener implements GestureDetector.GestureListener {
             }
         }
 
-        if (lineClickHandler != null && lineClickCallback != null) {
-            BusLine clickedLine = lineClickHandler.checkLineClick((int)x, (int)y);
+        if (lineFinder != null && lineClickCallback != null) {
+            BusLine clickedLine = lineFinder.findLine((int) x, (int) y);
             if (clickedLine != null) {
                 lineClickCallback.onBusLineClicked(clickedLine);
                 return true;
@@ -150,6 +149,11 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     public interface StopFinder {
         /** Returns the stop marker at a screen position, or null. */
         BusStop findStop(int screenX, int screenY);
+    }
+
+    public interface LineFinder {
+        /** Returns the line at a screen position, or null. */
+        BusLine findLine(int screenX, int screenY);
     }
 
     public interface BusClickHandler {

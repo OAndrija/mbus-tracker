@@ -51,7 +51,7 @@ public final class Shapes {
                 float distance = shape.at((x + 0.5f) / scale, (y + 0.5f) / scale);
                 float t = clamp(0.5f - distance / (2f * blur));
                 float alpha = strength * t * t * (3f - 2f * t);
-                if (alpha > 0f) blend(pixmap, x, y, Palette.INK, alpha);
+                if (alpha > 0f) blend(pixmap, x, y, Palette.SHADOW, alpha);
             }
         }
     }

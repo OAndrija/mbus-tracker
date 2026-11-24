@@ -2,13 +2,11 @@ package com.mbus.app.systems.map;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
@@ -30,14 +28,16 @@ import java.util.Set;
 public class MapRenderer {
 
     private final OrthographicCamera camera;
-    private final ShapeRenderer shapeRenderer;
     private final SpriteBatch spriteBatch;
-    private final Theme theme;
-    private final BitmapFont font;
+    private Theme theme;
+    private BitmapFont font;
     private final GlyphLayout glyphLayout = new GlyphLayout();
     private final Color tint = new Color();
 
     private MapTileLayer tileLayer;
+    private LineLayer lineLayer;
+    private final LineStyle lineStyle = new LineStyle();
+    private MarkerCluster hoveredCluster = null;
     private WorldGeometry geometry;
     private List<BusStop> allStops;
     private List<BusStop> filteredStops;
@@ -63,12 +63,12 @@ public class MapRenderer {
     // All sizes are in logical screen pixels.
     private static final float STOP_SIZE_FAR = 18f;
     private static final float STOP_SIZE_NEAR = 28f;
-    private static final float LINE_WIDTH_FAR = 3f;
-    private static final float LINE_WIDTH_NEAR = 6f;
     private static final float LINE_CASING = 2f;
+    private static final float FADE = 0.6f;
     private static final float HOVERED_LINE_EXTRA = 2f;
     private static final float STOP_HIT_SLOP = 2f;
-    private static final float LIGHT_LINE_EDGE = 1f;
+    private static final float LINE_EDGE = 1f;
+    private static final float LINE_HIT_DISTANCE = 6f;
 
     // Camera zoom at which the far and near sizes apply
     private static final float FAR_ZOOM = 0.3f;
@@ -81,7 +81,6 @@ public class MapRenderer {
 
     public MapRenderer(OrthographicCamera camera, Theme theme) {
         this.camera = camera;
-        this.shapeRenderer = new ShapeRenderer();
         this.spriteBatch = new SpriteBatch();
         this.theme = theme;
         this.font = theme.map;
@@ -98,7 +97,17 @@ public class MapRenderer {
     public void setMap(MapTileLayer tileLayer, WorldGeometry geometry) {
         this.tileLayer = tileLayer;
         this.geometry = geometry;
-        busRenderer.setGeometry(geometry);
+        this.lineLayer = new LineLayer(geometry);
+        busRenderer.setGeometry(geometry, lineLayer, lineStyle);
+        tileLayer.setDark(Palette.isDark());
+    }
+
+    /** Call after the colors have changed. */
+    public void setTheme(Theme theme) {
+        this.theme = theme;
+        this.font = theme.map;
+        busRenderer.setTheme(theme);
+        tileLayer.setDark(Palette.isDark());
     }
 
     public void setStops(List<BusStop> stops) {
@@ -150,6 +159,16 @@ public class MapRenderer {
         return busRenderer.findBus(world.x, world.y, getWorldPerPixel());
     }
 
+    /** Returns the line at a screen position, or null. */
+    public BusLine findLine(int screenX, int screenY) {
+        Vector3 world = camera.unproject(new Vector3(screenX, screenY, 0));
+        return lineLayer.findLine(world.x, world.y, LINE_HIT_DISTANCE * getWorldPerPixel(), visibleLines, lineStyle);
+    }
+
+    public void setHoveredCluster(MarkerCluster cluster) {
+        this.hoveredCluster = cluster;
+    }
+
     public void setHoveredLine(BusLine line) {
         this.hoveredLine = line;
     }
@@ -164,6 +183,7 @@ public class MapRenderer {
 
     public void render(float delta) {
         updateView();
+        lineStyle.set(getWorldPerPixel(), getCloseness());
         tileLayer.render(spriteBatch);
 
         if (busLines != null && !busLines.isEmpty()) {
@@ -213,101 +233,54 @@ public class MapRenderer {
     private void renderBusLines() {
         if (visibleLines.isEmpty() && selectedTrip == null) return;
 
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-        shapeRenderer.setProjectionMatrix(camera.combined);
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        boolean fade = selectedTrip != null || (hoveredLine != null && visibleLines.contains(hoveredLine));
+        lineLayer.begin(camera.combined, lineStyle);
 
-        float pixel = getWorldPerPixel();
-        float width = MathUtils.lerp(LINE_WIDTH_FAR, LINE_WIDTH_NEAR, getCloseness()) * pixel;
-
-        // Light lines would be lost on the map without a darker edge.
+        // Lines as light or dark as the map would be lost without an edge.
         for (BusLine line : busLines) {
-            if (line.isLight() && visibleLines.contains(line)) {
-                renderLine(line, width + 2 * LIGHT_LINE_EDGE * pixel, tint.set(line.color).lerp(Color.BLACK, 0.35f));
+            if (!fade && visibleLines.contains(line) && needsEdge(line)) {
+                tint.set(line.color).lerp(Palette.isDark() ? Color.WHITE : Color.BLACK, 0.35f);
+                lineLayer.draw(line, tint, 2 * LINE_EDGE);
             }
         }
         for (BusLine line : busLines) {
-            if (!visibleLines.contains(line)) continue;
-            if (line == hoveredLine || line == selectedLine) continue;
-            renderLine(line, width, line.color);
+            if (!visibleLines.contains(line) || line == hoveredLine || line == selectedLine) continue;
+            // Everything else steps back while a line is pointed at.
+            tint.set(line.color);
+            // Mixed with the map rather than transparent, as routes of a line overlap.
+            if (fade) tint.lerp(Palette.MAP_BACKGROUND, FADE);
+            lineLayer.draw(line, tint, 0f);
         }
 
         if (selectedLine != null && selectedLine != hoveredLine) {
-            renderEmphasizedLine(selectedLine, width, pixel);
+            renderEmphasizedLine(selectedLine);
         }
         if (hoveredLine != null) {
-            renderEmphasizedLine(hoveredLine, width, pixel);
+            renderEmphasizedLine(hoveredLine);
         }
         if (selectedTrip != null) {
-            WorldGeometry.Path path = geometry.getPattern(selectedTrip.pattern);
-            float wide = width + HOVERED_LINE_EXTRA * pixel;
-            shapeRenderer.setColor(Color.WHITE);
-            renderPath(path, wide + 2 * LINE_CASING * pixel);
-            shapeRenderer.setColor(selectedTrip.pattern.line.color);
-            renderPath(path, wide);
+            lineLayer.draw(selectedTrip.pattern, Palette.SURFACE, HOVERED_LINE_EXTRA + 2 * LINE_CASING);
+            lineLayer.draw(selectedTrip.pattern, selectedTrip.pattern.line.color, HOVERED_LINE_EXTRA);
         }
-
-        shapeRenderer.end();
     }
 
-    private void renderEmphasizedLine(BusLine line, float width, float pixel) {
+    private static boolean needsEdge(BusLine line) {
+        return Palette.isDark() ? line.isDark() : line.isLight();
+    }
+
+    private void renderEmphasizedLine(BusLine line) {
         if (!visibleLines.contains(line)) return;
-        float wide = width + HOVERED_LINE_EXTRA * pixel;
-        renderLine(line, wide + 2 * LINE_CASING * pixel, Color.WHITE);
-        renderLine(line, wide, line.color);
-    }
-
-    private void renderLine(BusLine line, float lineWidth, Color color) {
-        shapeRenderer.setColor(color);
-        for (WorldGeometry.Path path : geometry.getLine(line)) {
-            renderPath(path, lineWidth);
-        }
-    }
-
-    private void renderPath(WorldGeometry.Path path, float lineWidth) {
-        if (path.size() < 2) return;
-
-        float pad = lineWidth;
-        float left = view.x - pad, right = view.x + view.width + pad;
-        float bottom = view.y - pad, top = view.y + view.height + pad;
-        Rectangle bounds = path.bounds;
-        if (bounds.x > right || bounds.x + bounds.width < left
-            || bounds.y > top || bounds.y + bounds.height < bottom) return;
-
-        float worldPerPixel = view.width / Gdx.graphics.getBackBufferWidth();
-        float minStep = worldPerPixel * 1.5f;
-        int segments = MathUtils.clamp((int) (lineWidth / worldPerPixel), 6, 16);
-
-        float x1 = path.x[0], y1 = path.y[0];
-        int last = path.size() - 1;
-
-        for (int i = 1; i <= last; i++) {
-            float x2 = path.x[i], y2 = path.y[i];
-
-            // Points closer than a pixel or so make no visible difference.
-            if (i < last && Math.abs(x2 - x1) < minStep && Math.abs(y2 - y1) < minStep) continue;
-
-            boolean outside = (x1 < left && x2 < left) || (x1 > right && x2 > right)
-                || (y1 < bottom && y2 < bottom) || (y1 > top && y2 > top);
-            if (!outside) {
-                shapeRenderer.rectLine(x1, y1, x2, y2, lineWidth);
-                shapeRenderer.circle(x1, y1, lineWidth / 2, segments);
-                if (i == last) {
-                    shapeRenderer.circle(x2, y2, lineWidth / 2, segments);
-                }
-            }
-            x1 = x2;
-            y1 = y2;
-        }
+        lineLayer.draw(line, Palette.SURFACE, HOVERED_LINE_EXTRA + 2 * LINE_CASING);
+        lineLayer.draw(line, line.color, HOVERED_LINE_EXTRA);
     }
 
     public void setVisibleLines(Set<BusLine> lines) {
         this.visibleLines = lines;
+        lineLayer.setLines(lines);
     }
 
     public void dispose() {
-        shapeRenderer.dispose();
+        if (lineLayer != null) lineLayer.dispose();
         spriteBatch.dispose();
         if (tileLayer != null) tileLayer.dispose();
     }
@@ -342,7 +315,16 @@ public class MapRenderer {
         }
 
         for (MarkerCluster cluster : clusters) {
-            if (cluster.isCluster) drawCluster(cluster);
+            if (!cluster.isCluster) continue;
+            if (cluster.getCommonName() == null) {
+                drawCluster(cluster);
+            } else if (selectedStop != null && cluster.getStops().contains(selectedStop)) {
+                selected = cluster;
+            } else if (cluster == hoveredCluster) {
+                hovered = cluster;
+            } else {
+                drawMarker(theme.stopMarker, cluster, getStopSize());
+            }
         }
 
         if (hovered != null) {
@@ -395,7 +377,8 @@ public class MapRenderer {
         Vector3 world = camera.unproject(new Vector3(screenX, screenY, 0));
         for (MarkerCluster cluster : clusters) {
             if (!cluster.isCluster || cluster.isDying) continue;
-            float radius = getClusterSize(cluster.getCount()) / 2f * getWorldPerPixel();
+            float size = cluster.getCommonName() == null ? getClusterSize(cluster.getCount()) : getStopSize() + 2 * STOP_HIT_SLOP;
+            float radius = size / 2f * getWorldPerPixel();
             if (cluster.getPosition().dst2(world.x, world.y) <= radius * radius) {
                 return cluster;
             }

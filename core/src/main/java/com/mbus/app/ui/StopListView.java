@@ -64,7 +64,7 @@ class StopListView extends Widget implements Cullable {
         hoverBackground = theme.roundRect(10, Palette.SUBTLE);
         selectedBackground = theme.roundRect(10, Palette.BRAND_SOFT);
         separator = theme.fill(Palette.SUBTLE, 1, 1);
-        star = theme.icon(Icon.STAR, STAR_SIZE, Color.valueOf("cbd5e1"));
+        star = theme.icon(Icon.STAR, STAR_SIZE, Palette.QUIET);
         starHovered = theme.icon(Icon.STAR, STAR_SIZE, Palette.STAR);
         starFilled = theme.icon(Icon.STAR_FILLED, STAR_SIZE, Palette.STAR);
         this.listener = listener;
@@ -223,7 +223,7 @@ class StopListView extends Widget implements Cullable {
             }
 
             batch.setColor(1, 1, 1, alpha);
-            theme.roundRect(5, line.color).draw(batch, left, y, pillWidth, PILL_HEIGHT);
+            theme.linePill(5, line).draw(batch, left, y, pillWidth, PILL_HEIGHT);
             text(batch, theme.captionStrong, label, line.textColor,
                 left, y + PILL_HEIGHT / 2f, pillWidth, Align.center, alpha);
             left += pillWidth + PILL_GAP;

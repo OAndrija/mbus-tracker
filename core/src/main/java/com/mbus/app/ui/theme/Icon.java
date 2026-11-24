@@ -28,6 +28,12 @@ public enum Icon {
         outline(2, circle(12, 12, 6)), circle(12, 12, 2.2f),
         stroke(2, 12, 2.5f, 12, 5), stroke(2, 12, 19, 12, 21.5f),
         stroke(2, 2.5f, 12, 5, 12), stroke(2, 19, 12, 21.5f, 12))),
+    MOON(subtract(circle(11.5f, 12.5f, 8.5f), circle(16.5f, 8.5f, 7.2f))),
+    SUN(union(circle(12, 12, 4.2f),
+        stroke(2, 12, 2.6f, 12, 4.4f), stroke(2, 12, 19.6f, 12, 21.4f),
+        stroke(2, 2.6f, 12, 4.4f, 12), stroke(2, 19.6f, 12, 21.4f, 12),
+        stroke(2, 5.4f, 5.4f, 6.6f, 6.6f), stroke(2, 17.4f, 17.4f, 18.6f, 18.6f),
+        stroke(2, 5.4f, 18.6f, 6.6f, 17.4f), stroke(2, 17.4f, 6.6f, 18.6f, 5.4f))),
     /** Corner brackets: show the whole network. */
     FIT(union(
         stroke(2, 4.5f, 9, 4.5f, 4.5f, 9, 4.5f), stroke(2, 15, 4.5f, 19.5f, 4.5f, 19.5f, 9),

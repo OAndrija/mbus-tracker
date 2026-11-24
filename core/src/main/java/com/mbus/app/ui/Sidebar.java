@@ -236,10 +236,10 @@ public class Sidebar {
         style.background = padded(theme.roundRect(10, Palette.SUBTLE));
         style.focusedBackground = padded(theme.roundRect(10, Palette.SURFACE, Palette.BRAND, 1.5f));
         style.cursor = theme.fill(Palette.BRAND, 1.5f, 1);
-        style.selection = theme.fill(Color.valueOf("f3c9d8"), 1, 1);
+        style.selection = theme.fill(Palette.SELECTION, 1, 1);
 
         final TextField field = new TextField("", style);
-        field.setMessageText("Išči postajo ali številko");
+        field.setMessageText("Išči postajo, številko ali linijo");
         field.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -312,7 +312,7 @@ public class Sidebar {
         style.checkedOverFontColor = line.textColor;
         style.up = theme.roundRect(8, Palette.SURFACE, Palette.BORDER, 1);
         style.over = theme.roundRect(8, Palette.SUBTLE, Palette.BORDER, 1);
-        style.checked = theme.roundRect(8, color);
+        style.checked = theme.linePill(8, line);
         style.checkedOver = theme.roundRect(8, hover);
         return style;
     }
@@ -449,6 +449,32 @@ public class Sidebar {
 
     public List<BusStop> getStopsOnVisibleLines() {
         return stopsOnVisibleLines;
+    }
+
+    /** The line whose button is under the pointer, or null. */
+    public BusLine getHoveredLine() {
+        if (collapsed) return null;
+        for (Map.Entry<BusLine, TextButton> chip : chips.entrySet()) {
+            if (chip.getValue().isOver()) return chip.getKey();
+        }
+        return null;
+    }
+
+    public boolean isCollapsed() {
+        return collapsed;
+    }
+
+    public void setCollapsed(boolean collapse) {
+        if (collapse != collapsed) toggleCollapsed();
+    }
+
+    public String getSearch() {
+        return searchField.getText();
+    }
+
+    public void setSearch(String text) {
+        searchField.setText(text);
+        refreshStops();
     }
 
     public Set<BusLine> getVisibleLines() {

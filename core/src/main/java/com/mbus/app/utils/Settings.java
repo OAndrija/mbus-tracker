@@ -14,6 +14,7 @@ public class Settings {
     private static final String FAVORITES = "favorites";
     private static final String HIDDEN_LINES = "hiddenLines";
     private static final String SHOW_STOPS = "showStops";
+    private static final String DARK = "dark";
     private static final String CAMERA_X = "cameraX";
     private static final String CAMERA_Y = "cameraY";
     private static final String CAMERA_ZOOM = "cameraZoom";
@@ -63,6 +64,15 @@ public class Settings {
 
     public void setShowStops(boolean show) {
         preferences.putBoolean(SHOW_STOPS, show);
+        preferences.flush();
+    }
+
+    public boolean isDark() {
+        return preferences.getBoolean(DARK, false);
+    }
+
+    public void setDark(boolean dark) {
+        preferences.putBoolean(DARK, dark);
         preferences.flush();
     }
 

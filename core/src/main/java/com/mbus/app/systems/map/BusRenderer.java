@@ -43,7 +43,10 @@ public class BusRenderer {
     private static final float MAX_DEGREES_PER_SECOND = 240f;
 
     private final SpriteBatch spriteBatch;
-    private final Theme theme;
+    private Theme theme;
+    private LineLayer lineLayer;
+    private LineStyle lineStyle;
+    private final Vector2 offset = new Vector2();
     private final GlyphLayout layout = new GlyphLayout();
     private final Color tint = new Color();
     private final Vector2 front = new Vector2();
@@ -71,8 +74,14 @@ public class BusRenderer {
         this.theme = theme;
     }
 
-    public void setGeometry(WorldGeometry geometry) {
+    public void setTheme(Theme theme) {
+        this.theme = theme;
+    }
+
+    public void setGeometry(WorldGeometry geometry, LineLayer lineLayer, LineStyle lineStyle) {
         this.geometry = geometry;
+        this.lineLayer = lineLayer;
+        this.lineStyle = lineStyle;
         motions.clear();
         buses.clear();
     }
@@ -176,6 +185,11 @@ public class BusRenderer {
         double along = motion.distanceAt(trip, time);
         motion.getTrack().pointAt(along + length / 2f, front);
         motion.getTrack().pointAt(along - length / 2f, rear);
+        Strand strand = lineLayer.getStrand(trip.pattern);
+        if (strand != null) {
+            front.add(strand.offsetAt(along + length / 2f, lineStyle, offset));
+            rear.add(strand.offsetAt(along - length / 2f, lineStyle, offset));
+        }
         float x = (front.x + rear.x) / 2f;
         float y = (front.y + rear.y) / 2f;
         float heading = MathUtils.atan2(front.y - rear.y, front.x - rear.x) * MathUtils.radiansToDegrees;

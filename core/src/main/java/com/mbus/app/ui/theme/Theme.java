@@ -17,6 +17,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.NinePatchDrawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Disposable;
+import com.mbus.app.model.BusLine;
 import com.mbus.app.utils.MipMaps;
 
 import java.util.ArrayList;
@@ -95,7 +96,7 @@ public class Theme implements Disposable {
 
         stopMarker = marker(Palette.SURFACE, Palette.TEXT, 5f, Icon.BUS, Palette.TEXT);
         stopMarkerHovered = marker(Palette.SURFACE, Palette.BRAND, 8f, Icon.BUS, Palette.BRAND);
-        stopMarkerSelected = marker(Palette.BRAND, Palette.SURFACE, 7f, Icon.BUS, Palette.SURFACE);
+        stopMarkerSelected = marker(Palette.LOGO, Palette.ON_COLOR, 7f, Icon.BUS, Palette.ON_COLOR);
         clusterMarker = marker(Palette.SURFACE, Palette.TEXT, 6f, null, null);
 
         Shapes.Distance disc = Shapes.union(
@@ -185,6 +186,13 @@ public class Theme implements Disposable {
         return drawable;
     }
 
+    /** A rounded rectangle in the color of a line, outlined if it would be lost on a dark surface. */
+    public Drawable linePill(float radius, BusLine line) {
+        return Palette.isDark() && line.isDark()
+            ? roundRect(radius, line.color, new Color(line.color).lerp(Color.WHITE, 0.35f), 1f)
+            : roundRect(radius, line.color);
+    }
+
     /** A plain rectangle of one color. */
     public Drawable fill(Color color, float minWidth, float minHeight) {
         if (pixel == null) {
@@ -215,8 +223,12 @@ public class Theme implements Disposable {
                 Shapes.roundRect(margin, margin + offset, units, units, radius));
             Shapes.paintShadow(pixmap, density, 2f, 0.10f,
                 Shapes.roundRect(margin, margin + 1f, units, units, radius));
-            Shapes.paint(pixmap, density, Palette.SURFACE,
-                Shapes.roundRect(margin, margin, units, units, radius));
+            Shapes.Distance shape = Shapes.roundRect(margin, margin, units, units, radius);
+            if (Palette.isDark()) {
+                // A shadow alone does not set a dark card apart from a dark map.
+                Shapes.paint(pixmap, density, Palette.BORDER, Shapes.grow(1f, shape));
+            }
+            Shapes.paint(pixmap, density, Palette.SURFACE, shape);
             patch = ninePatch(pixmap, MathUtils.ceil((margin + radius + 1f) * density));
             patches.put("card/" + radius, patch);
         }
@@ -266,8 +278,8 @@ public class Theme implements Disposable {
     public static Pixmap logoPixmap(int pixels) {
         Pixmap pixmap = Shapes.transparent(pixels, pixels);
         float scale = pixels / 40f;
-        Shapes.paint(pixmap, scale, Palette.BRAND, Shapes.roundRect(0, 0, 40, 40, 10));
-        Shapes.paint(pixmap, scale, Palette.SURFACE, (x, y) -> Icon.BUS.shape.at(x - 8f, y - 8f));
+        Shapes.paint(pixmap, scale, Palette.LOGO, Shapes.roundRect(0, 0, 40, 40, 10));
+        Shapes.paint(pixmap, scale, Palette.ON_COLOR, (x, y) -> Icon.BUS.shape.at(x - 8f, y - 8f));
         return pixmap;
     }
 
@@ -328,7 +340,7 @@ public class Theme implements Disposable {
 
     public ScrollPane.ScrollPaneStyle scrollPane() {
         ScrollPane.ScrollPaneStyle style = new ScrollPane.ScrollPaneStyle();
-        style.vScrollKnob = roundRect(3, Color.valueOf("cbd5e1"));
+        style.vScrollKnob = roundRect(3, Palette.QUIET);
         style.vScrollKnob.setMinWidth(6);
         style.vScrollKnob.setMinHeight(36);
         return style;
