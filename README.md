@@ -30,6 +30,10 @@ See the [Releases](../../releases) page to download the latest version.
 - **Bus stop markers** with dynamic clustering that adapts to zoom level
 - **Animated bus positions** for every visible line, calculated from the timetable: buses accelerate, brake at stops and turn along the road
 - **Floating panels** for filtering lines and stops, with a searchable list (accents and case are ignored) and upcoming arrivals per stop
+- **Favorite stops**, kept at the top of the list
+- **Trip view**: click a bus or a departure to see its stops and times, and follow the bus on the map
+- **Time travel**: look at any time of any day the timetable covers, at up to 60× speed
+- **Remembers** favorites, hidden lines, the map position and the window size
 - **Streamed map tiles** — only the visible area is kept in memory at full resolution
 - **Smooth camera** with drag-to-pan and zoom at the cursor, clamped to the map bounds, and animated fly-to on stop selection
 - **Background loading screen** with threaded tile downloads and data parsing, showing live progress
@@ -50,10 +54,16 @@ See the [Releases](../../releases) page to download the latest version.
 |---|---|
 | Drag / arrow keys | Move the map |
 | Mouse wheel / Q, A | Zoom in and out |
-| Click a stop | Show upcoming arrivals |
+| Click a stop | Show upcoming departures |
+| Click a bus or a departure | Show the whole trip |
 | Click a cluster | Zoom in on it |
 | Click a line | Show only that line; click again to show all |
 | Enter / Esc in the search box | Open the first result / clear the search |
+| Ctrl+F | Search |
+| F | Add the open stop to the favorites, or remove it |
+| T | Choose the time |
+| Home | Show the whole network |
+| Esc | Close the open panel |
 
 ---
 
@@ -87,7 +97,9 @@ MBusTracker (Game)
     ├── MarkerClusterer    — Zoom-aware stop clustering with animations
     ├── MapUi              — Layout of everything that floats above the map
     │   ├── Sidebar         — Search, line filter and stop list
-    │   ├── StopPanel       — Upcoming arrivals at one stop
+    │   ├── StopPanel       — Upcoming departures from one stop
+    │   ├── TripPanel       — All stops of one trip
+    │   ├── TimeBar         — Day and time to show
     │   └── Theme           — Fonts, colors, shapes and icons, rendered for the screen's density
     └── Input
         ├── MapGestureListener  — Pan, zoom, tap handling

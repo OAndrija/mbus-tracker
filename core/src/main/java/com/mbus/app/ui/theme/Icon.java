@@ -2,7 +2,9 @@ package com.mbus.app.ui.theme;
 
 import static com.mbus.app.ui.theme.Shapes.circle;
 import static com.mbus.app.ui.theme.Shapes.outline;
+import static com.mbus.app.ui.theme.Shapes.polygon;
 import static com.mbus.app.ui.theme.Shapes.roundRect;
+import static com.mbus.app.ui.theme.Shapes.star;
 import static com.mbus.app.ui.theme.Shapes.stroke;
 import static com.mbus.app.ui.theme.Shapes.subtract;
 import static com.mbus.app.ui.theme.Shapes.union;
@@ -12,12 +14,20 @@ public enum Icon {
 
     SEARCH(union(outline(2, circle(10.5f, 10.5f, 6.5f)), stroke(2, 15.5f, 15.5f, 20.5f, 20.5f))),
     CLOSE(union(stroke(2, 6.5f, 6.5f, 17.5f, 17.5f), stroke(2, 17.5f, 6.5f, 6.5f, 17.5f))),
+    CHEVRON_LEFT(stroke(2, 14.5f, 6, 8.5f, 12, 14.5f, 18)),
     CHEVRON_RIGHT(stroke(2, 9.5f, 6, 15.5f, 12, 9.5f, 18)),
     CHEVRON_UP(stroke(2, 6, 14.5f, 12, 8.5f, 18, 14.5f)),
     CHEVRON_DOWN(stroke(2, 6, 9.5f, 12, 15.5f, 18, 9.5f)),
     PLUS(union(stroke(2, 12, 5.5f, 12, 18.5f), stroke(2, 5.5f, 12, 18.5f, 12))),
     MINUS(stroke(2, 5.5f, 12, 18.5f, 12)),
     CLOCK(union(outline(2, circle(12, 12, 8.5f)), stroke(2, 12, 7.5f, 12, 12, 15, 14))),
+    STAR(outline(2, polygon(1, star(12, 12.6f, 8.6f, 4.1f)))),
+    STAR_FILLED(polygon(2, star(12, 12.6f, 8.6f, 4.1f))),
+    /** A circle with a dot and four marks: keep the bus in the middle. */
+    FOLLOW(union(
+        outline(2, circle(12, 12, 6)), circle(12, 12, 2.2f),
+        stroke(2, 12, 2.5f, 12, 5), stroke(2, 12, 19, 12, 21.5f),
+        stroke(2, 2.5f, 12, 5, 12), stroke(2, 19, 12, 21.5f, 12))),
     /** Corner brackets: show the whole network. */
     FIT(union(
         stroke(2, 4.5f, 9, 4.5f, 4.5f, 9, 4.5f), stroke(2, 15, 4.5f, 19.5f, 4.5f, 19.5f, 9),

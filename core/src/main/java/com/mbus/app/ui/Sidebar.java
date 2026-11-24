@@ -26,7 +26,9 @@ import com.mbus.app.model.Trip;
 import com.mbus.app.ui.theme.Icon;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
+import com.mbus.app.utils.AppClock;
 import com.mbus.app.utils.CityTime;
+import com.mbus.app.utils.Settings;
 import com.mbus.app.utils.StopSearch;
 
 import java.time.LocalDate;
@@ -48,6 +50,8 @@ public class Sidebar {
         void onStopChosen(BusStop stop);
 
         void onCollapsedChanged();
+
+        void onFavoriteChanged(BusStop stop);
     }
 
     private static final float PADDING = 16f;
@@ -73,6 +77,9 @@ public class Sidebar {
     private final Map<BusLine, TextButton> chips = new LinkedHashMap<>();
     private final Label status;
     private final Timetable timetable;
+    private final AppClock appClock;
+    private final Settings settings;
+    private LocalDate shownDate;
 
     private final List<BusStop> allStops;
     private final List<BusLine> allLines;
@@ -82,14 +89,20 @@ public class Sidebar {
     private boolean collapsed = false;
     private int shownMinute = -1;
 
-    public Sidebar(Theme theme, Timetable timetable, Listener listener) {
+    public Sidebar(Theme theme, Timetable timetable, AppClock appClock, Settings settings, Listener listener) {
         this.theme = theme;
         this.listener = listener;
         this.timetable = timetable;
+        this.appClock = appClock;
+        this.settings = settings;
         this.allStops = timetable.getStops();
         this.allLines = timetable.getLines();
-        visibleLines.addAll(allLines);
-        stopsOnVisibleLines = allStops;
+        Set<String> hidden = settings.getHiddenLines();
+        for (BusLine line : allLines) {
+            if (!hidden.contains(line.id)) visibleLines.add(line);
+        }
+        if (visibleLines.isEmpty()) visibleLines.addAll(allLines); // an empty map would look broken
+        stopsOnVisibleLines = findStopsOnVisibleLines();
 
         status = theme.label("", theme.caption, Palette.MUTED);
         clock = theme.label("", theme.bodyStrong, Palette.TEXT);
@@ -97,11 +110,12 @@ public class Sidebar {
         searchField = createSearchField();
         clearButton = new IconButton(theme, Icon.CLOSE, 14, this::clearSearch);
         clearButton.setVisible(false);
-        allLinesButton = new LinkButton(theme, "Skrij vse", this::toggleAllLines);
-        showStopsSwitch = new Switch(theme, true);
+        allLinesButton = new LinkButton(theme, allVisible() ? "Skrij vse" : "Pokaži vse", this::toggleAllLines);
+        showStopsSwitch = new Switch(theme, settings.isShowStops());
         showStopsSwitch.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
+                Sidebar.this.settings.setShowStops(showStopsSwitch.isChecked());
                 Sidebar.this.listener.onShowStopsChanged(showStopsSwitch.isChecked());
             }
         });
@@ -110,7 +124,24 @@ public class Sidebar {
         emptyLabel.setAlignment(Align.center);
         emptyLabel.setWrap(true);
 
-        stopList = new StopListView(theme, this::choose);
+        stopList = new StopListView(theme, new StopListView.Listener() {
+            @Override
+            public void onStopClicked(BusStop stop) {
+                choose(stop);
+            }
+
+            @Override
+            public void onStarClicked(BusStop stop) {
+                Sidebar.this.settings.toggleFavorite(stop.id);
+                refreshFavorites();
+                Sidebar.this.listener.onFavoriteChanged(stop);
+            }
+
+            @Override
+            public boolean isFavorite(BusStop stop) {
+                return Sidebar.this.settings.isFavorite(stop.id);
+            }
+        });
         stopScroll = new ScrollPane(stopList, theme.scrollPane());
         stopScroll.setScrollingDisabled(true, false);
         stopScroll.setOverscroll(false, false);
@@ -177,7 +208,7 @@ public class Sidebar {
         Stack list = new Stack(stopScroll, empty);
         content.add(list).grow().pad(0, 4, 0, 4).row();
 
-        boolean expired = timetable.isExpired(CityTime.today());
+        boolean expired = timetable.isExpired(appClock.getRealDate());
         Label validity = theme.label(
             (expired ? "Vozni red je potekel " : "Po voznem redu Marproma do ") + CityTime.format(timetable.getValidUntil()),
             theme.caption, expired ? Palette.NOW : Palette.FAINT);
@@ -250,7 +281,7 @@ public class Sidebar {
         for (final BusLine line : allLines) {
             final TextButton chip = new TextButton(line.name, chipStyle(line));
             chip.setProgrammaticChangeEvents(false);
-            chip.setChecked(true);
+            chip.setChecked(visibleLines.contains(line));
             chip.addListener(new ChangeListener() {
                 @Override
                 public void changed(ChangeEvent event, Actor actor) {
@@ -316,27 +347,44 @@ public class Sidebar {
     }
 
     private void refreshStops() {
+        fillStops();
+        stopScroll.setScrollY(0);
+        stopScroll.updateVisualScroll();
+    }
+
+    /** Moves stops between the sections without jumping back to the top. */
+    public void refreshFavorites() {
+        fillStops();
+    }
+
+    private void fillStops() {
         String query = searchField.getText();
         boolean searching = !query.trim().isEmpty();
 
-        if (searching) {
-            listedStops = new ArrayList<>();
-            for (BusStop stop : stopsOnVisibleLines) {
-                if (StopSearch.matches(stop, query)) listedStops.add(stop);
-            }
-        } else {
-            listedStops = stopsOnVisibleLines;
+        List<BusStop> favorites = new ArrayList<>();
+        List<BusStop> others = new ArrayList<>();
+        for (BusStop stop : stopsOnVisibleLines) {
+            if (searching && !StopSearch.matches(stop, query)) continue;
+            (settings.isFavorite(stop.id) ? favorites : others).add(stop);
         }
+        listedStops = new ArrayList<>(favorites);
+        listedStops.addAll(others);
 
-        stopList.setStops(listedStops);
-        stopScroll.setScrollY(0);
-        stopScroll.updateVisualScroll();
+        stopList.setStops(listedStops, favorites.size());
         clearButton.setVisible(!query.isEmpty());
         stopCount.setText(listedStops.size() == allStops.size()
             ? String.valueOf(allStops.size())
             : listedStops.size() + " od " + allStops.size());
         emptyLabel.setText(!listedStops.isEmpty() ? ""
             : searching ? "Ni zadetkov za »" + query.trim() + "«" : "Na izbranih linijah ni postaj");
+    }
+
+    public void startSearch() {
+        if (collapsed) toggleCollapsed();
+        if (card.getStage() != null) {
+            card.getStage().setKeyboardFocus(searchField);
+            searchField.selectAll();
+        }
     }
 
     private void choose(BusStop stop) {
@@ -368,22 +416,39 @@ public class Sidebar {
         for (Map.Entry<BusLine, TextButton> chip : chips.entrySet()) {
             chip.getValue().setChecked(visibleLines.contains(chip.getKey()));
         }
-        boolean all = visibleLines.size() == allLines.size();
-        allLinesButton.setText(all ? "Skrij vse" : "Pokaži vse");
+        allLinesButton.setText(allVisible() ? "Skrij vse" : "Pokaži vse");
+        stopsOnVisibleLines = findStopsOnVisibleLines();
+        refreshStops();
 
-        stopsOnVisibleLines = all || visibleLines.isEmpty() ? allStops : new ArrayList<>();
-        if (stopsOnVisibleLines != allStops) {
-            for (BusStop stop : allStops) {
-                for (BusLine line : stop.getLines()) {
-                    if (visibleLines.contains(line)) {
-                        stopsOnVisibleLines.add(stop);
-                        break;
-                    }
+        Set<String> hidden = new HashSet<>();
+        for (BusLine line : allLines) {
+            if (!visibleLines.contains(line)) hidden.add(line.id);
+        }
+        settings.setHiddenLines(hidden);
+        listener.onVisibleLinesChanged(getVisibleLines(), stopsOnVisibleLines);
+    }
+
+    private boolean allVisible() {
+        return visibleLines.size() == allLines.size();
+    }
+
+    private List<BusStop> findStopsOnVisibleLines() {
+        if (allVisible() || visibleLines.isEmpty()) return allStops;
+
+        List<BusStop> found = new ArrayList<>();
+        for (BusStop stop : allStops) {
+            for (BusLine line : stop.getLines()) {
+                if (visibleLines.contains(line)) {
+                    found.add(stop);
+                    break;
                 }
             }
         }
-        refreshStops();
-        listener.onVisibleLinesChanged(getVisibleLines(), stopsOnVisibleLines);
+        return found;
+    }
+
+    public List<BusStop> getStopsOnVisibleLines() {
+        return stopsOnVisibleLines;
     }
 
     public Set<BusLine> getVisibleLines() {
@@ -411,18 +476,20 @@ public class Sidebar {
     }
 
     public void update() {
-        int minute = CityTime.minutes();
-        if (minute != shownMinute) {
+        int minute = appClock.getMinute();
+        LocalDate date = appClock.getDate();
+        clock.getStyle().fontColor = appClock.isLive() ? Palette.TEXT : Palette.BRAND;
+        if (minute != shownMinute || !date.equals(shownDate)) {
             shownMinute = minute;
+            shownDate = date;
             clock.setText(CityTime.format(minute));
-            status.setText(describeTraffic(minute));
+            status.setText(describeTraffic(date, minute));
         }
     }
 
-    private String describeTraffic(int minute) {
-        LocalDate today = CityTime.today();
+    private String describeTraffic(LocalDate date, int minute) {
         int running = 0;
-        for (Trip trip : timetable.getTrips(today)) {
+        for (Trip trip : timetable.getTrips(date)) {
             if (trip.getStart() > minute) {
                 if (running == 0) return "Naslednji avtobus ob " + CityTime.format(trip.getStart());
                 break;
@@ -431,8 +498,8 @@ public class Sidebar {
         }
         if (running > 0) return running + " " + buses(running) + " na poti";
 
-        List<Trip> tomorrow = timetable.getTrips(today.plusDays(1));
-        return tomorrow.isEmpty() ? "Maribor" : "Naslednji avtobus jutri ob " + CityTime.format(tomorrow.get(0).getStart());
+        List<Trip> nextDay = timetable.getTrips(date.plusDays(1));
+        return nextDay.isEmpty() ? "Maribor" : "Prvi avtobus zjutraj ob " + CityTime.format(nextDay.get(0).getStart());
     }
 
     /** Slovene has a singular, a dual and two plurals. */

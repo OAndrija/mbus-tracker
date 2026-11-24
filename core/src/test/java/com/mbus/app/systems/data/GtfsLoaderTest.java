@@ -101,12 +101,33 @@ public class GtfsLoaderTest {
         LocalDate sunday = day(DayOfWeek.SUNDAY);
         for (BusStop stop : timetable.getStops()) {
             int previous = 8 * 60;
-            for (StopCall call : timetable.getDepartures(stop, sunday, 8 * 60, 10)) {
+            for (StopCall call : timetable.getDepartures(stop, sunday, 8 * 60, null, 10)) {
                 assertTrue(call.getTime() >= previous);
                 assertTrue(call.trip.service.runsOn(sunday));
                 previous = call.getTime();
             }
         }
+    }
+
+    @Test
+    public void departuresCanBeLimitedToALine() {
+        LocalDate tuesday = day(DayOfWeek.TUESDAY);
+        for (BusStop stop : timetable.getStops()) {
+            int sum = 0;
+            for (BusLine line : stop.getLines()) {
+                List<StopCall> calls = timetable.getDepartures(stop, tuesday, 0, line, Integer.MAX_VALUE);
+                for (StopCall call : calls) assertTrue(call.trip.pattern.line == line);
+                sum += calls.size();
+            }
+            assertEquals(timetable.getDepartures(stop, tuesday, 0, null, Integer.MAX_VALUE).size(), sum);
+        }
+    }
+
+    @Test
+    public void countsBusesOverTheDay() {
+        int[] counts = timetable.countBuses(day(DayOfWeek.TUESDAY), 24);
+        assertEquals(0, counts[2]);
+        assertTrue(counts[14] > 10);
     }
 
     @Test

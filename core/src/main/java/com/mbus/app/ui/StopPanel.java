@@ -2,147 +2,118 @@ package com.mbus.app.ui;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.Touchable;
-import com.badlogic.gdx.scenes.scene2d.actions.Actions;
+import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
-import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
-import com.mbus.app.model.RoutePattern;
 import com.mbus.app.model.StopCall;
 import com.mbus.app.model.Timetable;
+import com.mbus.app.model.Trip;
 import com.mbus.app.ui.theme.Icon;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
+import com.mbus.app.utils.AppClock;
 import com.mbus.app.utils.CityTime;
+import com.mbus.app.utils.Settings;
 
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 
 /** The upcoming departures from one stop. */
-public class StopPanel {
+public class StopPanel extends FloatingPanel {
 
-    private static final float PADDING = 16f;
+    public interface Listener {
+        void onStopPanelClosed();
+
+        void onFavoriteChanged();
+
+        void onDepartureChosen(Trip trip, LocalDate date);
+    }
+
     private static final int MAX_DEPARTURES = 20;
     /** With fewer departures left today, tomorrow's are listed too. */
     private static final int FEW_DEPARTURES = 5;
     private static final int TOMORROW_DEPARTURES = 8;
-    private static final int MINUTES_PER_DAY = 24 * 60;
     private static final float ROW_HEIGHT = 52f;
+    private static final int FILTERS_PER_ROW = 6;
 
-    private final Theme theme;
     private final Timetable timetable;
-    private final Runnable onClose;
-    private final Card card;
+    private final AppClock clock;
+    private final Settings settings;
+    private final Listener listener;
 
     private BusStop stop;
-    private ScrollPane scroll;
-    private int shownMinute = -1;
-    private float x, top, width, maxHeight;
+    private BusLine filter;
+    private int shownMinute;
+    private LocalDate shownDate;
 
-    public StopPanel(Theme theme, Timetable timetable, Runnable onClose) {
-        this.theme = theme;
+    public StopPanel(Theme theme, Timetable timetable, AppClock clock, Settings settings, Listener listener) {
+        super(theme);
         this.timetable = timetable;
-        this.onClose = onClose;
-        card = new Card(theme);
-        card.top();
-        card.setVisible(false);
-    }
-
-    public Actor getActor() {
-        return card;
-    }
-
-    public boolean isVisible() {
-        return stop != null;
+        this.clock = clock;
+        this.settings = settings;
+        this.listener = listener;
     }
 
     public void show(BusStop newStop) {
-        boolean wasVisible = isVisible();
+        if (newStop != stop) filter = null;
+        boolean sameStop = newStop == stop && isOpen();
         stop = newStop;
-        scroll = null;
-        rebuild();
-
-        if (!wasVisible) {
-            card.clearActions();
-            card.setVisible(true);
-            card.setTouchable(Touchable.enabled);
-            card.getColor().a = 0f;
-            card.addAction(Actions.fadeIn(0.16f));
-        }
+        rebuild(sameStop);
+        open();
     }
 
-    public void hide() {
-        if (stop == null) return;
-        stop = null;
-        card.clearActions();
-        card.setTouchable(Touchable.disabled);
-        card.addAction(Actions.sequence(Actions.fadeOut(0.12f), Actions.visible(false)));
-        onClose.run();
-    }
-
-    public void layout(float x, float top, float width, float maxHeight) {
-        this.x = x;
-        this.top = top;
-        this.width = width;
-        this.maxHeight = maxHeight;
-        applyBounds();
-    }
-
-    /** As tall as its content needs, up to the available height. */
-    private void applyBounds() {
-        card.setWidth(width);
-        card.validate(); // wrapped labels need the width before they know their height
-        float height = Math.min(card.getPrefHeight(), maxHeight);
-        card.setBounds(x, top - height, width, height);
+    public BusStop getStop() {
+        return stop;
     }
 
     public void update() {
-        if (stop != null && CityTime.minutes() != shownMinute) {
-            rebuild();
+        if (isOpen() && (clock.getMinute() != shownMinute || !clock.getDate().equals(shownDate))) {
+            rebuild(true);
         }
     }
 
-    private void rebuild() {
-        float scrollY = scroll != null ? scroll.getScrollY() : 0f;
-        int now = CityTime.minutes();
-        LocalDate today = CityTime.today();
-        shownMinute = now;
+    public void toggleFavorite() {
+        settings.toggleFavorite(stop.id);
+        rebuild(true);
+        listener.onFavoriteChanged();
+    }
 
-        card.clearChildren();
+    @Override
+    protected void build() {
+        int now = clock.getMinute();
+        LocalDate date = clock.getDate();
+        shownMinute = now;
+        shownDate = date;
+
         card.add(createHeader()).growX().pad(PADDING, PADDING, 14, PADDING - 6).row();
+        if (stop.getLines().size() > 1) {
+            card.add(createFilters()).growX().pad(0, PADDING - 3, 12, PADDING - 3).row();
+        }
         card.add(new Image(theme.fill(Palette.BORDER, 1, 1))).growX().height(1).row();
 
-        Table arrivalsHeader = new Table();
-        arrivalsHeader.add(theme.label("Odhodi", theme.bodyStrong, Palette.INK)).left().expandX();
-        arrivalsHeader.add(theme.label("Po voznem redu", theme.caption, Palette.MUTED));
-        card.add(arrivalsHeader).growX().pad(14, PADDING, 4, PADDING).row();
+        Table departuresHeader = new Table();
+        departuresHeader.add(theme.label("Odhodi", theme.bodyStrong, Palette.INK)).left().expandX();
+        departuresHeader.add(clock.isLive()
+            ? theme.label("Po voznem redu", theme.caption, Palette.MUTED)
+            : theme.label(CityTime.describe(date, clock.getRealDate()) + " ob " + CityTime.format(now),
+                theme.captionStrong, Palette.BRAND));
+        card.add(departuresHeader).growX().pad(14, PADDING, 4, PADDING).row();
 
-        List<StopCall> departures = timetable.getDepartures(stop, today, now, MAX_DEPARTURES);
-        List<StopCall> tomorrow = departures.size() >= FEW_DEPARTURES ? Collections.emptyList()
-            : timetable.getDepartures(stop, today.plusDays(1), 0, TOMORROW_DEPARTURES);
+        List<StopCall> departures = timetable.getDepartures(stop, date, now, filter, MAX_DEPARTURES);
+        List<StopCall> nextDay = departures.size() >= FEW_DEPARTURES ? Collections.emptyList()
+            : timetable.getDepartures(stop, date.plusDays(1), 0, filter, TOMORROW_DEPARTURES);
 
-        if (departures.isEmpty() && tomorrow.isEmpty()) {
-            scroll = null;
-            card.add(createEmptyState(timetable.isExpired(today))).growX().pad(28, PADDING, 36, PADDING);
+        if (departures.isEmpty() && nextDay.isEmpty()) {
+            card.add(createEmptyState(date)).growX().pad(28, PADDING, 36, PADDING);
         } else {
-            scroll = new ScrollPane(createDepartures(departures, tomorrow, now), theme.scrollPane());
-            scroll.setScrollingDisabled(true, false);
-            scroll.setOverscroll(false, false);
-            scroll.setScrollbarsOnTop(true);
-            ScrollOnHover.attach(scroll);
-            card.add(scroll).growX().expandY().top().padBottom(8);
-        }
-
-        applyBounds();
-        if (scroll != null) {
-            card.validate();
-            scroll.setScrollY(scrollY);
-            scroll.updateVisualScroll();
+            addScrolling(createDepartures(departures, nextDay, now, date));
         }
     }
 
@@ -155,42 +126,71 @@ public class StopPanel {
         text.add(name).growX().left().row();
         text.add(theme.label("Postaja " + stop.id, theme.caption, Palette.MUTED)).left().padTop(2);
 
+        boolean favorite = settings.isFavorite(stop.id);
+        IconButton star = new IconButton(theme, Icon.STAR, 18, this::toggleFavorite);
+        if (favorite) star.setIcon(Icon.STAR_FILLED, Palette.STAR, Palette.STAR);
+        Tips.attach(theme, star, favorite ? "Odstrani iz priljubljenih (F)" : "Dodaj med priljubljene (F)");
+
         Table header = new Table();
         header.add(text).growX().top();
-        header.add(new IconButton(theme, Icon.CLOSE, 16, this::hide)).size(32).top();
+        header.add(star).size(32).top();
+        header.add(new IconButton(theme, Icon.CLOSE, 16, listener::onStopPanelClosed)).size(32).top();
         return header;
     }
 
-    private Table createDepartures(List<StopCall> today, List<StopCall> tomorrow, int now) {
+    /** One chip per line; choosing one shows only its departures, choosing it again shows all. */
+    private Table createFilters() {
         Table table = new Table();
-        table.top();
-        addRows(table, today, now, 0);
-        if (!tomorrow.isEmpty()) {
-            table.add(theme.label(today.isEmpty() ? "Danes ni več odhodov  ·  jutri" : "Jutri",
-                theme.captionStrong, Palette.MUTED)).left().pad(14, PADDING, 4, PADDING).row();
-            addRows(table, tomorrow, now, MINUTES_PER_DAY);
+        table.left();
+        int column = 0;
+        for (final BusLine line : stop.getLines()) {
+            boolean on = filter == null || filter == line;
+            TextButton.TextButtonStyle style = new TextButton.TextButtonStyle();
+            style.font = theme.captionStrong;
+            style.fontColor = on ? line.textColor : Palette.FAINT;
+            style.up = on ? theme.roundRect(6, line.color) : theme.roundRect(6, Palette.SURFACE, Palette.BORDER, 1);
+
+            TextButton chip = new TextButton(line.name, style);
+            chip.addListener(new ChangeListener() {
+                @Override
+                public void changed(ChangeEvent event, Actor actor) {
+                    filter = filter == line ? null : line;
+                    rebuild(false);
+                }
+            });
+            table.add(chip).size(43, 26).pad(3);
+            if (++column % FILTERS_PER_ROW == 0) table.row();
         }
         return table;
     }
 
-    private void addRows(Table table, List<StopCall> calls, int now, int dayOffset) {
-        for (int i = 0; i < calls.size(); i++) {
-            if (i > 0) {
-                table.add(new Image(theme.fill(Palette.SUBTLE, 1, 1)))
-                    .growX().height(1).padLeft(PADDING).padRight(PADDING).row();
-            }
-            table.add(createDeparture(calls.get(i), now, dayOffset))
-                .growX().height(ROW_HEIGHT).padLeft(PADDING).padRight(PADDING).row();
+    private Table createDepartures(List<StopCall> today, List<StopCall> nextDay, int now, LocalDate date) {
+        Table table = new Table();
+        table.top();
+        addRows(table, today, now, 0, date);
+        if (!nextDay.isEmpty()) {
+            LocalDate next = date.plusDays(1);
+            String day = CityTime.describe(next, clock.getRealDate());
+            table.add(theme.label(today.isEmpty() ? "Ni več odhodov  ·  " + day : day,
+                theme.captionStrong, Palette.MUTED)).left().pad(14, PADDING, 4, PADDING).row();
+            addRows(table, nextDay, now, AppClock.MINUTES_PER_DAY, next);
+        }
+        return table;
+    }
+
+    private void addRows(Table table, List<StopCall> calls, int now, int dayOffset, LocalDate date) {
+        for (StopCall call : calls) {
+            table.add(createDeparture(call, now, dayOffset, date))
+                .growX().height(ROW_HEIGHT).padLeft(PADDING - 8).padRight(PADDING - 8).row();
         }
     }
 
-    private Table createDeparture(StopCall call, int now, int dayOffset) {
+    private Button createDeparture(final StopCall call, int now, int dayOffset, final LocalDate date) {
         int minutes = call.getTime() + dayOffset - now;
         Color timeColor = minutes == 0 ? Palette.NOW : minutes <= 5 ? Palette.SOON : Palette.INK;
         String clockTime = CityTime.format(call.getTime());
-        RoutePattern pattern = call.trip.pattern;
 
-        Label direction = theme.label(pattern.getDestination(), theme.body, Palette.TEXT);
+        Label direction = theme.label(call.trip.pattern.getDestination(), theme.body, Palette.TEXT);
         direction.setEllipsis(true);
 
         Table time = new Table();
@@ -202,10 +202,16 @@ public class StopPanel {
             time.add(theme.label(clockTime, theme.caption, Palette.FAINT)).right();
         }
 
-        Table row = new Table();
-        row.add(linePill(theme, pattern.line)).minWidth(46).height(28).padRight(12);
+        Button row = new RowButton(theme);
+        row.add(linePill(theme, call.trip.pattern.line)).minWidth(46).height(28).padLeft(8).padRight(12);
         row.add(direction).growX().minWidth(0).prefWidth(0).left();
-        row.add(time).padLeft(8);
+        row.add(time).padLeft(8).padRight(8);
+        row.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                listener.onDepartureChosen(call.trip, date);
+            }
+        });
         return row;
     }
 
@@ -216,9 +222,9 @@ public class StopPanel {
         return pill;
     }
 
-    private Table createEmptyState(boolean expired) {
+    private Table createEmptyState(LocalDate date) {
         Label message = theme.label(
-            expired ? "Vozni red je potekel" : "Danes in jutri ni odhodov",
+            timetable.isExpired(date) ? "Vozni red je potekel" : "Danes in jutri ni odhodov",
             theme.body, Palette.MUTED);
         message.setAlignment(Align.center);
 

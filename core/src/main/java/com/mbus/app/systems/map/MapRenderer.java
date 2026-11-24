@@ -54,6 +54,7 @@ public class MapRenderer {
 
     private BusLine hoveredLine = null;
     private BusLine selectedLine = null;
+    private Trip selectedTrip = null;
 
     private float pulseTime = 0f;
 
@@ -129,6 +130,26 @@ public class MapRenderer {
         this.selectedStop = stop;
     }
 
+    /** Shows the way of one trip and highlights its bus. */
+    public void setSelectedTrip(Trip trip, boolean showBus) {
+        this.selectedTrip = trip;
+        busRenderer.setHighlighted(showBus ? trip : null);
+    }
+
+    public void setHoveredTrip(Trip trip) {
+        busRenderer.setHovered(trip);
+    }
+
+    public Vector2 getBusPosition(Trip trip) {
+        return busRenderer.getPosition(trip);
+    }
+
+    /** Returns the trip of the bus at a screen position, or null. */
+    public Trip findBus(int screenX, int screenY) {
+        Vector3 world = camera.unproject(new Vector3(screenX, screenY, 0));
+        return busRenderer.findBus(world.x, world.y, getWorldPerPixel());
+    }
+
     public void setHoveredLine(BusLine line) {
         this.hoveredLine = line;
     }
@@ -190,7 +211,7 @@ public class MapRenderer {
     }
 
     private void renderBusLines() {
-        if (visibleLines.isEmpty()) return;
+        if (visibleLines.isEmpty() && selectedTrip == null) return;
 
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
@@ -217,6 +238,14 @@ public class MapRenderer {
         }
         if (hoveredLine != null) {
             renderEmphasizedLine(hoveredLine, width, pixel);
+        }
+        if (selectedTrip != null) {
+            WorldGeometry.Path path = geometry.getPattern(selectedTrip.pattern);
+            float wide = width + HOVERED_LINE_EXTRA * pixel;
+            shapeRenderer.setColor(Color.WHITE);
+            renderPath(path, wide + 2 * LINE_CASING * pixel);
+            shapeRenderer.setColor(selectedTrip.pattern.line.color);
+            renderPath(path, wide);
         }
 
         shapeRenderer.end();

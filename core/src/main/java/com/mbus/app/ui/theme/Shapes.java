@@ -92,6 +92,32 @@ public final class Shapes {
         };
     }
 
+    /** Any polygon with rounded corners, given as x, y pairs. */
+    public static Distance polygon(float rounding, float... points) {
+        return (x, y) -> {
+            boolean inside = false;
+            float edge = Float.MAX_VALUE;
+            for (int i = 0, j = points.length - 2; i < points.length; j = i, i += 2) {
+                float x1 = points[j], y1 = points[j + 1], x2 = points[i], y2 = points[i + 1];
+                edge = Math.min(edge, segment(x, y, x1, y1, x2, y2));
+                if ((y1 > y) != (y2 > y) && x < (x2 - x1) * (y - y1) / (y2 - y1) + x1) inside = !inside;
+            }
+            return (inside ? -edge : edge) - rounding;
+        };
+    }
+
+    /** The points of a five-pointed star. */
+    static float[] star(float centerX, float centerY, float outer, float inner) {
+        float[] points = new float[20];
+        for (int i = 0; i < 10; i++) {
+            double angle = Math.PI * (i / 5.0 - 0.5);
+            float radius = i % 2 == 0 ? outer : inner;
+            points[2 * i] = centerX + radius * (float) Math.cos(angle);
+            points[2 * i + 1] = centerY + radius * (float) Math.sin(angle);
+        }
+        return points;
+    }
+
     /** A triangle with slightly rounded corners, given as x, y pairs. */
     public static Distance triangle(float rounding, float x1, float y1, float x2, float y2, float x3, float y3) {
         return (x, y) -> {

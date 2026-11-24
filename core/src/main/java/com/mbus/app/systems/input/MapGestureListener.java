@@ -17,6 +17,7 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     private BusStopClickCallback stopClickCallback;
     private BusLineClickCallback lineClickCallback;
     private ClusterClickHandler clusterClickHandler;
+    private BusClickHandler busClickHandler;
     private Runnable mapTouchListener;
     private Runnable panListener;
 
@@ -46,6 +47,10 @@ public class MapGestureListener implements GestureDetector.GestureListener {
 
     public void setClusterClickHandler(ClusterClickHandler handler) {
         this.clusterClickHandler = handler;
+    }
+
+    public void setBusClickHandler(BusClickHandler handler) {
+        this.busClickHandler = handler;
     }
 
     public void setMapTouchListener(Runnable listener) {
@@ -112,6 +117,10 @@ public class MapGestureListener implements GestureDetector.GestureListener {
             return false;
         }
 
+        if (busClickHandler != null && busClickHandler.onMapClicked((int) x, (int) y)) {
+            return true;
+        }
+
         if (clusterClickHandler != null && clusterClickHandler.onMapClicked((int) x, (int) y)) {
             return true;
         }
@@ -141,6 +150,11 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     public interface StopFinder {
         /** Returns the stop marker at a screen position, or null. */
         BusStop findStop(int screenX, int screenY);
+    }
+
+    public interface BusClickHandler {
+        /** Returns true if a bus was hit. */
+        boolean onMapClicked(int screenX, int screenY);
     }
 
     public interface ClusterClickHandler {

@@ -57,6 +57,9 @@ public class Theme implements Disposable {
     public final Texture busBodyBase;
     public final Texture busBodyFill;
     public final Texture busBodyDetail;
+    /** A soft white disc, and its diameter relative to its texture. */
+    public final Texture halo;
+    public static final float HALO_SCALE = 120f / 128f;
     /** Diameter of the disc relative to its texture, and length of the bus relative to its texture. */
     public static final float BUS_DISC_SCALE = 92f / 192f;
     public static final float BUS_BODY_SCALE = 216f / 256f;
@@ -104,6 +107,7 @@ public class Theme implements Disposable {
         busBodyBase = base(256, 128, Shapes.grow(8, body));
         busBodyFill = fillTexture(256, 128, body);
         busBodyDetail = busDetail();
+        halo = fillTexture(128, 128, Shapes.circle(64, 64, 60));
     }
 
     // Fonts

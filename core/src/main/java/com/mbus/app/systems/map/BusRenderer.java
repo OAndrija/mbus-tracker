@@ -38,6 +38,7 @@ public class BusRenderer {
     private static final float DISC_ZOOM = 0.105f;
     private static final float MORPH_SECONDS = 0.18f;
 
+    private static final float HIT_RADIUS = 15f;
     private static final float TURN_SPEED = 10f;
     private static final float MAX_DEGREES_PER_SECOND = 240f;
 
@@ -54,9 +55,14 @@ public class BusRenderer {
     private long frame = 0;
     private boolean showBuses = false;
     private float morph = 0f;
+    private float time = 0f;
+    private Trip highlighted;
+    private Trip hovered;
 
     private static class Bus {
+        final Vector2 position = new Vector2();
         float angle;
+        float alpha;
         long lastFrame;
     }
 
@@ -71,12 +77,53 @@ public class BusRenderer {
         buses.clear();
     }
 
+    /** A bus that is shown even if its line is hidden, with a halo. */
+    public void setHighlighted(Trip trip) {
+        this.highlighted = trip;
+    }
+
+    public void setHovered(Trip trip) {
+        this.hovered = trip;
+    }
+
+    /** Where the bus of a trip is, or null if it is not on the road. Shared instance, do not modify. */
+    public Vector2 getPosition(Trip trip) {
+        Bus bus = buses.get(trip);
+        return bus == null ? null : bus.position;
+    }
+
+    /** The trip of the bus at a world position, or null. */
+    public Trip findBus(float x, float y, float worldPerPixel) {
+        float closest = HIT_RADIUS * worldPerPixel;
+        closest *= closest;
+        Trip found = null;
+        for (Map.Entry<Trip, Bus> entry : buses.entrySet()) {
+            Bus bus = entry.getValue();
+            if (bus.alpha < 0.3f) continue;
+            // A bus seen from above is longer than wide.
+            float dx = x - bus.position.x;
+            float dy = y - bus.position.y;
+            float cos = MathUtils.cosDeg(bus.angle);
+            float sin = MathUtils.sinDeg(bus.angle);
+            float along = dx * cos + dy * sin;
+            float across = dy * cos - dx * sin;
+            float stretch = showBuses ? BUS_LENGTH / (2f * HIT_RADIUS) : 1f;
+            float distance = along * along / (stretch * stretch) + across * across;
+            if (distance < closest) {
+                closest = distance;
+                found = entry.getKey();
+            }
+        }
+        return found;
+    }
+
     /** Draws the buses of some lines out of a day's trips. Expects the batch to be set up for world coordinates, but not begun. */
     public void render(List<Trip> trips, Collection<BusLine> lines, double time, Rectangle view,
                        float cameraZoom, float worldPerPixel, float closeness, float delta) {
         if (geometry == null) return;
 
         frame++;
+        this.time += delta;
         // Takes time rather than following the zoom, so that buses never rest half-way
         if (cameraZoom < BUS_ZOOM) showBuses = true;
         else if (cameraZoom > DISC_ZOOM) showBuses = false;
@@ -90,17 +137,27 @@ public class BusRenderer {
         for (Trip trip : trips) {
             if (trip.getStart() > time) break; // ordered by start
             if (!lines.contains(trip.pattern.line)) continue;
-            PatternMotion motion = motionOf(trip.pattern);
-            if (motion.isRunning(trip, time)) {
-                renderBus(trip, motion, time, view, disc, length, busShare, delta);
-            }
+            if (trip == highlighted || trip == hovered) continue; // on top of the others
+            renderIfRunning(trip, time, view, disc, length, busShare, delta);
         }
+        boolean hoveredIsShown = hovered != null && hovered != highlighted
+            && trips.contains(hovered) && lines.contains(hovered.pattern.line);
+        if (hoveredIsShown) renderIfRunning(hovered, time, view, disc, length, busShare, delta);
+        if (highlighted != null) renderIfRunning(highlighted, time, view, disc, length, busShare, delta);
         spriteBatch.setColor(Color.WHITE);
         theme.map.getData().setScale(1f);
         spriteBatch.end();
 
         // Finished trips and lines that are no longer shown
         buses.values().removeIf(bus -> bus.lastFrame != frame);
+    }
+
+    private void renderIfRunning(Trip trip, double time, Rectangle view,
+                                 float disc, float length, float busShare, float delta) {
+        PatternMotion motion = motionOf(trip.pattern);
+        if (motion.isRunning(trip, time)) {
+            renderBus(trip, motion, time, view, disc, length, busShare, delta);
+        }
     }
 
     private PatternMotion motionOf(RoutePattern pattern) {
@@ -134,13 +191,20 @@ public class BusRenderer {
             bus.angle += MathUtils.clamp(step, -limit, limit);
         }
         bus.lastFrame = frame;
+        bus.position.set(x, y);
+        bus.alpha = motion.alphaAt(trip, time);
 
         if (x < view.x - length || x > view.x + view.width + length
             || y < view.y - length || y > view.y + view.height + length) return;
 
         BusLine line = trip.pattern.line;
         Color color = line.color;
-        float alpha = motion.alphaAt(trip, time);
+        float alpha = bus.alpha;
+        if (trip == highlighted || trip == hovered) {
+            float pulse = trip == highlighted ? 0.5f + 0.5f * MathUtils.sin(this.time * 3f) : 0f;
+            float size = (busShare > 0.5f ? length * 1.15f : disc * 1.9f) * (1f + 0.08f * pulse) / Theme.HALO_SCALE;
+            draw(theme.halo, color, alpha * (0.32f + 0.1f * pulse), x, y, size, size, 0f);
+        }
         if (busShare < 1f) {
             float size = disc / Theme.BUS_DISC_SCALE;
             draw(theme.busDiscBase, Color.WHITE, alpha * (1f - busShare), x, y, size, size, bus.angle);

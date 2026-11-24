@@ -18,6 +18,7 @@ public final class Palette {
     public static final Color BRAND_DARK = Color.valueOf("7d0f36");
     public static final Color BRAND_SOFT = Color.valueOf("fbedf2");
 
+    public static final Color STAR = Color.valueOf("e0a100");
     public static final Color NOW = Color.valueOf("dc2626");
     public static final Color SOON = Color.valueOf("c2570c");
 

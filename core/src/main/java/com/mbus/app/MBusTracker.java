@@ -12,6 +12,7 @@ import com.mbus.app.screens.LoadingScreen;
 import com.mbus.app.systems.input.CameraController;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.Constants;
+import com.mbus.app.utils.Settings;
 
 public class MBusTracker extends Game {
     public OrthographicCamera camera;
@@ -19,6 +20,7 @@ public class MBusTracker extends Game {
     public CameraController cameraController;
     public InputMultiplexer inputMultiplexer;
     private Theme theme;
+    private Settings settings;
 
     private Timetable timetable;
 
@@ -32,6 +34,7 @@ public class MBusTracker extends Game {
         viewport.update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
 
         theme = new Theme();
+        settings = new Settings(Gdx.app.getPreferences("mbus"));
 
         camera.zoom = 0.20f;
         camera.position.set(Constants.MAP_WIDTH / 2f, Constants.MAP_HEIGHT / 2f, 0);
@@ -60,6 +63,10 @@ public class MBusTracker extends Game {
 
     public Theme getTheme() {
         return theme;
+    }
+
+    public Settings getSettings() {
+        return settings;
     }
 
     public void setTimetable(Timetable timetable) {

@@ -7,6 +7,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
+import com.mbus.app.model.Trip;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 
@@ -31,14 +32,17 @@ class MapTooltip {
         return table;
     }
 
-    void show(BusStop stop, BusLine line) {
-        Object target = stop != null ? stop : line;
+    void show(Trip trip, BusStop stop, BusLine line) {
+        Object target = trip != null ? trip : stop != null ? stop : line;
         if (target == shown) return;
 
         shown = target;
         table.clearChildren();
         table.setVisible(target != null);
-        if (stop != null) {
+        if (trip != null) {
+            table.add(StopPanel.linePill(theme, trip.pattern.line)).minWidth(34).height(24).pad(6, 6, 6, 0);
+            addText("Smer " + trip.pattern.getDestination(), 8);
+        } else if (stop != null) {
             addText(stop.name, 12);
         } else if (line != null) {
             table.add(StopPanel.linePill(theme, line)).minWidth(34).height(24).pad(6, 6, 6, 0);

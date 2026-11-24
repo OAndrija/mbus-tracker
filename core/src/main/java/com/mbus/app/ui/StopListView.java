@@ -26,11 +26,18 @@ class StopListView extends Widget implements Cullable {
 
     interface Listener {
         void onStopClicked(BusStop stop);
+
+        void onStarClicked(BusStop stop);
+
+        boolean isFavorite(BusStop stop);
     }
 
     private static final float ROW_HEIGHT = 60f;
+    private static final float SECTION_HEIGHT = 30f;
+    private static final float STAR_SIZE = 18f;
+    private static final float STAR_AREA = 40f;
     private static final float PADDING = 12f;
-    private static final float RIGHT_SPACE = 58f;
+    private static final float RIGHT_SPACE = 70f;
     private static final float PILL_HEIGHT = 18f;
     private static final float PILL_GAP = 4f;
 
@@ -38,13 +45,18 @@ class StopListView extends Widget implements Cullable {
     private final Drawable hoverBackground;
     private final Drawable selectedBackground;
     private final Drawable separator;
-    private final Drawable chevron;
-    private final Drawable chevronSelected;
+    private final Drawable star;
+    private final Drawable starHovered;
+    private final Drawable starFilled;
+    private final Listener listener;
     private final GlyphLayout layout = new GlyphLayout();
 
     private List<BusStop> stops = Collections.emptyList();
     private BusStop selected;
+    /** The first stops of the list are favorites and get their own section. */
+    private int favoriteCount = 0;
     private int hovered = -1;
+    private boolean starIsHovered = false;
     private Rectangle cullingArea;
 
     StopListView(Theme theme, final Listener listener) {
@@ -52,19 +64,24 @@ class StopListView extends Widget implements Cullable {
         hoverBackground = theme.roundRect(10, Palette.SUBTLE);
         selectedBackground = theme.roundRect(10, Palette.BRAND_SOFT);
         separator = theme.fill(Palette.SUBTLE, 1, 1);
-        chevron = theme.icon(Icon.CHEVRON_RIGHT, 16, Palette.FAINT);
-        chevronSelected = theme.icon(Icon.CHEVRON_RIGHT, 16, Palette.BRAND);
+        star = theme.icon(Icon.STAR, STAR_SIZE, Color.valueOf("cbd5e1"));
+        starHovered = theme.icon(Icon.STAR, STAR_SIZE, Palette.STAR);
+        starFilled = theme.icon(Icon.STAR_FILLED, STAR_SIZE, Palette.STAR);
+        this.listener = listener;
 
         addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 int row = rowAt(y);
-                if (row >= 0) listener.onStopClicked(stops.get(row));
+                if (row < 0) return;
+                if (isOnStar(x)) listener.onStarClicked(stops.get(row));
+                else listener.onStopClicked(stops.get(row));
             }
 
             @Override
             public boolean mouseMoved(InputEvent event, float x, float y) {
                 hovered = rowAt(y);
+                starIsHovered = isOnStar(x);
                 return false;
             }
 
@@ -76,8 +93,9 @@ class StopListView extends Widget implements Cullable {
         });
     }
 
-    void setStops(List<BusStop> stops) {
+    void setStops(List<BusStop> stops, int favoriteCount) {
         this.stops = stops;
+        this.favoriteCount = favoriteCount;
         hovered = -1;
         invalidateHierarchy();
     }
@@ -86,19 +104,37 @@ class StopListView extends Widget implements Cullable {
         this.selected = stop;
     }
 
-    /** The y range of a stop's row, counted from the top of the list, or -1 if it is not listed. */
+    private boolean isOnStar(float x) {
+        return x > getWidth() - STAR_AREA;
+    }
+
+    /** Where a stop's row starts, counted from the top of the list, or -1 if it is not listed. */
     float rowTop(BusStop stop) {
         int row = stops.indexOf(stop);
-        return row < 0 ? -1 : row * ROW_HEIGHT;
+        return row < 0 ? -1 : topOf(row);
     }
 
     float rowHeight() {
         return ROW_HEIGHT;
     }
 
+    private float topOf(int row) {
+        float top = row * ROW_HEIGHT;
+        if (favoriteCount > 0) {
+            top += SECTION_HEIGHT;
+            if (row >= favoriteCount) top += SECTION_HEIGHT;
+        }
+        return top;
+    }
+
     private int rowAt(float y) {
-        int row = (int) ((getHeight() - y) / ROW_HEIGHT);
-        return row >= 0 && row < stops.size() ? row : -1;
+        float fromTop = getHeight() - y;
+        for (int row = 0; row < stops.size(); row++) {
+            float top = topOf(row);
+            if (fromTop < top) return -1;
+            if (fromTop < top + ROW_HEIGHT) return row;
+        }
+        return -1;
     }
 
     @Override
@@ -111,8 +147,15 @@ class StopListView extends Widget implements Cullable {
         super.draw(batch, parentAlpha);
         float alpha = getColor().a * parentAlpha;
 
+        if (favoriteCount > 0) {
+            drawSection(batch, "Priljubljene", 0, alpha);
+            if (favoriteCount < stops.size()) {
+                drawSection(batch, "Vse postaje", topOf(favoriteCount) - SECTION_HEIGHT, alpha);
+            }
+        }
+
         for (int i = 0; i < stops.size(); i++) {
-            float bottom = getHeight() - (i + 1) * ROW_HEIGHT;
+            float bottom = getHeight() - topOf(i) - ROW_HEIGHT;
             if (cullingArea != null
                 && (bottom > cullingArea.y + cullingArea.height || bottom + ROW_HEIGHT < cullingArea.y)) {
                 continue;
@@ -120,6 +163,11 @@ class StopListView extends Widget implements Cullable {
             drawRow(batch, i, getX(), getY() + bottom, alpha);
         }
         batch.setColor(Color.WHITE);
+    }
+
+    private void drawSection(Batch batch, String title, float top, float alpha) {
+        text(batch, theme.captionStrong, title, Palette.MUTED, getX() + PADDING,
+            getY() + getHeight() - top - SECTION_HEIGHT / 2f, getWidth() - 2 * PADDING, Align.left, alpha);
     }
 
     private void drawRow(Batch batch, int row, float x, float y, float alpha) {
@@ -132,7 +180,7 @@ class StopListView extends Widget implements Cullable {
             selectedBackground.draw(batch, x, y + 1, width, ROW_HEIGHT - 2);
         } else if (row == hovered) {
             hoverBackground.draw(batch, x, y + 1, width, ROW_HEIGHT - 2);
-        } else if (row > 0) {
+        } else if (row > 0 && row != favoriteCount) {
             separator.draw(batch, x + PADDING, y + ROW_HEIGHT - 1, width - 2 * PADDING, 1);
         }
 
@@ -141,10 +189,12 @@ class StopListView extends Widget implements Cullable {
             x + PADDING, y + ROW_HEIGHT - 20, textWidth, Align.left, alpha);
 
         text(batch, theme.caption, stop.id, Palette.FAINT,
-            x + width - RIGHT_SPACE, y + ROW_HEIGHT / 2f, RIGHT_SPACE - 30, Align.right, alpha);
+            x + width - RIGHT_SPACE, y + ROW_HEIGHT / 2f, RIGHT_SPACE - 38, Align.right, alpha);
 
-        (isSelected ? chevronSelected : chevron)
-            .draw(batch, x + width - 24, y + ROW_HEIGHT / 2f - 8, 16, 16);
+        boolean onStar = row == hovered && starIsHovered;
+        Drawable icon = listener.isFavorite(stop) ? starFilled : onStar ? starHovered : star;
+        batch.setColor(1, 1, 1, alpha);
+        icon.draw(batch, x + width - 12 - STAR_SIZE, y + ROW_HEIGHT / 2f - STAR_SIZE / 2f, STAR_SIZE, STAR_SIZE);
 
         drawPills(batch, stop, x + PADDING, y + 10, textWidth, alpha);
     }
@@ -189,5 +239,8 @@ class StopListView extends Widget implements Cullable {
     }
 
     @Override public float getPrefWidth() { return 0; }
-    @Override public float getPrefHeight() { return stops.size() * ROW_HEIGHT; }
+    @Override
+    public float getPrefHeight() {
+        return stops.isEmpty() ? 0 : topOf(stops.size() - 1) + ROW_HEIGHT;
+    }
 }
