@@ -32,6 +32,7 @@ import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.AppClock;
 import com.mbus.app.utils.Constants;
+import com.mbus.app.utils.Display;
 import com.mbus.app.utils.Settings;
 
 import java.time.LocalDate;
@@ -141,7 +142,18 @@ public class RasterMapScreen implements Screen {
     }
 
     private void switchTheme() {
-        Theme oldTheme = app.switchTheme(!Palette.isDark());
+        useNewTheme(app.switchTheme(!Palette.isDark()));
+    }
+
+    /** The window may be moved to a screen with another scaling, for which everything is drawn anew. */
+    private void followDisplayScaling() {
+        boolean minimized = Gdx.graphics.getWidth() <= 0 || Gdx.graphics.getBackBufferWidth() <= 0;
+        if (minimized || Math.abs(app.getTheme().getDensity() - Display.getDensity()) < 0.01f) return;
+        useNewTheme(app.renewTheme());
+        gestureDetector.setTapSquareSize(8f * Display.getWindowScale());
+    }
+
+    private void useNewTheme(Theme oldTheme) {
         mapRenderer.setTheme(app.getTheme());
         rebuildUi();
         oldTheme.dispose();
@@ -396,6 +408,7 @@ public class RasterMapScreen implements Screen {
     public void render(float delta) {
         ScreenUtils.clear(Palette.MAP_BACKGROUND);
 
+        followDisplayScaling();
         clock.update();
         updateSelectedTrip();
         updateHoverState();
@@ -545,7 +558,7 @@ public class RasterMapScreen implements Screen {
         app.cameraController.setUiHitTest((x, y) -> ui.isOver(x, y));
 
         gestureDetector = new GestureDetector(gestures);
-        gestureDetector.setTapSquareSize(8f);
+        gestureDetector.setTapSquareSize(8f * Display.getWindowScale());
 
         app.inputMultiplexer.addProcessor(app.cameraController);
         app.inputMultiplexer.addProcessor(ui.getStage());

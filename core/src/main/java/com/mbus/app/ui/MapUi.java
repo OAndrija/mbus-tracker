@@ -20,6 +20,7 @@ import com.mbus.app.ui.theme.Icon;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.AppClock;
+import com.mbus.app.utils.Display;
 import com.mbus.app.utils.Settings;
 import com.mbus.app.utils.Texts;
 
@@ -50,7 +51,8 @@ public class MapUi implements Disposable {
     private static final float MIN_TIME_BAR_WIDTH = 300f;
     private static final float MAX_TIME_BAR_WIDTH = 640f;
 
-    private final Stage stage = new Stage(new ScreenViewport());
+    private final ScreenViewport viewport = new ScreenViewport();
+    private final Stage stage;
     private final Vector2 tmp = new Vector2();
 
     private final Sidebar sidebar;
@@ -72,6 +74,8 @@ public class MapUi implements Disposable {
     public MapUi(Theme theme, Timetable timetable, AppClock clock, Settings settings, Sidebar.Listener sidebarListener,
                  StopPanel.Listener stopListener, TripPanel.Listener tripListener, final MapActions actions) {
         this.clock = clock;
+        viewport.setUnitsPerPixel(1f / Display.getWindowScale());
+        stage = new Stage(viewport);
         sidebar = new Sidebar(theme, timetable, clock, settings, sidebarListener);
         stopPanel = new StopPanel(theme, timetable, clock, settings, stopListener);
         tripPanel = new TripPanel(theme, clock, tripListener);
@@ -159,7 +163,8 @@ public class MapUi implements Disposable {
     }
 
     public void resize(int width, int height) {
-        stage.getViewport().update(width, height, true);
+        viewport.setUnitsPerPixel(1f / Display.getWindowScale());
+        viewport.update(width, height, true);
         layout();
     }
 
@@ -197,7 +202,7 @@ public class MapUi implements Disposable {
     /** In the middle of what is left between the panels and the buttons. */
     private void layoutTimeBar() {
         boolean compact = stage.getWidth() < COMPACT_WIDTH;
-        float left = (compact ? MARGIN + SIDEBAR_WIDTH : getCoveredWidth()) + GAP;
+        float left = (compact ? MARGIN + SIDEBAR_WIDTH : getCoveredStageWidth()) + GAP;
         float right = zoomControls.getX() - GAP;
         if (right - left < MIN_TIME_BAR_WIDTH) left = Math.max(MARGIN, right - MIN_TIME_BAR_WIDTH);
         float barWidth = Math.min(MAX_TIME_BAR_WIDTH, right - left);
@@ -205,8 +210,12 @@ public class MapUi implements Disposable {
             Math.round(attribution.getHeight() + GAP + TimeBar.HEIGHT), barWidth, TimeBar.HEIGHT);
     }
 
-    /** How much of the left side of the window is covered by panels. */
+    /** How much of the left side of the window is covered by panels, in window pixels. */
     public float getCoveredWidth() {
+        return getCoveredStageWidth() * Display.getWindowScale();
+    }
+
+    private float getCoveredStageWidth() {
         boolean compact = stage.getWidth() < COMPACT_WIDTH;
         if (compact) return 0f;
         float covered = MARGIN + SIDEBAR_WIDTH;

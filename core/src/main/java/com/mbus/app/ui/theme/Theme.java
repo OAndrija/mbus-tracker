@@ -16,8 +16,10 @@ import com.badlogic.gdx.scenes.scene2d.utils.BaseDrawable;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.NinePatchDrawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.mbus.app.model.BusLine;
+import com.mbus.app.utils.Display;
 import com.mbus.app.utils.MipMaps;
 
 import java.util.ArrayList;
@@ -75,11 +77,12 @@ public class Theme implements Disposable {
     private final Map<Icon, TextureRegion> icons = new EnumMap<>(Icon.class);
 
     public Theme() {
-        density = Math.max(1f, Gdx.graphics.getBackBufferWidth() / (float) Math.max(1, Gdx.graphics.getWidth()));
+        density = Display.getDensity();
 
-        FreeTypeFontGenerator medium = generator("Inter-Medium");
-        FreeTypeFontGenerator semiBold = generator("Inter-SemiBold");
-        FreeTypeFontGenerator bold = generator("Inter-Bold");
+        FreeTypeFontGenerator medium = new CrispGenerator("Inter-Medium", density);
+        FreeTypeFontGenerator semiBold = new CrispGenerator("Inter-SemiBold", density);
+        FreeTypeFontGenerator bold = new CrispGenerator("Inter-Bold", density);
+        FreeTypeFontGenerator boldForMap = generator("Inter-Bold");
 
         caption = font(medium, 12);
         captionStrong = font(semiBold, 12);
@@ -88,11 +91,12 @@ public class Theme implements Disposable {
         title = font(semiBold, 18);
         brand = font(bold, 20);
         display = font(bold, 34);
-        map = mapFont(bold, 26);
+        map = mapFont(boldForMap, 26);
 
         medium.dispose();
         semiBold.dispose();
         bold.dispose();
+        boldForMap.dispose();
 
         stopMarker = marker(Palette.SURFACE, Palette.TEXT, 5f, Icon.BUS, Palette.TEXT);
         stopMarkerHovered = marker(Palette.SURFACE, Palette.BRAND, 8f, Icon.BUS, Palette.BRAND);
@@ -111,10 +115,31 @@ public class Theme implements Disposable {
         halo = fillTexture(128, 128, Shapes.circle(64, 64, 60));
     }
 
+    /** The density everything was rendered for. */
+    public float getDensity() {
+        return density;
+    }
+
     // Fonts
 
     private FreeTypeFontGenerator generator(String name) {
         return new FreeTypeFontGenerator(Gdx.files.internal("fonts/" + name + ".otf"));
+    }
+
+    /** A generator for fonts of the interface, see {@link CrispFont}. */
+    private static class CrispGenerator extends FreeTypeFontGenerator {
+
+        private final float density;
+
+        CrispGenerator(String name, float density) {
+            super(Gdx.files.internal("fonts/" + name + ".otf"));
+            this.density = density;
+        }
+
+        @Override
+        protected BitmapFont newBitmapFont(BitmapFont.BitmapFontData data, Array<TextureRegion> pages, boolean integer) {
+            return new CrispFont(data, pages, density);
+        }
     }
 
     private BitmapFont font(FreeTypeFontGenerator generator, int size) {
@@ -128,7 +153,7 @@ public class Theme implements Disposable {
 
         BitmapFont font = generator.generateFont(parameter);
         font.getData().setScale(1f / density);
-        font.setUseIntegerPositions(density == 1f);
+        font.setUseIntegerPositions(false);
         owned.add(font);
         return font;
     }

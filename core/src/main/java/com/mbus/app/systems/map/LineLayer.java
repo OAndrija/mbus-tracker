@@ -12,6 +12,7 @@ import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.RoutePattern;
+import com.mbus.app.utils.Display;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -186,8 +187,7 @@ public class LineLayer implements Disposable {
         shader.setUniformf("u_width", style.width);
         shader.setUniformf("u_gap", style.gap);
         shader.setUniformf("u_band", style.maxBand);
-        shader.setUniformf("u_density",
-            Gdx.graphics.getBackBufferWidth() / (float) Math.max(1, Gdx.graphics.getWidth()));
+        shader.setUniformf("u_density", Display.getDensity());
     }
 
     /** Draws a line, some pixels wider than usual. */

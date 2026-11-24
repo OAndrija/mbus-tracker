@@ -35,7 +35,7 @@ Positions come from the timetable; they are not live.
 | The timetable expires | Background updates that are validated before use, and a stand-in week ([`TimetableUpdater`](core/src/main/java/com/mbus/app/systems/data/TimetableUpdater.java)) | Keeps working after the last day |
 | Blurry, stock-looking interface | Fonts, shapes and icons rendered at startup for the screen's density ([`Theme`](core/src/main/java/com/mbus/app/ui/theme/Theme.java)) | No image assets in the interface |
 
-60 tests run on Linux, Windows and macOS with every push. They follow a bus of every route frame by frame and check the real timetable.
+64 tests run on Linux, Windows and macOS with every push. They follow a bus of every route frame by frame and check the real timetable.
 
 ## Run it
 

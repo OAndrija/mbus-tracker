@@ -57,6 +57,9 @@ public class Sidebar {
 
     private static final float PADDING = 16f;
     private static final int CHIPS_PER_ROW = 6;
+    private static final int CHIPS_PER_ROW_COMPACT = 7;
+    /** Below this height everything moves closer together. */
+    private static final float COMPACT_HEIGHT = 560f;
     private static final float CHIP_GAP = 6f;
 
     private final Theme theme;
@@ -65,6 +68,8 @@ public class Sidebar {
     private final Table content = new Table();
     private final Cell<?> contentCell;
     private Cell<?> footerCell;
+    private Runnable useUpdate;
+    private boolean compact = false;
 
     private final Label clock;
     private final IconButton collapseButton;
@@ -186,13 +191,13 @@ public class Sidebar {
         content.clear();
         content.top();
 
-        content.add(createSearch()).growX().height(42).pad(0, PADDING, 20, PADDING).row();
+        content.add(createSearch()).growX().height(compact ? 36 : 42).pad(0, PADDING, compact ? 10 : 20, PADDING).row();
 
         Table linesHeader = new Table();
         linesHeader.add(theme.label(Texts.get("lines"), theme.bodyStrong, Palette.INK)).left().expandX();
         linesHeader.add(allLinesButton);
-        content.add(linesHeader).growX().pad(0, PADDING, 10, PADDING).row();
-        content.add(createChips()).growX().pad(0, PADDING - CHIP_GAP / 2f, 18, PADDING - CHIP_GAP / 2f).row();
+        content.add(linesHeader).growX().pad(0, PADDING, compact ? 4 : 10, PADDING).row();
+        content.add(createChips()).growX().pad(0, PADDING - CHIP_GAP / 2f, compact ? 8 : 18, PADDING - CHIP_GAP / 2f).row();
 
         content.add(new Image(theme.fill(Palette.BORDER, 1, 1))).growX().height(1).row();
 
@@ -201,7 +206,7 @@ public class Sidebar {
         stopsHeader.add(stopCount).left().expandX();
         stopsHeader.add(theme.label(Texts.get("onMap"), theme.caption, Palette.MUTED)).padRight(8);
         stopsHeader.add(showStopsSwitch);
-        content.add(stopsHeader).growX().pad(16, PADDING, 8, PADDING).row();
+        content.add(stopsHeader).growX().pad(compact ? 6 : 16, PADDING, compact ? 4 : 8, PADDING).row();
 
         Container<Label> empty = new Container<>(emptyLabel);
         empty.fillX().top().padTop(32);
@@ -215,7 +220,8 @@ public class Sidebar {
             Texts.format(expired ? "expired" : "validUntil", Texts.date(timetable.getValidUntil())),
             theme.caption, expired ? Palette.NOW : Palette.FAINT);
         content.add(new Image(theme.fill(Palette.BORDER, 1, 1))).growX().height(1).row();
-        footerCell = content.add(validity).left().pad(9, PADDING, 11, PADDING);
+        footerCell = content.add(validity).left().pad(compact ? 4 : 9, PADDING, compact ? 6 : 11, PADDING);
+        if (useUpdate != null) showUpdateAvailable(useUpdate);
     }
 
     private Stack createSearch() {
@@ -277,7 +283,8 @@ public class Sidebar {
 
     private Table createChips() {
         Table table = new Table();
-        table.defaults().height(34).growX().uniformX().pad(CHIP_GAP / 2f);
+        int perRow = compact ? CHIPS_PER_ROW_COMPACT : CHIPS_PER_ROW;
+        table.defaults().height(compact ? 26 : 34).growX().uniformX().pad(CHIP_GAP / 2f);
 
         int column = 0;
         for (final BusLine line : allLines) {
@@ -297,9 +304,9 @@ public class Sidebar {
             });
             chips.put(line, chip);
             table.add(chip).minWidth(0).prefWidth(0);
-            if (++column % CHIPS_PER_ROW == 0) table.row();
+            if (++column % perRow == 0) table.row();
         }
-        while (column++ % CHIPS_PER_ROW != 0) table.add();
+        while (column++ % perRow != 0) table.add();
         return table;
     }
 
@@ -321,10 +328,15 @@ public class Sidebar {
 
     /** Offers to use a new timetable. */
     public void showUpdateAvailable(Runnable use) {
+        useUpdate = use;
         footerCell.setActor(new LinkButton(theme, Texts.get("updateAvailable"), use));
     }
 
     public void layout(float x, float top, float width, float maxHeight) {
+        if (compact != maxHeight < COMPACT_HEIGHT) {
+            compact = !compact;
+            fillContent();
+        }
         float height = collapsed ? card.getPrefHeight() : maxHeight;
         card.setBounds(x, top - height, width, height);
     }

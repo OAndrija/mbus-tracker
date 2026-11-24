@@ -19,6 +19,7 @@ import com.mbus.app.systems.map.TileOverview;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.Constants;
+import com.mbus.app.utils.Display;
 import com.mbus.app.utils.Texts;
 
 import java.util.concurrent.ExecutorService;
@@ -30,6 +31,7 @@ public class LoadingScreen implements Screen {
     private static final String TAG = "LoadingScreen";
 
     private final MBusTracker app;
+    private ScreenViewport viewport;
     private Stage stage;
 
     private Label statusLabel;
@@ -59,7 +61,9 @@ public class LoadingScreen implements Screen {
     @Override
     public void show() {
         Theme theme = app.getTheme();
-        stage = new Stage(new ScreenViewport());
+        viewport = new ScreenViewport();
+        viewport.setUnitsPerPixel(1f / Display.getWindowScale());
+        stage = new Stage(viewport);
 
         ProgressBar.ProgressBarStyle barStyle = new ProgressBar.ProgressBarStyle();
         barStyle.background = theme.roundRect(3, Palette.BORDER);
@@ -183,7 +187,8 @@ public class LoadingScreen implements Screen {
 
     @Override
     public void resize(int width, int height) {
-        stage.getViewport().update(width, height, true);
+        viewport.setUnitsPerPixel(1f / Display.getWindowScale());
+        viewport.update(width, height, true);
     }
 
     @Override

@@ -40,11 +40,6 @@ public class MapRasterTiles {
         }
         token = key.isEmpty() ? "" : "?&apiKey=" + key;
 
-        FileHandle cacheDir = Gdx.files.local(CACHE_FOLDER);
-        if (!cacheDir.exists()) {
-            cacheDir.mkdirs();
-        }
-
         System.setProperty("http.keepAlive", "true");
         System.setProperty("http.maxConnections", "16");
     }

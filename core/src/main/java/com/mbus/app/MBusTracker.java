@@ -78,6 +78,11 @@ public class MBusTracker extends Game {
     public Theme switchTheme(boolean dark) {
         settings.setDark(dark);
         Palette.setDark(dark);
+        return renewTheme();
+    }
+
+    /** Renders the theme for the current colors and display scaling. Returns the previous one, as above. */
+    public Theme renewTheme() {
         Theme previous = theme;
         theme = new Theme();
         return previous;

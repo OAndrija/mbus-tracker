@@ -19,6 +19,7 @@ import com.mbus.app.model.Trip;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.Constants;
+import com.mbus.app.utils.Display;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,6 +71,8 @@ public class MapRenderer {
     private static final float LINE_EDGE = 1f;
     private static final float LINE_HIT_DISTANCE = 6f;
 
+    /** At camera zoom 1 in a window 1600 logical pixels wide and 900 high. */
+    private static final float REFERENCE_WORLD_PER_PIXEL = Constants.MAP_HEIGHT / 900f;
     // Camera zoom at which the far and near sizes apply
     private static final float FAR_ZOOM = 0.3f;
     private static final float NEAR_ZOOM = 0.05f;
@@ -200,7 +203,7 @@ public class MapRenderer {
         updateLinesWithBuses();
         spriteBatch.setProjectionMatrix(camera.combined);
         busRenderer.render(trips, linesWithBuses, currentTimeMinutes, view,
-            camera.zoom, getWorldPerPixel(), getCloseness(), delta);
+            getComparableZoom(), getWorldPerPixel(), getCloseness(), delta);
     }
 
     private void updateView() {
@@ -209,13 +212,22 @@ public class MapRenderer {
         view.set(camera.position.x - width / 2f, camera.position.y - height / 2f, width, height);
     }
 
+    /** World pixels per logical pixel. */
     private float getWorldPerPixel() {
-        return camera.viewportWidth * camera.zoom / Gdx.graphics.getWidth();
+        return camera.viewportWidth * camera.zoom / Gdx.graphics.getWidth() * Display.getWindowScale();
+    }
+
+    /**
+     * The camera zoom that would show the map as large on a window of a certain size. Deciding by this,
+     * markers are grouped and lines get thinner when there is little room, whatever the window and scaling.
+     */
+    private float getComparableZoom() {
+        return getWorldPerPixel() / REFERENCE_WORLD_PER_PIXEL;
     }
 
     /** 0 when zoomed out, 1 when zoomed in. */
     private float getCloseness() {
-        return MathUtils.clamp((FAR_ZOOM - camera.zoom) / (FAR_ZOOM - NEAR_ZOOM), 0f, 1f);
+        return MathUtils.clamp((FAR_ZOOM - getComparableZoom()) / (FAR_ZOOM - NEAR_ZOOM), 0f, 1f);
     }
 
     /** A selected line shows only its own buses, otherwise all visible lines show theirs. */
@@ -296,7 +308,7 @@ public class MapRenderer {
         }
 
         clusters = MarkerClusterer.clusterMarkers(
-            filteredStops, geometry, camera.zoom,
+            filteredStops, geometry, getComparableZoom(),
             Constants.MAP_WIDTH, Constants.MAP_HEIGHT,
             delta
         );
