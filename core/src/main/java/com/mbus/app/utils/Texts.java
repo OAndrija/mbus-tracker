@@ -41,16 +41,20 @@ public final class Texts {
         return bundle.format(key, strings);
     }
 
-    /** The word for a number of buses. Slovene has a singular, a dual and two plurals. */
-    public static String buses(int count) {
-        if (!language.equals("sl")) return get(count == 1 ? "busOne" : "busMany");
+    /** The word for a number of things. Slovene has a singular, a dual and two plurals. */
+    public static String plural(String key, int count) {
+        if (!language.equals("sl")) return get(key + (count == 1 ? "One" : "Many"));
         switch (count % 100) {
-            case 1: return get("busOne");
-            case 2: return get("busTwo");
+            case 1: return get(key + "One");
+            case 2: return get(key + "Two");
             case 3:
-            case 4: return get("busFew");
-            default: return get("busMany");
+            case 4: return get(key + "Few");
+            default: return get(key + "Many");
         }
+    }
+
+    public static String buses(int count) {
+        return plural("bus", count);
     }
 
     /** Such as "31 Dec 2026". */

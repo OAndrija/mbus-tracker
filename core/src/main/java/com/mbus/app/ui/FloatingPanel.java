@@ -61,7 +61,7 @@ abstract class FloatingPanel {
         applyBounds();
     }
 
-    private void applyBounds() {
+    protected void applyBounds() {
         card.setWidth(width);
         card.validate(); // wrapped labels need the width before they know their height
         float height = Math.min(card.getPrefHeight(), maxHeight);

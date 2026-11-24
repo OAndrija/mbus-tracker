@@ -17,7 +17,6 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
-import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Align;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
@@ -53,6 +52,8 @@ public class Sidebar {
         void onCollapsedChanged();
 
         void onFavoriteChanged(BusStop stop);
+
+        void onJourneyWanted();
     }
 
     private static final float PADDING = 16f;
@@ -72,6 +73,7 @@ public class Sidebar {
     private boolean compact = false;
 
     private final Label clock;
+    private final IconButton journeyButton;
     private final IconButton collapseButton;
     private final TextField searchField;
     private final IconButton clearButton;
@@ -115,6 +117,11 @@ public class Sidebar {
         clock = theme.label("", theme.bodyStrong, Palette.TEXT);
         collapseButton = new IconButton(theme, Icon.CHEVRON_UP, 18, this::toggleCollapsed);
         searchField = createSearchField();
+        journeyButton = new IconButton(theme, Icon.ROUTE, 20, listener::onJourneyWanted);
+        journeyButton.setIcon(Icon.ROUTE, Palette.BRAND, Palette.BRAND_STRONG);
+        journeyButton.getStyle().up = theme.roundRect(10, Palette.BRAND_SOFT);
+        journeyButton.getStyle().over = theme.roundRect(10, Palette.SELECTION);
+        Tips.attach(theme, journeyButton, Texts.get("planJourney"));
         clearButton = new IconButton(theme, Icon.CLOSE, 14, this::clearSearch);
         clearButton.setVisible(false);
         allLinesButton = new LinkButton(theme, Texts.get(allVisible() ? "hideAll" : "showAll"), this::toggleAllLines);
@@ -191,7 +198,11 @@ public class Sidebar {
         content.clear();
         content.top();
 
-        content.add(createSearch()).growX().height(compact ? 36 : 42).pad(0, PADDING, compact ? 10 : 20, PADDING).row();
+        Table searchRow = new Table();
+        float searchHeight = compact ? 36 : 42;
+        searchRow.add(createSearch()).growX().height(searchHeight);
+        searchRow.add(journeyButton).size(searchHeight).padLeft(6);
+        content.add(searchRow).growX().pad(0, PADDING, compact ? 10 : 20, PADDING).row();
 
         Table linesHeader = new Table();
         linesHeader.add(theme.label(Texts.get("lines"), theme.bodyStrong, Palette.INK)).left().expandX();
@@ -236,17 +247,7 @@ public class Sidebar {
     }
 
     private TextField createSearchField() {
-        TextField.TextFieldStyle style = new TextField.TextFieldStyle();
-        style.font = theme.body;
-        style.fontColor = Palette.INK;
-        style.messageFont = theme.body;
-        style.messageFontColor = Palette.MUTED;
-        style.background = padded(theme.roundRect(10, Palette.SUBTLE));
-        style.focusedBackground = padded(theme.roundRect(10, Palette.SURFACE, Palette.BRAND, 1.5f));
-        style.cursor = theme.fill(Palette.BRAND, 1.5f, 1);
-        style.selection = theme.fill(Palette.SELECTION, 1, 1);
-
-        final TextField field = new TextField("", style);
+        final TextField field = new TextField("", theme.textField(40, 38));
         field.setMessageText(Texts.get("search"));
         field.addListener(new ChangeListener() {
             @Override
@@ -273,12 +274,6 @@ public class Sidebar {
             }
         });
         return field;
-    }
-
-    private static Drawable padded(Drawable drawable) {
-        drawable.setLeftWidth(40);
-        drawable.setRightWidth(38);
-        return drawable;
     }
 
     private Table createChips() {

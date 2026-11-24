@@ -35,6 +35,8 @@ public class StopPanel extends FloatingPanel {
         void onFavoriteChanged();
 
         void onDepartureChosen(Trip trip, LocalDate date);
+
+        void onJourneyToStopWanted(BusStop stop);
     }
 
     private static final int MAX_DEPARTURES = 20;
@@ -139,6 +141,9 @@ public class StopPanel extends FloatingPanel {
 
         Table header = new Table();
         header.add(text).growX().top();
+        IconButton route = new IconButton(theme, Icon.ROUTE, 18, () -> listener.onJourneyToStopWanted(stop));
+        Tips.attach(theme, route, Texts.get("directionsHere"));
+        header.add(route).size(32).top();
         header.add(star).size(32).top();
         header.add(new IconButton(theme, Icon.CLOSE, 16, listener::onStopPanelClosed)).size(32).top();
         return header;

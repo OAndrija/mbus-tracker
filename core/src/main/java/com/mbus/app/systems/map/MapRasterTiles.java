@@ -5,6 +5,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Logger;
 import com.mbus.app.utils.Constants;
+import com.mbus.app.utils.Geolocation;
 import com.mbus.app.utils.ZoomXY;
 
 import java.io.ByteArrayOutputStream;
@@ -114,6 +115,15 @@ public class MapRasterTiles {
             (float) (Constants.MAP_HEIGHT -
                 (worldCoordinate[1] * scale - beginTileY * (double) TILE_SIZE))
         );
+    }
+
+    /** The inverse of {@link #getPixelPosition}. */
+    public static Geolocation getGeolocation(double x, double y, int beginTileX, int beginTileY) {
+        double mapSize = TILE_SIZE * Math.pow(2, Constants.ZOOM);
+        double worldX = (x + beginTileX * (double) TILE_SIZE) / mapSize;
+        double worldY = (Constants.MAP_HEIGHT - y + beginTileY * (double) TILE_SIZE) / mapSize;
+        double lat = Math.toDegrees(Math.atan(Math.sinh(Math.PI * (1 - 2 * worldY))));
+        return new Geolocation(lat, worldX * 360 - 180);
     }
 
     public static double[] project(double lat, double lng, int tileSize) {

@@ -10,6 +10,8 @@
 | Click a cluster | Zoom in on it |
 | Click a line | Show only that line; click again to show all |
 | Ctrl+F, then Enter / Esc | Search, open the first result / clear |
+| Right-click the map | Plan a journey to there |
+| J | Plan a journey |
 | F | Add the open stop to the favorites, or remove it |
 | T | Choose the time |
 | D | Switch between light and dark |
@@ -27,6 +29,9 @@ MBusTracker (Game)
 │   └── TimetableFiles       Chooses between the bundled and a downloaded timetable
 └── RasterMapScreen          The app itself
     ├── TimetableUpdater     Looks for a newer timetable
+    ├── JourneySearch        Runs the journey planner in the background
+    │   ├── JourneyPlanner   RAPTOR over a period of departures
+    │   └── Places           Stops by name, and points of the map
     ├── MapRenderer
     │   ├── MapTileLayer     Overview plus streamed tiles
     │   ├── LineLayer        Draws the lines with a shader
@@ -39,11 +44,16 @@ MBusTracker (Game)
     │   ├── Sidebar          Search, lines and stops
     │   ├── StopPanel        Departures from one stop
     │   ├── TripPanel        All stops of one trip
+    │   ├── JourneyPanel     Start, destination, journeys and their steps
     │   ├── TimeBar          Day and time to show
     │   └── Theme, Palette   Fonts, shapes, icons and colors
     ├── CameraController, MapGestureListener
     └── AppClock, Settings, Texts
 ```
+
+## Journey planner
+
+Walking times are estimates: the straight line, 30% longer, at 4.5 km/h. Stops up to 1 km from the start and the destination are used, and changes between stops up to 400 m apart. Changing takes at least a minute. A journey is left out if it is slower than walking, changes to save three minutes or less, or leaves a moment later only to arrive much later.
 
 ## Commands
 

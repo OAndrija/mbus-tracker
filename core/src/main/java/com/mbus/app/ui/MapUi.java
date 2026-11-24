@@ -16,6 +16,8 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.Timetable;
 import com.mbus.app.model.Trip;
+import com.mbus.app.systems.journey.JourneyState;
+import com.mbus.app.systems.journey.Places;
 import com.mbus.app.ui.theme.Icon;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
@@ -58,6 +60,7 @@ public class MapUi implements Disposable {
     private final Sidebar sidebar;
     private final StopPanel stopPanel;
     private final TripPanel tripPanel;
+    private final JourneyPanel journeyPanel;
     private final TimeBar timeBar;
     private final MapTooltip tooltip;
     private final Card zoomControls;
@@ -72,13 +75,16 @@ public class MapUi implements Disposable {
     private Cursor.SystemCursor cursor = Cursor.SystemCursor.Arrow;
 
     public MapUi(Theme theme, Timetable timetable, AppClock clock, Settings settings, Sidebar.Listener sidebarListener,
-                 StopPanel.Listener stopListener, TripPanel.Listener tripListener, final MapActions actions) {
+                 StopPanel.Listener stopListener, TripPanel.Listener tripListener,
+                 Places places, JourneyState journeyState, JourneyPanel.Listener journeyListener,
+                 final MapActions actions) {
         this.clock = clock;
         viewport.setUnitsPerPixel(1f / Display.getWindowScale());
         stage = new Stage(viewport);
         sidebar = new Sidebar(theme, timetable, clock, settings, sidebarListener);
         stopPanel = new StopPanel(theme, timetable, clock, settings, stopListener);
         tripPanel = new TripPanel(theme, clock, tripListener);
+        journeyPanel = new JourneyPanel(theme, places, journeyState, clock, settings, journeyListener);
         timeBar = new TimeBar(theme, timetable, clock, actions::toggleTimeBar);
         tooltip = new MapTooltip(theme);
 
@@ -134,6 +140,7 @@ public class MapUi implements Disposable {
         stage.addActor(sidebar.getActor());
         stage.addActor(stopPanel.getActor());
         stage.addActor(tripPanel.getActor());
+        stage.addActor(journeyPanel.getActor());
         stage.addActor(tooltip.getActor());
         layout();
     }
@@ -158,6 +165,19 @@ public class MapUi implements Disposable {
         return tripPanel;
     }
 
+    public JourneyPanel getJourneyPanel() {
+        return journeyPanel;
+    }
+
+    /** True while the keyboard is used for a text field. */
+    public boolean isTyping() {
+        return stage.getKeyboardFocus() instanceof TextField;
+    }
+
+    public void stopTyping() {
+        stage.setKeyboardFocus(null);
+    }
+
     public TimeBar getTimeBar() {
         return timeBar;
     }
@@ -180,6 +200,7 @@ public class MapUi implements Disposable {
         float panelWidth = compact ? sidebarWidth : STOP_PANEL_WIDTH;
         stopPanel.layout(panelX, height - MARGIN, panelWidth, panelHeight);
         tripPanel.layout(panelX, height - MARGIN, panelWidth, panelHeight);
+        journeyPanel.layout(panelX, height - MARGIN, panelWidth, panelHeight);
 
         attribution.pack();
         attribution.setPosition(Math.round(width - attribution.getWidth()), 0);
@@ -219,7 +240,7 @@ public class MapUi implements Disposable {
         boolean compact = stage.getWidth() < COMPACT_WIDTH;
         if (compact) return 0f;
         float covered = MARGIN + SIDEBAR_WIDTH;
-        return stopPanel.isOpen() || tripPanel.isOpen() ? covered + GAP + STOP_PANEL_WIDTH : covered;
+        return stopPanel.isOpen() || tripPanel.isOpen() || journeyPanel.isOpen() ? covered + GAP + STOP_PANEL_WIDTH : covered;
     }
 
     public boolean isOver(int screenX, int screenY) {
@@ -232,7 +253,7 @@ public class MapUi implements Disposable {
     }
 
     /** Updates everything that depends on the pointer. */
-    public void updatePointer(Trip hoveredTrip, String hoveredStop, BusLine hoveredLine, boolean overCluster) {
+    public void updatePointer(Trip hoveredTrip, String hoveredStop, BusLine hoveredLine, boolean overCluster, boolean choosingPlace) {
         int x = Gdx.input.getX();
         int y = Gdx.input.getY();
 
@@ -244,11 +265,13 @@ public class MapUi implements Disposable {
         if (hoveredTrip != null || hoveredStop != null || hoveredLine != null || overCluster) {
             wanted = Cursor.SystemCursor.Hand;
         }
+        if (choosingPlace) wanted = Cursor.SystemCursor.Crosshair;
         for (Actor actor = actorAt(x, y); actor != null; actor = actor.getParent()) {
             if (actor instanceof TextField) {
                 wanted = Cursor.SystemCursor.Ibeam;
                 break;
             }
+            if (wanted == Cursor.SystemCursor.Crosshair) wanted = Cursor.SystemCursor.Arrow; // only on the map
             if (actor instanceof Button || actor instanceof StopListView) {
                 wanted = Cursor.SystemCursor.Hand;
                 break;
@@ -264,6 +287,7 @@ public class MapUi implements Disposable {
         sidebar.update();
         stopPanel.update();
         tripPanel.update();
+        journeyPanel.update();
         if (timeBar.isOpen()) {
             timeBar.update();
             layoutTimeBar();

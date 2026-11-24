@@ -4,6 +4,8 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 
+import java.util.Arrays;
+
 /** A route as it is drawn: next to the other lines on the same street instead of on top of them. */
 public class Strand {
 
@@ -64,5 +66,34 @@ public class Strand {
         float highX = shiftX[high] + drawnX(high, style) - x[high];
         float highY = shiftY[high] + drawnY(high, style) - y[high];
         return out.set(lowX + (highX - lowX) * t, lowY + (highY - lowY) * t);
+    }
+
+    /** The part between two distances along the original route. */
+    Strand slice(double from, double to) {
+        int first = 0;
+        while (first + 1 < size() && along[first + 1] <= from) first++;
+        int last = size() - 1;
+        while (last > first && along[last - 1] >= to) last--;
+        if (last == first) last = Math.min(size() - 1, first + 1);
+        if (last == first) first = Math.max(0, last - 1);
+
+        int n = last - first + 1;
+        float[][] source = {x, y, normalX, normalY, lane, laneCount, shiftX, shiftY};
+        float[][] part = new float[source.length][];
+        for (int k = 0; k < source.length; k++) {
+            part[k] = Arrays.copyOfRange(source[k], first, last + 1);
+            part[k][0] = interpolate(source[k], first, from);
+            part[k][n - 1] = interpolate(source[k], last - 1, to);
+        }
+        double[] partAlong = Arrays.copyOfRange(along, first, last + 1);
+        partAlong[0] = Math.max(partAlong[0], from);
+        partAlong[n - 1] = Math.min(partAlong[n - 1], to);
+        return new Strand(part[0], part[1], part[2], part[3], part[4], part[5], partAlong, part[6], part[7]);
+    }
+
+    private float interpolate(float[] values, int index, double distance) {
+        double length = along[index + 1] - along[index];
+        float t = length <= 0 ? 0 : MathUtils.clamp((float) ((distance - along[index]) / length), 0f, 1f);
+        return values[index] + (values[index + 1] - values[index]) * t;
     }
 }

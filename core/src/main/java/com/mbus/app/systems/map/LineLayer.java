@@ -76,6 +76,8 @@ public class LineLayer implements Disposable {
     private final Map<BusLine, Mesh> meshes = new HashMap<>();
     private RoutePattern singlePattern;
     private Mesh singleMesh;
+    private List<Section> sections = Collections.emptyList();
+    private final List<Mesh> sectionMeshes = new ArrayList<>();
     private int requests = 0;
     private boolean disposed = false;
 
@@ -132,6 +134,7 @@ public class LineLayer implements Disposable {
             meshes.put(entry.getKey(), createMesh(entry.getValue()));
         }
         clearSingle();
+        clearSections(); // made anew in their new lanes
     }
 
     private static Mesh createMesh(List<Strand> strands) {
@@ -219,6 +222,38 @@ public class LineLayer implements Disposable {
         mesh.render(shader, GL20.GL_TRIANGLES);
     }
 
+    /** A part of a route, between two distances along it. */
+    public static final class Section {
+        final RoutePattern pattern;
+        final double from, to;
+
+        public Section(RoutePattern pattern, double from, double to) {
+            this.pattern = pattern;
+            this.from = from;
+            this.to = to;
+        }
+    }
+
+    public void setSections(List<Section> newSections) {
+        clearSections();
+        sections = newSections;
+    }
+
+    /** Draws one of the sections, even if its line is not shown. */
+    public void drawSection(int index, Color color, float extraWidth) {
+        while (sectionMeshes.size() <= index) {
+            Section section = sections.get(sectionMeshes.size());
+            sectionMeshes.add(createMesh(Collections.singletonList(
+                getStrandOrRoute(section.pattern).slice(section.from, section.to))));
+        }
+        draw(sectionMeshes.get(index), color, extraWidth);
+    }
+
+    private void clearSections() {
+        for (Mesh mesh : sectionMeshes) mesh.dispose();
+        sectionMeshes.clear();
+    }
+
     /** How a route is drawn, or null if its line is not shown. */
     public Strand getStrand(RoutePattern pattern) {
         return strands.get(pattern);
@@ -273,6 +308,7 @@ public class LineLayer implements Disposable {
         disposed = true;
         executor.shutdownNow();
         clearSingle();
+        clearSections();
         for (Mesh mesh : meshes.values()) mesh.dispose();
         meshes.clear();
         shader.dispose();

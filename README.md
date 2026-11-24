@@ -15,27 +15,29 @@
 
 - **See** every bus move along its route, speeding up, braking at stops and turning with the road
 - **Find** a stop by name, number or line, and see its next departures
+- **Plan** a journey between any two stops or points of the map, with changes and walks
 - **Follow** a bus and all its upcoming stops
 - **Travel in time** to any minute the timetable covers, at up to 60× speed
 - Favorites, dark mode, English and Slovene, works offline
 
 Positions come from the timetable; they are not live.
 
-| Overview | Trip | Dark mode |
+| Overview | Journey planner | Dark mode |
 |---|---|---|
-| ![Overview](docs/images/overview.png) | ![Trip](docs/images/trip.png) | ![Dark mode](docs/images/dark.png) |
+| ![Overview](docs/images/overview.png) | ![Journey planner](docs/images/journey.png) | ![Dark mode](docs/images/dark.png) |
 
 ## Engineering highlights
 
 | Problem | Solution | Result |
 |---|---|---|
 | Up to 11 lines share one street and hide each other | Match routes by distance and direction, give each line a lane, draw them in a shader ([`LineLayout`](core/src/main/java/com/mbus/app/systems/map/LineLayout.java), [`LineLayer`](core/src/main/java/com/mbus/app/systems/map/LineLayer.java)) | All lines visible; CPU per frame 2.6 → 0.9 ms |
+| Find the best connections, not just one | RAPTOR, repeated for every useful departure, with walks and changes ([`JourneyPlanner`](core/src/main/java/com/mbus/app/systems/journey/JourneyPlanner.java)) | About 3 ms per search; same best arrivals as a naive search in 250 random queries |
 | Buses stuttered and spun | Distance along the route with easing; front and rear both follow the road ([`PatternMotion`](core/src/main/java/com/mbus/app/systems/map/PatternMotion.java), [`RouteTrack`](core/src/main/java/com/mbus/app/systems/map/RouteTrack.java)) | Frames without movement while driving 90% → 0.2% |
 | 841 map tiles filled the memory | One small overview plus streamed, cached tiles for the visible area ([`MapTileLayer`](core/src/main/java/com/mbus/app/systems/map/MapTileLayer.java)) | Memory 1.1 → 0.4 GB |
 | The timetable expires | Background updates that are validated before use, and a stand-in week ([`TimetableUpdater`](core/src/main/java/com/mbus/app/systems/data/TimetableUpdater.java)) | Keeps working after the last day |
 | Blurry, stock-looking interface | Fonts, shapes and icons rendered at startup for the screen's density ([`Theme`](core/src/main/java/com/mbus/app/ui/theme/Theme.java)) | No image assets in the interface |
 
-64 tests run on Linux, Windows and macOS with every push. They follow a bus of every route frame by frame and check the real timetable.
+74 tests run on Linux, Windows and macOS with every push. They follow a bus of every route frame by frame, check the real timetable, and compare the journey planner with an independent algorithm.
 
 ## Run it
 

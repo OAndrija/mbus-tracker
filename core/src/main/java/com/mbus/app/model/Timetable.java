@@ -8,7 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** All stops, lines and trips. */
+/** All stops, lines and trips. May be used from any thread. */
 public class Timetable {
 
     private final List<BusStop> stops;
@@ -59,7 +59,7 @@ public class Timetable {
      * expired: then it is the busiest of the last days with the same weekday, so that the app goes on
      * with a normal week instead of a holiday or nothing at all.
      */
-    LocalDate getServiceDate(LocalDate date) {
+    synchronized LocalDate getServiceDate(LocalDate date) {
         return isExpired(date) ? standIns.computeIfAbsent(date, this::findStandIn) : date;
     }
 
@@ -92,7 +92,7 @@ public class Timetable {
     }
 
     /** The trips of one day, ordered by start. */
-    public List<Trip> getTrips(LocalDate date) {
+    public synchronized List<Trip> getTrips(LocalDate date) {
         return tripsByDate.computeIfAbsent(date, this::collectTrips);
     }
 

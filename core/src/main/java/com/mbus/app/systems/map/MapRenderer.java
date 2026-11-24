@@ -16,6 +16,8 @@ import com.badlogic.gdx.utils.Align;
 import com.mbus.app.model.BusLine;
 import com.mbus.app.model.BusStop;
 import com.mbus.app.model.Trip;
+import com.mbus.app.systems.journey.Journey;
+import com.mbus.app.systems.journey.Place;
 import com.mbus.app.ui.theme.Palette;
 import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.Constants;
@@ -56,6 +58,10 @@ public class MapRenderer {
     private BusLine hoveredLine = null;
     private BusLine selectedLine = null;
     private Trip selectedTrip = null;
+    private Journey journey = null;
+    private final List<Journey.Leg> journeyRides = new ArrayList<>();
+    private Place origin = null, destination = null;
+    private final Vector2 point = new Vector2();
 
     private float pulseTime = 0f;
 
@@ -67,8 +73,13 @@ public class MapRenderer {
     private static final float LINE_CASING = 2f;
     private static final float FADE = 0.6f;
     private static final float HOVERED_LINE_EXTRA = 2f;
+    private static final float JOURNEY_EXTRA = 3.5f;
     private static final float STOP_HIT_SLOP = 2f;
     private static final float LINE_EDGE = 1f;
+    private static final float JOURNEY_STOP_SIZE = 13f;
+    private static final float JOURNEY_END_SIZE = 30f;
+    private static final float WALK_DOT_SIZE = 5f;
+    private static final float WALK_DOT_GAP = 10f;
     private static final float LINE_HIT_DISTANCE = 6f;
 
     /** At camera zoom 1 in a window 1600 logical pixels wide and 900 high. */
@@ -79,6 +90,7 @@ public class MapRenderer {
 
     private Set<BusLine> visibleLines = Collections.emptySet();
     private List<Trip> trips = Collections.emptyList();
+    private List<Trip> tripsWithBuses = Collections.emptyList();
     private final BusRenderer busRenderer;
     private double currentTimeMinutes = 0;
 
@@ -148,6 +160,30 @@ public class MapRenderer {
         busRenderer.setHighlighted(showBus ? trip : null);
     }
 
+    /** Shows only this journey and its buses, or everything again if it is null. */
+    public void setJourney(Journey newJourney) {
+        if (journey == newJourney) return;
+        journey = newJourney;
+        journeyRides.clear();
+        List<LineLayer.Section> sections = new ArrayList<>();
+        if (journey != null) {
+            for (Journey.Leg leg : journey.getLegs()) {
+                if (!leg.isRide()) continue;
+                PatternMotion motion = busRenderer.motionOf(leg.trip.pattern);
+                journeyRides.add(leg);
+                sections.add(new LineLayer.Section(leg.trip.pattern,
+                    motion.getStopDistance(leg.boardIndex), motion.getStopDistance(leg.alightIndex)));
+            }
+        }
+        lineLayer.setSections(sections);
+    }
+
+    /** Marks the start and the destination of a journey. Both may be null. */
+    public void setJourneyEnds(Place origin, Place destination) {
+        this.origin = origin;
+        this.destination = destination;
+    }
+
     public void setHoveredTrip(Trip trip) {
         busRenderer.setHovered(trip);
     }
@@ -194,15 +230,17 @@ public class MapRenderer {
         }
 
         pulseTime += delta;
-        if (showMarkers) {
+        if (showMarkers && journey == null) {
             renderMarkers(delta);
         } else {
             clusters = Collections.emptyList();
         }
 
+        renderJourneyPoints();
+
         updateLinesWithBuses();
         spriteBatch.setProjectionMatrix(camera.combined);
-        busRenderer.render(trips, linesWithBuses, currentTimeMinutes, view,
+        busRenderer.render(tripsWithBuses, linesWithBuses, currentTimeMinutes, view,
             getComparableZoom(), getWorldPerPixel(), getCloseness(), delta);
     }
 
@@ -240,12 +278,67 @@ public class MapRenderer {
             if (selectedLine != null && line != selectedLine) continue;
             linesWithBuses.add(line);
         }
+        tripsWithBuses = trips;
+        if (journey != null && selectedTrip == null) {
+            // Only the buses of the journey, and only on its day
+            tripsWithBuses = new ArrayList<>();
+            for (Journey.Leg leg : journeyRides) {
+                if (!trips.contains(leg.trip)) continue;
+                tripsWithBuses.add(leg.trip);
+                linesWithBuses.add(leg.trip.pattern.line);
+            }
+            Collections.sort(tripsWithBuses, (a, b) -> Integer.compare(a.getStart(), b.getStart()));
+        }
+    }
+
+    /** Walks as dots, stops where one gets on or off, and both ends. */
+    private void renderJourneyPoints() {
+        if (journey == null && origin == null && destination == null) return;
+
+        float pixel = getWorldPerPixel();
+        spriteBatch.setProjectionMatrix(camera.combined);
+        spriteBatch.begin();
+        if (journey != null) {
+            for (Journey.Leg leg : journey.getLegs()) {
+                if (!leg.isRide()) renderWalk(leg, pixel);
+            }
+            spriteBatch.setColor(Color.WHITE);
+            for (Journey.Leg leg : journeyRides) {
+                point.set(geometry.getStop(leg.fromStop));
+                drawCentered(theme.clusterMarker, point, JOURNEY_STOP_SIZE * pixel);
+                point.set(geometry.getStop(leg.toStop));
+                drawCentered(theme.clusterMarker, point, JOURNEY_STOP_SIZE * pixel);
+            }
+        }
+        spriteBatch.setColor(Color.WHITE);
+        if (origin != null) drawCentered(theme.originMarker, geometry.project(origin.geo), JOURNEY_END_SIZE * 0.8f * pixel);
+        if (destination != null) drawCentered(theme.destinationMarker, geometry.project(destination.geo), JOURNEY_END_SIZE * pixel);
+        spriteBatch.end();
+    }
+
+    private void renderWalk(Journey.Leg leg, float pixel) {
+        Vector2 from = geometry.project(leg.from);
+        Vector2 to = geometry.project(leg.to);
+        int dots = Math.max(1, Math.round(from.dst(to) / (WALK_DOT_GAP * pixel)));
+        for (int pass = 0; pass < 2; pass++) { // an edge around all dots first
+            spriteBatch.setColor(pass == 0 ? Palette.SURFACE : Palette.TEXT);
+            float size = (WALK_DOT_SIZE + (pass == 0 ? 3f : 0f)) * pixel / Theme.HALO_SCALE;
+            for (int i = 0; i <= dots; i++) {
+                point.set(from).lerp(to, i / (float) dots);
+                spriteBatch.draw(theme.halo, point.x - size / 2f, point.y - size / 2f, size, size);
+            }
+        }
+    }
+
+    private void drawCentered(Texture texture, Vector2 position, float diameter) {
+        float size = diameter / Theme.MARKER_DISC;
+        spriteBatch.draw(texture, position.x - size / 2f, position.y - size / 2f, size, size);
     }
 
     private void renderBusLines() {
-        if (visibleLines.isEmpty() && selectedTrip == null) return;
+        if (visibleLines.isEmpty() && selectedTrip == null && journey == null) return;
 
-        boolean fade = selectedTrip != null || (hoveredLine != null && visibleLines.contains(hoveredLine));
+        boolean fade = selectedTrip != null || journey != null || (hoveredLine != null && visibleLines.contains(hoveredLine));
         lineLayer.begin(camera.combined, lineStyle);
 
         // Lines as light or dark as the map would be lost without an edge.
@@ -269,6 +362,14 @@ public class MapRenderer {
         }
         if (hoveredLine != null) {
             renderEmphasizedLine(hoveredLine);
+        }
+        if (selectedTrip == null) {
+            for (int i = 0; i < journeyRides.size(); i++) {
+                lineLayer.drawSection(i, Palette.SURFACE, JOURNEY_EXTRA + 2 * LINE_CASING);
+            }
+            for (int i = 0; i < journeyRides.size(); i++) {
+                lineLayer.drawSection(i, Palette.line(journeyRides.get(i).trip.pattern.line), JOURNEY_EXTRA);
+            }
         }
         if (selectedTrip != null) {
             lineLayer.draw(selectedTrip.pattern, Palette.SURFACE, HOVERED_LINE_EXTRA + 2 * LINE_CASING);

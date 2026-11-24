@@ -12,6 +12,7 @@ import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.BaseDrawable;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.NinePatchDrawable;
@@ -53,6 +54,8 @@ public class Theme implements Disposable {
     public final Texture stopMarkerHovered;
     public final Texture stopMarkerSelected;
     public final Texture clusterMarker;
+    public final Texture originMarker;
+    public final Texture destinationMarker;
 
     // Buses point to the right. The base is white with a shadow, the fill takes the line color.
     public final Texture busDiscBase;
@@ -101,6 +104,8 @@ public class Theme implements Disposable {
         stopMarker = marker(Palette.SURFACE, Palette.TEXT, 5f, Icon.BUS, Palette.TEXT);
         stopMarkerHovered = marker(Palette.SURFACE, Palette.BRAND, 8f, Icon.BUS, Palette.BRAND);
         stopMarkerSelected = marker(Palette.LOGO, Palette.ON_COLOR, 7f, Icon.BUS, Palette.ON_COLOR);
+        originMarker = marker(Palette.SURFACE, Palette.LOGO, 17f, null, null);
+        destinationMarker = marker(Palette.LOGO, Palette.ON_COLOR, 7f, Icon.PIN, Palette.ON_COLOR);
         clusterMarker = marker(Palette.SURFACE, Palette.TEXT, 6f, null, null);
 
         Shapes.Distance disc = Shapes.union(
@@ -362,6 +367,24 @@ public class Theme implements Disposable {
     }
 
     // Widget styles
+
+    /** With room for icons on both sides. */
+    public TextField.TextFieldStyle textField(float left, float right) {
+        TextField.TextFieldStyle style = new TextField.TextFieldStyle();
+        style.font = body;
+        style.fontColor = Palette.INK;
+        style.messageFont = body;
+        style.messageFontColor = Palette.MUTED;
+        style.background = roundRect(10, Palette.SUBTLE);
+        style.focusedBackground = roundRect(10, Palette.SURFACE, Palette.BRAND, 1.5f);
+        for (Drawable background : new Drawable[]{style.background, style.focusedBackground}) {
+            background.setLeftWidth(left);
+            background.setRightWidth(right);
+        }
+        style.cursor = fill(Palette.BRAND, 1.5f, 1);
+        style.selection = fill(Palette.SELECTION, 1, 1);
+        return style;
+    }
 
     public ScrollPane.ScrollPaneStyle scrollPane() {
         ScrollPane.ScrollPaneStyle style = new ScrollPane.ScrollPaneStyle();

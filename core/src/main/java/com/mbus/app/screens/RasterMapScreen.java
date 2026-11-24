@@ -8,7 +8,9 @@ import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.input.GestureDetector;
 import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.scenes.scene2d.ui.TooltipManager;
 import com.badlogic.gdx.utils.ScreenUtils;
 
@@ -20,10 +22,17 @@ import com.mbus.app.model.Trip;
 import com.mbus.app.utils.ZoomXY;
 import com.mbus.app.systems.data.TimetableUpdater;
 import com.mbus.app.systems.input.MapGestureListener;
+import com.mbus.app.systems.journey.Journey;
+import com.mbus.app.systems.journey.JourneyPlanner;
+import com.mbus.app.systems.journey.JourneySearch;
+import com.mbus.app.systems.journey.JourneyState;
+import com.mbus.app.systems.journey.Place;
+import com.mbus.app.systems.journey.Places;
 import com.mbus.app.systems.map.MapRenderer;
 import com.mbus.app.systems.map.MapTileLayer;
 import com.mbus.app.systems.map.MarkerCluster;
 import com.mbus.app.systems.map.WorldGeometry;
+import com.mbus.app.ui.JourneyPanel;
 import com.mbus.app.ui.MapUi;
 import com.mbus.app.ui.Sidebar;
 import com.mbus.app.ui.StopPanel;
@@ -33,6 +42,7 @@ import com.mbus.app.ui.theme.Theme;
 import com.mbus.app.utils.AppClock;
 import com.mbus.app.utils.Constants;
 import com.mbus.app.utils.Display;
+import com.mbus.app.utils.Geolocation;
 import com.mbus.app.utils.Settings;
 
 import java.time.LocalDate;
@@ -42,6 +52,8 @@ import java.util.Set;
 public class RasterMapScreen implements Screen {
 
     private static final float STOP_ZOOM = 0.08f;
+    /** How much more than the journey is shown. */
+    private static final float JOURNEY_MARGIN = 1.35f;
     private static final float FOLLOW_SMOOTHING = 5f;
     private static final float BUTTON_ZOOM_STEP = 1.5f;
 
@@ -65,6 +77,15 @@ public class RasterMapScreen implements Screen {
     private boolean following = false;
     private boolean updateAvailable = false;
 
+    private Places places;
+    private JourneySearch journeySearch;
+    private final JourneyState journeyState = new JourneyState();
+    /** True if the trip was opened from a journey and leads back to it. */
+    private boolean tripFromJourney = false;
+    private boolean showJourneyWhenFound = false;
+    /** The field a click on the map is for, remembered while the mouse button is down. */
+    private Boolean wantedPlace;
+
     private boolean animatingCamera = false;
     private float animationProgress = 0f;
     private final float animationDuration = 1.0f;
@@ -86,6 +107,9 @@ public class RasterMapScreen implements Screen {
         mapRenderer.setMap(new MapTileLayer(app.camera, beginTile, overview), geometry);
         mapRenderer.setStops(timetable.getStops());
         mapRenderer.setBusLines(timetable.getLines());
+
+        places = new Places(timetable);
+        journeySearch = new JourneySearch(new JourneyPlanner(timetable));
 
         Settings settings = app.getSettings();
         ui = createUi();
@@ -138,7 +162,7 @@ public class RasterMapScreen implements Screen {
 
     private MapUi createUi() {
         return new MapUi(app.getTheme(), timetable, clock, app.getSettings(), createSidebarListener(),
-            createStopListener(), createTripListener(), createMapActions());
+            createStopListener(), createTripListener(), places, journeyState, createJourneyListener(), createMapActions());
     }
 
     private void switchTheme() {
@@ -179,8 +203,9 @@ public class RasterMapScreen implements Screen {
             ui.getStopPanel().show(openStop);
         }
         if (selectedTrip != null) {
-            ui.getTripPanel().show(selectedTrip, selectedTripDate, tripStop != null, following);
+            ui.getTripPanel().show(selectedTrip, selectedTripDate, tripStop != null || tripFromJourney, following);
         }
+        if (oldUi.getJourneyPanel().isOpen()) ui.getJourneyPanel().show();
         if (timeBarOpen) ui.getTimeBar().show();
         if (updateAvailable) ui.getSidebar().showUpdateAvailable(this::reload);
         ui.layout();
@@ -222,12 +247,155 @@ public class RasterMapScreen implements Screen {
             }
 
             @Override
+            public void onJourneyWanted() {
+                toggleJourney();
+            }
+
+            @Override
             public void onFavoriteChanged(BusStop stop) {
                 if (ui.getStopPanel().isOpen() && ui.getStopPanel().getStop() == stop) {
                     ui.getStopPanel().show(stop);
                 }
             }
         };
+    }
+
+    private JourneyPanel.Listener createJourneyListener() {
+        return new JourneyPanel.Listener() {
+            @Override
+            public void onJourneyPanelClosed() {
+                closeJourney();
+            }
+
+            @Override
+            public void onJourneyChanged() {
+                searchJourneys();
+            }
+
+            @Override
+            public void onJourneySelected(Journey journey) {
+                journeyState.selected = journey;
+                // Not while the row that was clicked is still handling the click
+                Gdx.app.postRunnable(() -> ui.getJourneyPanel().refresh());
+                if (journey != null) flyToJourney(journey);
+            }
+
+            @Override
+            public void onRideChosen(Trip trip, LocalDate date) {
+                selectTrip(trip, date, null);
+                tripFromJourney = true;
+                ui.getTripPanel().show(trip, date, true, false);
+            }
+
+            @Override
+            public void onJourneyTimeClicked() {
+                if (!ui.getTimeBar().isOpen()) createMapActions().toggleTimeBar();
+            }
+        };
+    }
+
+    private void toggleJourney() {
+        if (ui.getJourneyPanel().isOpen()) closeJourney();
+        else {
+            showJourneyWhenFound = true;
+            openJourney();
+        }
+    }
+
+    private void openJourney() {
+        clearTrip();
+        mapRenderer.setSelectedStop(null);
+        ui.getSidebar().setSelectedStop(null);
+        ui.getStopPanel().close();
+        ui.getJourneyPanel().show();
+    }
+
+    private void openJourneyTo(Place place) {
+        journeyState.set(false, place);
+        if (journeyState.from == place) journeyState.set(true, null);
+        showJourneyWhenFound = true;
+        openJourney();
+    }
+
+    private void closeJourney() {
+        journeySearch.cancel();
+        ui.getJourneyPanel().close();
+        journeyState.set(true, null);
+        journeyState.set(false, null);
+    }
+
+    private void searchJourneys() {
+        if (!journeyState.isComplete()) {
+            journeySearch.cancel();
+            journeyState.searching = false;
+            return;
+        }
+        journeyState.searching = true;
+        if (journeyState.results.isEmpty()) showJourneyWhenFound = true;
+        journeySearch.search(journeyState.from, journeyState.to, journeyState.arriveBy,
+            clock.getDate(), clock.getMinute(), found -> {
+                journeyState.searching = false;
+                journeyState.results = found;
+                ui.getJourneyPanel().refresh();
+                if (showJourneyWhenFound && !found.isEmpty()) {
+                    showJourneyWhenFound = false;
+                    flyToJourney(found.get(0));
+                }
+            });
+    }
+
+    /** The journey to show on the map: the chosen one, the one pointed at, or the first. */
+    private Journey getShownJourney() {
+        boolean open = ui.getJourneyPanel().isOpen() || tripFromJourney;
+        if (!open || !journeyState.isComplete()) return null;
+        if (journeyState.selected != null) return journeyState.selected;
+        Journey hovered = ui.getJourneyPanel().getHoveredJourney();
+        if (hovered != null) return hovered;
+        return journeyState.results.isEmpty() ? null : journeyState.results.get(0);
+    }
+
+    private void updateJourney() {
+        mapRenderer.setJourney(getShownJourney());
+        boolean open = ui.getJourneyPanel().isOpen();
+        mapRenderer.setJourneyEnds(open ? journeyState.from : null, open ? journeyState.to : null);
+    }
+
+    private void flyToJourney(Journey journey) {
+        Rectangle bounds = null;
+        for (Journey.Leg leg : journey.getLegs()) {
+            for (Geolocation geo : new Geolocation[]{leg.from, leg.to}) {
+                Vector2 point = geometry.project(geo);
+                if (bounds == null) bounds = new Rectangle(point.x, point.y, 0, 0);
+                else bounds.merge(point);
+            }
+        }
+        float freeWidth = Math.max(200f, Gdx.graphics.getWidth() - ui.getCoveredWidth());
+        float worldPerPixel = JOURNEY_MARGIN * Math.max(bounds.width / freeWidth, bounds.height / Gdx.graphics.getHeight());
+        float zoom = worldPerPixel * Gdx.graphics.getWidth() / app.camera.viewportWidth;
+        flyTo(bounds.x + bounds.width / 2f, bounds.y + bounds.height / 2f, Math.max(STOP_ZOOM, zoom));
+    }
+
+    /** Uses a click on the map as the start or the destination of a journey, if one is wanted. */
+    private boolean onMapClicked(int x, int y, boolean rightButton) {
+        Boolean wanted = wantedPlace;
+        wantedPlace = null;
+        if (wanted == null && !rightButton) return false;
+
+        Place place;
+        BusStop stop = mapRenderer.findStop(x, y);
+        MarkerCluster cluster = mapRenderer.findCluster(x, y);
+        if (stop == null && cluster != null && cluster.getCommonName() != null) stop = cluster.getStops().get(0);
+        if (stop != null) {
+            place = places.of(stop);
+        } else {
+            Vector3 world = app.camera.unproject(new Vector3(x, y, 0));
+            place = places.of(geometry.unproject(world.x, world.y));
+        }
+
+        showJourneyWhenFound = true;
+        if (wanted != null) ui.getJourneyPanel().setPlace(wanted, place);
+        else openJourneyTo(place);
+        return true;
     }
 
     private StopPanel.Listener createStopListener() {
@@ -245,6 +413,11 @@ public class RasterMapScreen implements Screen {
             @Override
             public void onDepartureChosen(Trip trip, LocalDate date) {
                 selectTrip(trip, date, ui.getStopPanel().getStop());
+            }
+
+            @Override
+            public void onJourneyToStopWanted(BusStop stop) {
+                openJourneyTo(places.of(stop));
             }
         };
     }
@@ -319,6 +492,7 @@ public class RasterMapScreen implements Screen {
     /** Shows a stop's departures, or closes them when given null. */
     private void selectStop(BusStop stop) {
         clearTrip();
+        ui.getJourneyPanel().close();
         mapRenderer.setSelectedStop(stop);
         ui.getSidebar().setSelectedStop(stop);
         if (stop != null) {
@@ -334,11 +508,13 @@ public class RasterMapScreen implements Screen {
         selectedTrip = trip;
         selectedTripDate = date;
         tripStop = fromStop;
+        tripFromJourney = false;
         if (fromStop == null) {
             mapRenderer.setSelectedStop(null);
             ui.getSidebar().setSelectedStop(null);
         }
         ui.getStopPanel().close();
+        ui.getJourneyPanel().close();
         ui.getTripPanel().show(trip, date, fromStop != null, false);
         updateSelectedTrip();
     }
@@ -357,12 +533,14 @@ public class RasterMapScreen implements Screen {
         selectedTrip = null;
         selectedTripDate = null;
         tripStop = null;
+        tripFromJourney = false;
         mapRenderer.setSelectedTrip(null, false);
         ui.getTripPanel().close();
     }
 
     private void closeTrip() {
-        selectStop(tripStop);
+        if (tripFromJourney) openJourney();
+        else selectStop(tripStop);
     }
 
     private void setFollowing(boolean follow) {
@@ -411,6 +589,7 @@ public class RasterMapScreen implements Screen {
         followDisplayScaling();
         clock.update();
         updateSelectedTrip();
+        updateJourney();
         updateHoverState();
 
         if (animatingCamera) {
@@ -439,12 +618,13 @@ public class RasterMapScreen implements Screen {
         MarkerCluster cluster = null;
 
         boolean overUi = ui.isOver(x, y);
+        boolean choosingPlace = !overUi && ui.getJourneyPanel().getWantedField() != null;
         if (!animatingCamera && !overUi) {
-            trip = mapRenderer.findBus(x, y);
+            trip = choosingPlace ? null : mapRenderer.findBus(x, y);
             if (trip == null) cluster = mapRenderer.findCluster(x, y);
             if (trip == null && cluster == null) {
                 stop = mapRenderer.findStop(x, y);
-                if (stop == null) line = mapRenderer.findLine(x, y);
+                if (stop == null && !choosingPlace && getShownJourney() == null) line = mapRenderer.findLine(x, y);
             }
         }
         String stopName = stop != null ? stop.name : cluster != null ? cluster.getCommonName() : null;
@@ -453,7 +633,7 @@ public class RasterMapScreen implements Screen {
         mapRenderer.setHoveredStop(stop);
         mapRenderer.setHoveredCluster(cluster);
         mapRenderer.setHoveredLine(overUi ? ui.getSidebar().getHoveredLine() : line);
-        ui.updatePointer(trip, stopName, line, cluster != null);
+        ui.updatePointer(trip, stopName, line, cluster != null, choosingPlace);
     }
 
     private void updateCameraAnimation(float delta) {
@@ -485,7 +665,7 @@ public class RasterMapScreen implements Screen {
     }
 
     private void updateCamera(float delta) {
-        app.cameraController.setKeyboardEnabled(!ui.getSidebar().isTyping());
+        app.cameraController.setKeyboardEnabled(!ui.isTyping());
         app.cameraController.update(delta);
         clampCamera();
     }
@@ -546,7 +726,11 @@ public class RasterMapScreen implements Screen {
         });
 
         Runnable cancelAnimation = () -> animatingCamera = false;
-        gestures.setMapTouchListener(() -> ui.getSidebar().stopTyping());
+        gestures.setMapTouchListener(() -> {
+            wantedPlace = ui.getJourneyPanel().getWantedField();
+            ui.stopTyping();
+        });
+        gestures.setMapClickHandler(this::onMapClicked);
         gestures.setPanListener(() -> {
             cancelAnimation.run();
             app.cameraController.stopZooming();
@@ -577,16 +761,24 @@ public class RasterMapScreen implements Screen {
                     ui.getSidebar().startSearch();
                     return true;
                 }
-                if (control || ui.getSidebar().isTyping()) return false;
+                if (control || ui.isTyping()) return false;
 
                 switch (keycode) {
                     case Input.Keys.ESCAPE:
                         if (ui.getTripPanel().isOpen()) closeTrip();
+                        else if (ui.getJourneyPanel().isOpen() && journeyState.selected != null) {
+                            journeyState.selected = null;
+                            ui.getJourneyPanel().refresh();
+                        } else if (ui.getJourneyPanel().isOpen()) closeJourney();
                         else if (ui.getStopPanel().isOpen()) selectStop(null);
                         else if (ui.getTimeBar().isOpen()) createMapActions().toggleTimeBar();
                         return true;
                     case Input.Keys.F:
                         if (ui.getStopPanel().isOpen()) ui.getStopPanel().toggleFavorite();
+                        return true;
+                    case Input.Keys.J:
+                        // Later, as the letter would otherwise be typed into the field that opens
+                        Gdx.app.postRunnable(RasterMapScreen.this::toggleJourney);
                         return true;
                     case Input.Keys.T:
                         createMapActions().toggleTimeBar();
@@ -628,6 +820,7 @@ public class RasterMapScreen implements Screen {
     @Override
     public void dispose() {
         hide();
+        journeySearch.dispose();
         mapRenderer.dispose();
         ui.dispose();
     }

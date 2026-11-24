@@ -1,6 +1,7 @@
 package com.mbus.app.systems.input;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.input.GestureDetector;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -18,6 +19,7 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     private BusLineClickCallback lineClickCallback;
     private ClusterClickHandler clusterClickHandler;
     private BusClickHandler busClickHandler;
+    private MapClickHandler mapClickHandler;
     private Runnable mapTouchListener;
     private Runnable panListener;
 
@@ -50,6 +52,11 @@ public class MapGestureListener implements GestureDetector.GestureListener {
 
     public void setBusClickHandler(BusClickHandler handler) {
         this.busClickHandler = handler;
+    }
+
+    /** Asked before anything else that may be clicked. */
+    public void setMapClickHandler(MapClickHandler handler) {
+        this.mapClickHandler = handler;
     }
 
     public void setMapTouchListener(Runnable listener) {
@@ -116,6 +123,13 @@ public class MapGestureListener implements GestureDetector.GestureListener {
             return false;
         }
 
+        if (mapClickHandler != null && mapClickHandler.onMapClicked((int) x, (int) y, button == Input.Buttons.RIGHT)) {
+            return true;
+        }
+        if (button != Input.Buttons.LEFT) {
+            return false;
+        }
+
         if (busClickHandler != null && busClickHandler.onMapClicked((int) x, (int) y)) {
             return true;
         }
@@ -154,6 +168,11 @@ public class MapGestureListener implements GestureDetector.GestureListener {
     public interface LineFinder {
         /** Returns the line at a screen position, or null. */
         BusLine findLine(int screenX, int screenY);
+    }
+
+    public interface MapClickHandler {
+        /** Returns true if the click was used. */
+        boolean onMapClicked(int screenX, int screenY, boolean rightButton);
     }
 
     public interface BusClickHandler {

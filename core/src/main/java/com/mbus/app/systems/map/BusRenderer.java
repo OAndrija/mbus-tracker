@@ -170,7 +170,7 @@ public class BusRenderer {
         }
     }
 
-    private PatternMotion motionOf(RoutePattern pattern) {
+    PatternMotion motionOf(RoutePattern pattern) {
         PatternMotion motion = motions.get(pattern);
         if (motion == null) {
             WorldGeometry.Path path = geometry.getPattern(pattern);

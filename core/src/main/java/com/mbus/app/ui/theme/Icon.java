@@ -28,6 +28,20 @@ public enum Icon {
         outline(2, circle(12, 12, 6)), circle(12, 12, 2.2f),
         stroke(2, 12, 2.5f, 12, 5), stroke(2, 12, 19, 12, 21.5f),
         stroke(2, 2.5f, 12, 5, 12), stroke(2, 19, 12, 21.5f, 12))),
+    /** From one place to another. */
+    ROUTE(union(
+        outline(2, circle(6, 18, 2.6f)), outline(2, circle(18, 6, 2.6f)),
+        stroke(2, 8.6f, 18, 15, 18, 17, 17, 17.6f, 15, 17, 13, 15, 12, 9, 12, 7, 11, 6.4f, 9, 7, 7, 9, 6, 15.4f, 6))),
+    SWAP(union(
+        stroke(2, 8, 19, 8, 5), stroke(2, 4.5f, 8.5f, 8, 5, 11.5f, 8.5f),
+        stroke(2, 16, 5, 16, 19), stroke(2, 12.5f, 15.5f, 16, 19, 19.5f, 15.5f))),
+    ORIGIN(outline(3, circle(12, 12, 5.5f))),
+    PIN(subtract(
+        union(circle(12, 9.5f, 6.6f), polygon(0.4f, 6.4f, 12.6f, 17.6f, 12.6f, 12, 21.4f)), circle(12, 9.5f, 2.5f))),
+    WALK(union(
+        circle(13.2f, 4.2f, 2.1f), stroke(2.4f, 12.6f, 9, 11.4f, 14.2f),
+        stroke(2, 11.4f, 14.2f, 8.4f, 20.8f), stroke(2, 11.6f, 14.2f, 14.6f, 16.6f, 15.8f, 20.8f),
+        stroke(1.8f, 12.4f, 8.8f, 9.4f, 10.4f, 8.4f, 13.6f), stroke(1.8f, 12.8f, 9, 14.8f, 11.6f, 17.6f, 12.4f))),
     MOON(subtract(circle(11.5f, 12.5f, 8.5f), circle(16.5f, 8.5f, 7.2f))),
     SUN(union(circle(12, 12, 4.2f),
         stroke(2, 12, 2.6f, 12, 4.4f), stroke(2, 12, 19.6f, 12, 21.4f),

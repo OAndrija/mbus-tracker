@@ -42,7 +42,11 @@ public class WorldGeometry {
         }
     }
 
-    private Vector2 project(Geolocation geo) {
+    public Geolocation unproject(float x, float y) {
+        return MapRasterTiles.getGeolocation(x, y, beginTile.x, beginTile.y);
+    }
+
+    public Vector2 project(Geolocation geo) {
         return MapRasterTiles.getPixelPosition(geo.lat, geo.lng, beginTile.x, beginTile.y);
     }
 
